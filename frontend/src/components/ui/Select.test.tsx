@@ -18,7 +18,10 @@ describe("Select", () => {
     const select = screen.getByRole("combobox", { name: "Estado" });
 
     expect(select).toHaveAttribute("id", "customer-status");
-    expect(screen.getByRole("option", { name: "Alta" }).selected).toBe(true);
+    expect(
+      (screen.getByRole("option", { name: "Alta" }) as HTMLOptionElement)
+        .selected,
+    ).toBe(true);
     expect(
       screen.getByRole("option", { name: "Alta" }).getAttribute("value"),
     ).toBe("active");

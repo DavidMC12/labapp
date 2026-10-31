@@ -8,7 +8,7 @@ A small order-to-cash ERP (customers, orders, invoices, payments) built to be an
 
 ## Why
 
-Public demo apps for test automation often ship elements without reliable locators, which forces automation engineers into brittle selectors. LabApp is designed the other way around: testability is a contract (see [docs/TESTABILITY.md](docs/TESTABILITY.md)), enforced by types, lint rules and a CI audit.
+Public demo apps for test automation often ship elements without reliable locators, which forces automation engineers into brittle selectors. LabApp is designed the other way around: testability is a contract (see [docs/TESTABILITY.md](docs/TESTABILITY.md)), to be enforced by types, lint rules and a CI audit (planned for M1).
 
 ## What it does
 
@@ -20,7 +20,7 @@ Three core flows, polished before any new module is added:
 
 Roles: Admin, Sales, Finance and Read-only. The screen language is Spanish. Business rules live in [docs/SPEC.md](docs/SPEC.md).
 
-## Stack
+## Planned stack
 
 | Layer | Choice |
 |---|---|
@@ -42,7 +42,7 @@ Roles: Admin, Sales, Finance and Read-only. The screen language is Spanish. Busi
 
 ## Demo users
 
-The login screen of the demo shows the credentials of four seeded users, one per role: `admin@labapp.test`, `sales@labapp.test`, `finance@labapp.test` and `readonly@labapp.test`. The data is shared and is reset every night.
+From M1, the login screen of the online demo will show the credentials of four seeded users, one per role: `admin@labapp.test`, `sales@labapp.test`, `finance@labapp.test` and `readonly@labapp.test`. The data will be shared and reset every night.
 
 ## Repository layout
 
@@ -52,7 +52,7 @@ The login screen of the demo shows the credentials of four seeded users, one per
 | `frontend/` | Next.js application and its component tests (from M1) |
 | `tools/audit/` | Test-id and accessibility audits run in CI (from M1) |
 | `tests/` | Reserved for the owner's end-to-end and API automation suite |
-| `docs/` | Specification, architecture, testability contract, task briefs and review records |
+| `docs/` | Specification, architecture and testability contract; task briefs and review records are added as work starts |
 
 ## Getting started
 

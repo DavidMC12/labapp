@@ -7,7 +7,14 @@ from datetime import date
 
 import pytest
 
-from app.domain.payments import Card, luhn_valid, parse_card, validate_transfer_reference
+from app.domain.payments import (
+    Card,
+    GatewayDecision,
+    gateway_decision,
+    luhn_valid,
+    parse_card,
+    validate_transfer_reference,
+)
 from app.errors import ApiError
 
 TODAY = date(2026, 10, 31)
@@ -211,3 +218,35 @@ def test_transfer_reference_of_forty_one_characters_is_too_long() -> None:
             "message": "Debe tener como máximo 40 caracteres.",
         }
     ]
+
+
+@pytest.mark.parametrize(
+    ("method", "card_last4", "expected"),
+    [
+        ("card", "0002", GatewayDecision("declined", "CARD_DECLINED")),
+        ("card", "0003", GatewayDecision("unavailable", "GATEWAY_UNAVAILABLE")),
+        ("card", "4242", GatewayDecision("approved", None)),
+        ("card", "0001", GatewayDecision("approved", None)),
+        ("transfer", None, GatewayDecision("approved", None)),
+        ("cash", None, GatewayDecision("approved", None)),
+    ],
+)
+def test_gateway_decisions(method: str, card_last4: str | None, expected: GatewayDecision) -> None:
+    assert gateway_decision(method, card_last4) == expected
+
+
+def test_the_test_cards_map_to_their_gateway_outcomes() -> None:
+    cases = [
+        ("4242 4242 4242 4242", "approved", None),
+        ("4000 0000 0000 0002", "declined", "CARD_DECLINED"),
+        ("4000 0000 0009 0003", "unavailable", "GATEWAY_UNAVAILABLE"),
+    ]
+
+    for number, outcome, reason in cases:
+        card = parse_card(number, VALID_EXPIRY, VALID_CVC, TODAY)
+        assert gateway_decision("card", card.last4) == GatewayDecision(outcome, reason)
+
+
+def test_unknown_payment_method_raises() -> None:
+    with pytest.raises(ValueError):
+        gateway_decision("cheque")

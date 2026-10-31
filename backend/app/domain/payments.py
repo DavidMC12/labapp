@@ -29,6 +29,14 @@ class Card:
     last4: str
 
 
+@dataclass(frozen=True)
+class GatewayDecision:
+    """Outcome of the fake payment gateway."""
+
+    outcome: str
+    reason: str | None
+
+
 def _normalize_number(number: str) -> str:
     return number.replace(" ", "").replace("-", "")
 
@@ -128,3 +136,18 @@ def validate_transfer_reference(reference: str) -> None:
             "TOO_LONG",
             f"Debe tener como máximo {MAX_TRANSFER_REFERENCE_LENGTH} caracteres.",
         )
+
+
+def gateway_decision(method: str, card_last4: str | None = None) -> GatewayDecision:
+    """Return the fake gateway outcome for a payment method."""
+    if method == "card":
+        if card_last4 == "0002":
+            return GatewayDecision("declined", "CARD_DECLINED")
+        if card_last4 == "0003":
+            return GatewayDecision("unavailable", "GATEWAY_UNAVAILABLE")
+        return GatewayDecision("approved", None)
+
+    if method in ("transfer", "cash"):
+        return GatewayDecision("approved", None)
+
+    raise ValueError(f"unknown payment method: {method!r}")

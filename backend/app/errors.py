@@ -180,8 +180,19 @@ async def _handle_validation_error(request: Request, exc: RequestValidationError
     )
 
 
+async def _handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
+    logger.error("Unhandled exception on %s %s", request.method, request.url.path, exc_info=exc)
+    return problem_response(
+        get_request_id(request),
+        status=500,
+        code=INTERNAL_ERROR,
+        detail=ERROR_MESSAGES[INTERNAL_ERROR],
+    )
+
+
 def register_error_handlers(app: FastAPI) -> None:
     """Register the handlers that render every error as a problem document."""
     app.add_exception_handler(ApiError, _handle_api_error)
     app.add_exception_handler(StarletteHTTPException, _handle_http_exception)
     app.add_exception_handler(RequestValidationError, _handle_validation_error)
+    app.add_exception_handler(Exception, _handle_unexpected_error)

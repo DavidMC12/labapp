@@ -215,16 +215,19 @@ Labels used in messages:
 | Roles | Admin, Ventas, Finanzas, Solo lectura |
 
 Order of checks. A request is rejected by the first rule that fails:
-1. Session (401) and origin (403 `CSRF_ORIGIN_MISMATCH`).
-2. Permission (403 `FORBIDDEN`).
-3. Existence of the target (404 `NOT_FOUND`).
-4. A repeated `Idempotency-Key` with the same body replays the stored response and stops here.
-5. Body validation (422), including `IDEMPOTENCY_KEY_REQUIRED`.
-6. Stale `version` (409 `VERSION_CONFLICT`).
-7. Business rules, in this order for each operation:
+1. Rate limit (429) and body size (413).
+2. Malformed JSON (400 `MALFORMED_JSON`).
+3. Session (401) and origin (403 `CSRF_ORIGIN_MISMATCH`).
+4. Permission (403 `FORBIDDEN`).
+5. Existence of the target resource (404 `NOT_FOUND`).
+6. Idempotency: a repeated `Idempotency-Key` with the same body replays the stored response and stops here; the same key with a different body is `IDEMPOTENCY_KEY_REUSED`.
+7. Body validation (422), including `IDEMPOTENCY_KEY_REQUIRED`, a malformed `Idempotency-Key` and unknown references (`REFERENCE_NOT_FOUND`).
+8. Under the locks: a stale `version` (409 `VERSION_CONFLICT`), then the business rules of the operation, in this order:
+   - Create customer: `CUSTOMER_EMAIL_TAKEN`.
+   - Edit a draft order: `ORDER_NOT_EDITABLE`, `CUSTOMER_INACTIVE`, `ORDER_DUPLICATE_PRODUCT`, `ORDER_TOO_MANY_LINES`.
+   - Confirm, cancel or ship an order: `INVALID_TRANSITION`, then for confirm `CUSTOMER_INACTIVE`, `ORDER_EMPTY`, `INSUFFICIENT_STOCK`.
    - Create invoice: `INVOICE_ALREADY_EXISTS`, `ORDER_NOT_INVOICEABLE`, `CUSTOMER_TAX_ID_REQUIRED`.
-   - Register payment: `IDEMPOTENCY_KEY_REUSED`, `INVOICE_NOT_PAYABLE`, `PAYMENT_AMOUNT_MISMATCH`, then the gateway (`PAYMENT_DECLINED`, `PAYMENT_GATEWAY_UNAVAILABLE`).
-   - Confirm order: `INVALID_TRANSITION`, `CUSTOMER_INACTIVE`, `ORDER_EMPTY`, `INSUFFICIENT_STOCK`.
+   - Register payment: `INVOICE_NOT_PAYABLE`, `PAYMENT_AMOUNT_MISMATCH`, then the gateway (`PAYMENT_DECLINED`, `PAYMENT_GATEWAY_UNAVAILABLE`).
 
 ## 8. Formats and conventions
 

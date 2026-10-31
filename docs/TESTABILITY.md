@@ -6,16 +6,16 @@ LabApp exists to be easy and reliable to automate. These rules apply to every sc
 
 1. Semantic HTML first: real `button`, `a`, `label`, `table`, `form`, headings and landmarks.
 2. Every interactive element has an accessible name, so `getByRole` works.
-3. Every interactive element and every element a test needs to read has a `data-testid`.
+3. Every interactive element, every field error, every page heading and every value a test would assert on (status badges, totals, numbers, names in lists and details) has a `data-testid`.
 4. Naming: `<module>-<name>-<kind>` in kebab-case, with the numeric record id appended after the kind for list items.
    - `module` is one of `app`, `auth`, `customers`, `products`, `orders`, `invoices`, `payments`, `settings`.
-   - `name` is one or more kebab-case words describing the element (`form-email`, `confirm`, `list`).
+   - `name` is one or more kebab-case words describing the element (`form-email`, `confirm`, `list`). Each word starts with a letter, so a numeric record id can appear only as the final suffix after the kind: `customers-list-row-42` is valid, `customers-list-row-42-view-button` and `orders-line-7-quantity-input` are not (write `orders-line-quantity-input-7`).
    - `kind` is one of `button`, `input`, `select`, `textarea`, `checkbox`, `radio`, `switch`, `link`, `tab`, `menuitem`, `form`, `table`, `row`, `cell`, `list`, `item`, `dialog`, `alert`, `error`, `status`, `text`, `heading`.
    - Examples: `customers-form-email-input`, `customers-form-email-error`, `orders-confirm-button`, `customers-list-row-42`, `orders-total-text`.
    - The pattern checked by the lint rule, the types and the audit is:
 
 ```
-^(app|auth|customers|products|orders|invoices|payments|settings)(-[a-z0-9]+)+-(button|input|select|textarea|checkbox|radio|switch|link|tab|menuitem|form|table|row|cell|list|item|dialog|alert|error|status|text|heading)(-[0-9]+)?$
+^(app|auth|customers|products|orders|invoices|payments|settings)(-[a-z][a-z0-9]*)+-(button|input|select|textarea|checkbox|radio|switch|link|tab|menuitem|form|table|row|cell|list|item|dialog|alert|error|status|text|heading)(-[0-9]+)?$
 ```
 
 Playwright configuration for this attribute:
@@ -34,6 +34,21 @@ export default defineConfig({ use: { testIdAttribute: 'data-testid' } });
 | `data-hydrated="true"` | Set on `<body>` once the client has hydrated, so tests never click a server-only render. |
 
 Errors from the API are shown in an element with `role="alert"` and a `data-testid`, containing the Spanish message from the response. A field-level error uses kind `error` (`customers-form-email-error`); a form- or page-level API error uses kind `alert` (`customers-form-alert`).
+
+## Which kind to use
+
+| Element | Kind |
+|---|---|
+| `button`, `summary`, `[role=button]` | `button` |
+| `a[href]`, `[role=link]` | `link` |
+| `input` of type text, email, password, number, search, tel or url; `[role=textbox]`, `[role=spinbutton]`, `[role=slider]` | `input` |
+| `input[type=checkbox]` | `checkbox` |
+| `input[type=radio]` | `radio` |
+| `[role=switch]` | `switch` |
+| `select`, `[role=combobox]` | `select` |
+| `textarea` | `textarea` |
+| `[role=tab]`, `[role=menuitem]` | `tab`, `menuitem` |
+| `[role=option]`, list entries | `item` |
 
 ## What counts as interactive
 

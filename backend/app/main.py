@@ -24,6 +24,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="LabApp API")
     app.state.settings = settings
+
+    @app.get("/api/health")
+    async def health() -> dict[str, str]:
+        return {"status": "ok"}
+
     return app
 
 

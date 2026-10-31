@@ -8,7 +8,7 @@ An order-to-cash mini-ERP: customers, a read-only seeded product catalog, orders
 
 ## 2. Roles and permissions
 
-Four seeded users, one per role, all sharing one demo password that the login screen displays:
+Four seeded users, one per role, all sharing one demo password that the login screen displays. The API identifies the roles with the values `admin`, `sales`, `finance` and `readonly`.
 
 | Role | Seeded user |
 |---|---|
@@ -134,7 +134,7 @@ Payments:
 | Method | Required data |
 |---|---|
 | `card` | 16-digit number (spaces and hyphens are ignored) that passes the Luhn check (`CARD_NUMBER_INVALID`); an expiry in `MM/YY` format (`INVALID_FORMAT` on `card.expiry` if malformed) that is not in the past (`CARD_EXPIRED`; an expiry month is valid through its last day, using the application clock); a 3-digit CVC (`CARD_CVC_INVALID`). Only the last 4 digits are stored. |
-| `transfer` | Reference of 4 to 40 characters. |
+| `transfer` | Reference of 4 to 40 characters after trimming surrounding spaces. |
 | `cash` | None. |
 
 The payment gateway is fake and replaceable. For `card`: a number ending in `0002` is declined (`reason` `CARD_DECLINED`), a number ending in `0003` finds the gateway unavailable (`reason` `GATEWAY_UNAVAILABLE`), and every other valid card is approved. `transfer` and `cash` are always approved. Fault injection can also make the gateway unavailable for any method, so every outcome is reachable by a test.

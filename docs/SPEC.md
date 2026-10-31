@@ -231,7 +231,7 @@ Order of checks. A request is rejected by the first rule that fails:
 - **Money:** USD, stored as `NUMERIC(12,2)`, shown as `$1,234.50` (`Intl.NumberFormat('es-US', {style: 'currency', currency: 'USD'})`).
 - **Dates and times:** stored and shown in UTC, never converted to the viewer's time zone, because a conversion would change the date of an invoice depending on who looks at it. Dates look like `31/10/2026` and times like `02:30`, produced with `Intl.DateTimeFormat('es-US', {day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC'})` and `{hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'UTC'}`. Timestamps in the UI carry the suffix "UTC". Without the `2-digit` options, `es-US` does not zero-pad (`3/1/2026`).
 - **Errors:** RFC 9457 `application/problem+json` with `type`, `title`, `status`, `code` (stable), `detail` (Spanish) and, for validation, `errors[]` entries of `{field, code, message}`. Extension members such as `shortages`, `payment_id` and `reason` appear at the top level of the body. The UI shows the message in an element with `role="alert"`.
-- **Lists:** a fixed page size of 20 (the client cannot change it), ordered by creation time descending with the id as tiebreaker, returning `items`, `page`, `page_size` and `total`. Customers are searched by name or email and orders by number or customer name, with a case- and accent-insensitive "contains" match; both accept a `status` filter.
+- **Lists:** a fixed page size of 20 (the client cannot change it), ordered by `created_at` descending and then by `id` descending, returning `items`, `page`, `page_size` and `total`. Customers are searched by name or email and orders by number or customer name, with a case- and accent-insensitive "contains" match; both accept a `status` filter.
 - **Request tracing:** every response carries an `X-Request-Id` header.
 
 ## 9. Seed data
@@ -242,7 +242,11 @@ The exact data is in [SEED.md](SEED.md) and is part of the contract:
 - 15 products with SKU, name, price and stock, including one with low stock and one out of stock.
 - 7 orders, with their invoices and payments, covering every order state.
 
-Numbers continue after the seed (`PED-0008`, `FAC-0004`). A reset restores the data, the number sequences, the tax rate, the clock offset and clears every fault rule.
+Numbers continue after the seed (`PED-0008`, `FAC-0004`).
+
+`POST /__test__/seed` takes `{"dataset": "default" | "empty"}`: `default` is the data in SEED.md and `empty` keeps only the four users and the settings.
+
+A reset restores the data, the number sequences, the tax rate (to `DEFAULT_TAX_RATE`) and the clock offset, and clears every fault rule, the stored idempotency keys and the rate-limit counters. Sessions are kept: the four users keep their ids, so a stored authentication state keeps working after a reset.
 
 ## 10. Out of scope
 

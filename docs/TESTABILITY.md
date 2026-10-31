@@ -1,6 +1,6 @@
 # Testability contract
 
-LabApp exists to be easy and reliable to automate. These rules apply to every screen and are enforced, not suggested.
+LabApp exists to be easy and reliable to automate. These rules apply to every screen. They are a contract, not a suggestion; the enforcement described below is planned for M1 and is not in place yet.
 
 ## Locators
 
@@ -26,7 +26,7 @@ export default defineConfig({ use: { testIdAttribute: 'data-testid' } });
 
 Errors from the API are shown in an element with `role="alert"` and a `data-testid`, containing the Spanish message from the response.
 
-## Enforcement
+## Enforcement (planned for M1)
 
 - **Types:** shared UI components take a required `testId` prop; a missing one fails `tsc`.
 - **Lint:** an ESLint rule rejects interactive elements without `data-testid`.

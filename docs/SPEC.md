@@ -225,7 +225,10 @@ Order of checks. A request is rejected by the first rule that fails:
 
 ## 9. Seed data
 
-- The four users from section 2.
-- About 10 customers: some inactive, some without a `tax_id`, one with a long name.
-- About 15 products with SKU, name, price and stock, including one with low stock and one out of stock.
-- Orders, invoices and payments in every state, so each screen has data on first load.
+The exact data is in [SEED.md](SEED.md) and is part of the contract:
+- The four users from section 2, with one shared demo password.
+- 10 customers, including inactive ones, ones without a `tax_id` and one with a very long name.
+- 15 products with SKU, name, price and stock, including one with low stock and one out of stock.
+- 7 orders, with their invoices and payments, covering every order state.
+
+Numbers continue after the seed (`PED-0008`, `FAC-0004`). A reset restores the data, the number sequences, the tax rate, the clock offset and clears every fault rule.

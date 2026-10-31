@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
 import re
 
 from app.errors import ApiError
@@ -34,3 +37,24 @@ def validate_key(key: str | None) -> str:
         )
 
     return key
+
+
+def canonical_json(body: object) -> bytes:
+    """Serialize a body as compact UTF-8 JSON with sorted keys."""
+    return json.dumps(
+        body,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
+
+
+def fingerprint(secret: bytes, body: object) -> str:
+    """Return the hex HMAC-SHA-256 of the canonical JSON body."""
+    return hmac.new(secret, canonical_json(body), hashlib.sha256).hexdigest()
+
+
+def same_request(secret: bytes, stored_fingerprint: str, body: object) -> bool:
+    """Compare a stored fingerprint with the body in constant time."""
+    return hmac.compare_digest(fingerprint(secret, body), stored_fingerprint)

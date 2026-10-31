@@ -68,6 +68,18 @@ def test_login_sets_a_secure_cookie_for_an_https_origin(
     assert bool(_cookie(response)["secure"]) is True
 
 
+def test_logout_sets_a_secure_cookie_for_an_https_origin(
+    make_app: Any,
+) -> None:
+    app: FastAPI = make_app(app_origin="https://app.test")
+    client = TestClient(app)
+
+    response = client.post(LOGOUT)
+
+    assert response.status_code == 204
+    assert bool(_cookie(response)["secure"]) is True
+
+
 def test_me_with_a_session_returns_the_user(client: TestClient) -> None:
     _login(client)
 
@@ -141,6 +153,7 @@ def test_login_missing_password_is_required(client: TestClient) -> None:
 
     assert response.status_code == 422
     assert response.headers["content-type"] == "application/problem+json"
+    assert response.headers["x-request-id"]
     body = response.json()
     assert body["code"] == "VALIDATION_ERROR"
     assert body["detail"] == "Revisa los datos ingresados."

@@ -14,10 +14,10 @@ from app.modules.auth.models import User
 from app.modules.auth.seed import DEMO_PASSWORD
 
 ROLES = [
-    ("admin@labapp.test", 1, True),
-    ("sales@labapp.test", 2, False),
-    ("finance@labapp.test", 3, False),
-    ("readonly@labapp.test", 4, False),
+    ("admin@labapp.test", 1, "admin", True),
+    ("sales@labapp.test", 2, "sales", False),
+    ("finance@labapp.test", 3, "finance", False),
+    ("readonly@labapp.test", 4, "readonly", False),
 ]
 
 
@@ -40,13 +40,14 @@ def test_permission_dependency_for_every_role(
 ) -> None:
     app = _add_protected_routes(make_app())
 
-    for email, user_id, may_change_tax_rate in ROLES:
+    for email, user_id, role, may_change_tax_rate in ROLES:
         client = TestClient(app)
         login = client.post(
             "/api/auth/login",
             json={"email": email, "password": DEMO_PASSWORD},
         )
         assert login.status_code == 200
+        assert login.json()["role"] == role
 
         view = client.get("/api/test/view")
         assert view.status_code == 200

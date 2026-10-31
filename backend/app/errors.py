@@ -25,7 +25,7 @@ ERROR_MESSAGES: dict[str, str] = {
     NOT_FOUND: "No se encontró el recurso solicitado.",
     METHOD_NOT_ALLOWED: "Método no permitido para este recurso.",
     PAYLOAD_TOO_LARGE: "La solicitud es demasiado grande.",
-    VALIDATION_ERROR: "La solicitud contiene datos no válidos.",
+    VALIDATION_ERROR: "Revisa los datos ingresados.",
     INTERNAL_ERROR: "Ocurrió un error inesperado. Inténtalo de nuevo.",
 }
 

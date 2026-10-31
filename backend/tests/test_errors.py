@@ -118,7 +118,7 @@ def test_validation_error_lists_missing_fields(app: FastAPI) -> None:
         response,
         status=422,
         code="VALIDATION_ERROR",
-        detail="La solicitud contiene datos no válidos.",
+        detail="Revisa los datos ingresados.",
     )
     assert body["errors"] == [
         {
@@ -148,7 +148,7 @@ def test_validation_error_uses_nested_field_paths_and_invalid_format(app: FastAP
         response,
         status=422,
         code="VALIDATION_ERROR",
-        detail="La solicitud contiene datos no válidos.",
+        detail="Revisa los datos ingresados.",
     )
     assert body["errors"] == [
         {

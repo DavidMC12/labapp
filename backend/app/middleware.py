@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from uuid import uuid4
 
 from starlette.datastructures import Headers, MutableHeaders
@@ -15,6 +16,7 @@ from app.errors import (
 )
 
 MAX_BODY_BYTES = 100 * 1024
+REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
 
 class RequestIdMiddleware:
@@ -28,8 +30,10 @@ class RequestIdMiddleware:
             await self.app(scope, receive, send)
             return
 
-        request_id = Headers(scope=scope).get(REQUEST_ID_HEADER)
-        if not request_id:
+        incoming_request_id = Headers(scope=scope).get(REQUEST_ID_HEADER)
+        if incoming_request_id is not None and REQUEST_ID_PATTERN.fullmatch(incoming_request_id):
+            request_id = incoming_request_id
+        else:
             request_id = str(uuid4())
         scope.setdefault("state", {})["request_id"] = request_id
 

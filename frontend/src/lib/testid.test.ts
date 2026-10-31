@@ -15,7 +15,25 @@ describe("isValidTestId", () => {
     expect(isValidTestId("auth-sign-in-link")).toBe(true);
     expect(isValidTestId("products-list-row-7")).toBe(true);
     expect(isValidTestId("payments-form-total-input")).toBe(true);
-    expect(isValidTestId("invoices-3-alert")).toBe(true);
+    expect(isValidTestId("orders-line-quantity-input-7")).toBe(true);
+    expect(isValidTestId("customers-list-row-42")).toBe(true);
+  });
+
+  it("rejects a bare numeric name segment before the kind", () => {
+    expect(isValidTestId("invoices-3-alert")).toBe(false);
+    expect(isValidTestId("orders-line-7-quantity-input")).toBe(false);
+  });
+
+  it("rejects ids that carry more than one suffix", () => {
+    expect(isValidTestId("customers-list-row-42-view-button")).toBe(false);
+  });
+
+  it("rejects an id ending in -input-x", () => {
+    expect(isValidTestId("customers-form-email-input-x")).toBe(false);
+  });
+
+  it("rejects a trailing dash", () => {
+    expect(isValidTestId("orders-total-text-")).toBe(false);
   });
 
   it("rejects an unknown module", () => {

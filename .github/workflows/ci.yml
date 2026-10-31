@@ -21,9 +21,9 @@ jobs:
         working-directory: backend
 
     steps:
-      - uses: actions/checkout@v4 # pinned later in this task
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: jdx/mise-action@v5
+      - uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
 
       - name: Install Python 3.14
         run: uv python install 3.14
@@ -48,9 +48,9 @@ jobs:
         working-directory: frontend
 
     steps:
-      - uses: actions/checkout@v4 # pinned later in this task
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: jdx/mise-action@v5
+      - uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

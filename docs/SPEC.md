@@ -235,3 +235,7 @@ The exact data is in [SEED.md](SEED.md) and is part of the contract:
 - 7 orders, with their invoices and payments, covering every order state.
 
 Numbers continue after the seed (`PED-0008`, `FAC-0004`). A reset restores the data, the number sequences, the tax rate, the clock offset and clears every fault rule.
+
+## 10. Out of scope
+
+These are decisions, not omissions: refunds, partial payments, discounts, multiple currencies, product management screens (the catalog comes from the seed), user management, password reset, real payment gateways and real email delivery. The only email the system sends is the invoice notice in section 6.

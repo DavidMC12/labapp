@@ -34,11 +34,26 @@ Next.js (web)  --/api rewrite-->  FastAPI (API)  -->  PostgreSQL
 | `POST /__test__/clock` | Set or advance the application clock. |
 | `POST /__test__/faults` | Inject latency or errors on a given route. |
 
-They are mounted only when `TEST_MODE=1` (local default). Online they stay off unless the request carries a valid `X-Test-Token`; otherwise they answer 404. The clock offset and the fault rules are stored in the database, so they survive restarts.
+They are always registered under `/__test__` at the root of the API (not under `/api`) and guarded like this:
+
+| `TEST_MODE` | `X-Test-Token` header | Result |
+|---|---|---|
+| `1` | any | Allowed. |
+| `0` | equals a non-empty `TEST_TOKEN` | Allowed. |
+| `0` | missing or different | 404, as if the route did not exist. |
+| `0` with an empty `TEST_TOKEN` | any | 404. |
+
+Docker Compose sets `TEST_MODE=1` for local development; every public deployment keeps it at 0. The web app proxies only `/api/*`, so online the controls are reachable only by calling the API host directly with the token. A valid token also exempts the request from rate limiting. The clock offset and the fault rules are stored in the database, so they survive restarts. A reset restores the data, the number sequences, the tax rate and the clock offset, and clears every fault rule (see [SEED.md](SEED.md)).
 
 ## Sessions and security
 
-HTTP-only session cookie, same origin (the web app proxies `/api` to the API), argon2 password hashes, permissions checked on the server, request rate limiting and body size limits on the public demo. Secrets only in environment variables.
+HTTP-only session cookie with SameSite=Lax, same origin (the web app proxies `/api` to the API), an `Origin` check on state-changing requests, argon2 password hashes, permissions checked on the server, request rate limiting and body size limits on the public demo (details in [SPEC.md](SPEC.md) section 3). Secrets only in environment variables.
+
+## Operational rules
+
+- **Health and warm-up:** `GET /api/health` answers 200 `{"status": "ok"}` without authentication. It doubles as the warm-up request for a sleeping Render instance, which can take about a minute to wake.
+- **Startup guard:** the API refuses to start when `SESSION_SECRET` is empty or `change-me`, unless `TEST_MODE=1`.
+- **PostgreSQL version:** pin the same major version in Docker Compose and on Neon when Compose is added in M1.
 
 ## Deployment
 

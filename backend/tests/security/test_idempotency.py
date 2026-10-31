@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import re
 
@@ -11,6 +12,7 @@ from app.errors import ApiError
 from app.security.idempotency import (
     canonical_json,
     fingerprint,
+    redact_card,
     same_request,
     validate_key,
 )
@@ -111,3 +113,68 @@ def test_same_request_rejects_another_body_or_secret() -> None:
     assert same_request(SECRET, stored, {"a": 2}) is False
     assert same_request(b"other-secret", stored, {"a": 1}) is False
     assert same_request(SECRET, "0" * 64, {"a": 1}) is False
+
+
+def test_redact_card_keeps_only_the_last_four_digits_and_removes_cvc() -> None:
+    body = {
+        "invoice_id": 7,
+        "amount": "327.80",
+        "method": "card",
+        "card": {
+            "number": "4000 0000 0000 0002",
+            "expiry": "12/30",
+            "cvc": "123",
+        },
+    }
+
+    redacted = redact_card(body)
+    serialized = json.dumps(redacted)
+
+    assert redacted["card"] == {"number": "0002", "expiry": "12/30"}
+    assert "cvc" not in redacted["card"]
+    assert "4000 0000 0000 0002" not in serialized
+    assert "4000000000000002" not in serialized
+
+
+def test_redact_card_handles_hyphenated_numbers() -> None:
+    redacted = redact_card({"card": {"number": "4242-4242-4242-4242", "cvc": "999"}})
+
+    assert redacted["card"] == {"number": "4242"}
+
+
+def test_redact_card_does_not_mutate_the_original() -> None:
+    body = {
+        "card": {
+            "number": "4242 4242 4242 4242",
+            "expiry": "12/30",
+            "cvc": "123",
+        }
+    }
+    original = copy.deepcopy(body)
+
+    redacted = redact_card(body)
+
+    assert body == original
+    assert redacted is not body
+    assert redacted["card"] is not body["card"]
+
+
+def test_redact_card_leaves_bodies_without_a_card_unchanged() -> None:
+    body = {"method": "transfer", "reference": "TRF-2026-0001"}
+
+    redacted = redact_card(body)
+
+    assert redacted == body
+    assert redacted is not body
+
+
+def test_redact_card_removes_cvc_even_without_a_number() -> None:
+    redacted = redact_card({"card": {"expiry": "12/30", "cvc": "123"}})
+
+    assert redacted["card"] == {"expiry": "12/30"}
+
+
+def test_redact_card_ignores_a_non_dict_card() -> None:
+    body = {"card": "not-a-dict"}
+
+    assert redact_card(body) == body

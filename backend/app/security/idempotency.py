@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import hmac
 import json
 import re
+from typing import Any
 
 from app.errors import ApiError
 
@@ -58,3 +60,19 @@ def fingerprint(secret: bytes, body: object) -> str:
 def same_request(secret: bytes, stored_fingerprint: str, body: object) -> bool:
     """Compare a stored fingerprint with the body in constant time."""
     return hmac.compare_digest(fingerprint(secret, body), stored_fingerprint)
+
+
+def _last_four_digits(number: object) -> str:
+    digits = "".join(character for character in str(number) if character.isdigit())
+    return digits[-4:]
+
+
+def redact_card(body: dict[str, Any]) -> dict[str, Any]:
+    """Return a copy of a payment body without the full card number or CVC."""
+    redacted = copy.deepcopy(body)
+    card = redacted.get("card")
+    if isinstance(card, dict):
+        if "number" in card:
+            card["number"] = _last_four_digits(card["number"])
+        card.pop("cvc", None)
+    return redacted

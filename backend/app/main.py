@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from app.config import Settings
+from app.middleware import RequestIdMiddleware
 
 DEFAULT_SESSION_SECRET = "change-me"
 
@@ -24,6 +25,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="LabApp API")
     app.state.settings = settings
+    app.add_middleware(RequestIdMiddleware)
 
     @app.get("/api/health")
     async def health() -> dict[str, str]:

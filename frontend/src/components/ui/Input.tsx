@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes } from "react";
+import { type Ref, type InputHTMLAttributes } from "react";
 import { errorTestId, type TestId } from "@/lib/testid";
 import { Field, fieldControlProps } from "./Field";
 
@@ -7,6 +7,8 @@ type InputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "id"> & {
   testId: TestId;
   label: string;
   error?: string;
+  /** React 19 forwards `ref` as a prop. */
+  ref?: Ref<HTMLInputElement>;
 };
 
 /**

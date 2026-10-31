@@ -6,6 +6,7 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -142,7 +143,45 @@ async def _handle_http_exception(request: Request, exc: StarletteHTTPException) 
     )
 
 
+def _field_path(loc: tuple[Any, ...]) -> str:
+    parts = list(loc)
+    if parts and parts[0] in ("body", "query", "path", "header", "cookie"):
+        parts = parts[1:]
+    path = ""
+    for part in parts:
+        if isinstance(part, int):
+            path += f"[{part}]"
+        else:
+            path = f"{path}.{part}" if path else str(part)
+    return path or "body"
+
+
+def _field_errors(exc: RequestValidationError) -> list[dict[str, str]]:
+    details: list[dict[str, str]] = []
+    for error in exc.errors():
+        code = "REQUIRED" if error.get("type") == "missing" else "INVALID_FORMAT"
+        details.append(
+            {
+                "field": _field_path(tuple(error.get("loc", ()))),
+                "code": code,
+                "message": FIELD_MESSAGES[code],
+            }
+        )
+    return details
+
+
+async def _handle_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
+    return problem_response(
+        get_request_id(request),
+        status=422,
+        code=VALIDATION_ERROR,
+        detail=ERROR_MESSAGES[VALIDATION_ERROR],
+        errors=_field_errors(exc),
+    )
+
+
 def register_error_handlers(app: FastAPI) -> None:
     """Register the handlers that render every error as a problem document."""
     app.add_exception_handler(ApiError, _handle_api_error)
     app.add_exception_handler(StarletteHTTPException, _handle_http_exception)
+    app.add_exception_handler(RequestValidationError, _handle_validation_error)

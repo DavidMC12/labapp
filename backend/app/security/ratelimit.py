@@ -35,10 +35,12 @@ class SlidingWindowLimiter:
         self._window_seconds = window_seconds
         self._clock = clock
         self._hits: dict[str, deque[float]] = {}
+        self._last_sweep: float | None = None
 
     def hit(self, key: str) -> RateDecision:
         """Record a hit for the key and decide whether it is allowed."""
         now = self._clock()
+        self._sweep_expired(now)
         hits = self._hits.get(key)
 
         if hits is not None:
@@ -55,6 +57,17 @@ class SlidingWindowLimiter:
             self._hits[key] = hits
         hits.append(now)
         return RateDecision(allowed=True, retry_after=0)
+
+    def _sweep_expired(self, now: float) -> None:
+        if self._last_sweep is not None and now - self._last_sweep < self._window_seconds:
+            return
+
+        self._last_sweep = now
+        expired = [
+            key for key, hits in self._hits.items() if now - hits[-1] >= self._window_seconds
+        ]
+        for key in expired:
+            del self._hits[key]
 
     def _drop_expired(self, hits: deque[float], now: float) -> None:
         while hits and now - hits[0] >= self._window_seconds:

@@ -146,3 +146,45 @@ def test_rate_limited_error_carries_retry_after(retry_after: int) -> None:
     assert error.code == "RATE_LIMITED"
     assert error.detail == ("Demasiadas solicitudes. Espera un momento e inténtalo de nuevo.")
     assert error.extra["retry_after"] == retry_after
+
+
+def test_sweep_removes_expired_keys_that_are_never_hit_again() -> None:
+    limiter, clock = _limiter(limit=5, window_seconds=60)
+    for index in range(1000):
+        assert limiter.hit(f"key-{index}").allowed is True
+
+    assert len(limiter._hits) == 1000
+    clock.advance(61)
+
+    assert limiter.hit("new-key").allowed is True
+    assert len(limiter._hits) <= 2
+
+
+def test_sweep_keeps_a_key_that_still_has_a_live_hit() -> None:
+    limiter, clock = _limiter(limit=5, window_seconds=60)
+    limiter.hit("old")
+    clock.advance(50)
+    limiter.hit("live")
+
+    clock.advance(11)
+    assert limiter.hit("new").allowed is True
+
+    assert "old" not in limiter._hits
+    assert "live" in limiter._hits
+    assert "new" in limiter._hits
+
+
+def test_sweep_runs_at_most_once_per_window() -> None:
+    limiter, clock = _limiter(limit=5, window_seconds=60)
+    limiter.hit("a")
+    assert limiter._last_sweep == 0
+
+    clock.advance(30)
+    limiter.hit("b")
+    assert limiter._last_sweep == 0
+
+    clock.advance(30)
+    limiter.hit("c")
+    assert limiter._last_sweep == 60
+    assert "a" not in limiter._hits
+    assert "b" in limiter._hits

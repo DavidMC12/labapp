@@ -83,3 +83,17 @@ I/O and raises `ApiError` for rule violations.
 - `payments.py` — Luhn and card validation, transfer references and the fake gateway.
 
 Tests mirror these modules in `tests/domain/`.
+
+## Security
+
+`app/security/` holds the pure guards and helpers used by the authentication and payment
+modules. They take clocks, secrets and configuration as arguments and perform no I/O.
+
+- `passwords.py` — Argon2id hashing, verification and rehash detection.
+- `origin.py` — the CSRF origin check and the `Secure` cookie decision.
+- `client_ip.py` — client IP from `X-Forwarded-For` with trusted proxy counts.
+- `ratelimit.py` — the in-memory sliding-window limiter and the 429 error.
+- `test_guard.py` — the test-controls and rate-limiting guard table.
+- `idempotency.py` — key validation, canonical fingerprints and card redaction.
+
+Tests mirror these modules in `tests/security/`.

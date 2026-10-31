@@ -8,7 +8,7 @@ Un ERP pequeño de pedido a cobro (clientes, pedidos, facturas, pagos) hecho par
 
 ## Por qué
 
-Las apps demo públicas para automatización suelen traer elementos sin localizadores fiables, lo que obliga a usar selectores frágiles. LabApp está pensada al revés: la testabilidad es un contrato (ver [docs/TESTABILITY.md](docs/TESTABILITY.md)), exigido por tipos, reglas de lint y una auditoría en CI.
+Las apps demo públicas para automatización suelen traer elementos sin localizadores fiables, lo que obliga a usar selectores frágiles. LabApp está pensada al revés: la testabilidad es un contrato (ver [docs/TESTABILITY.md](docs/TESTABILITY.md)), que se exigirá con tipos, reglas de lint y una auditoría en CI (previsto para M1).
 
 ## Qué hace
 
@@ -20,7 +20,7 @@ Tres flujos principales, que se pulen antes de añadir módulos nuevos:
 
 Roles: Admin, Ventas, Finanzas y Solo lectura. La pantalla está en español. Las reglas de negocio están en [docs/SPEC.md](docs/SPEC.md) (en inglés).
 
-## Tecnologías
+## Tecnologías previstas
 
 | Capa | Elección |
 |---|---|
@@ -42,7 +42,7 @@ Roles: Admin, Ventas, Finanzas y Solo lectura. La pantalla está en español. La
 
 ## Usuarios de la demo
 
-La pantalla de login de la demo muestra las credenciales de cuatro usuarios de ejemplo, uno por rol: `admin@labapp.test`, `sales@labapp.test`, `finance@labapp.test` y `readonly@labapp.test`. Los datos son compartidos y se reinician cada noche.
+Desde M1, la pantalla de login de la demo en línea mostrará las credenciales de cuatro usuarios de ejemplo, uno por rol: `admin@labapp.test`, `sales@labapp.test`, `finance@labapp.test` y `readonly@labapp.test`. Los datos serán compartidos y se reiniciarán cada noche.
 
 ## Estructura del repositorio
 
@@ -52,7 +52,7 @@ La pantalla de login de la demo muestra las credenciales de cuatro usuarios de e
 | `frontend/` | Aplicación Next.js y sus pruebas de componentes (desde M1) |
 | `tools/audit/` | Auditorías de testid y accesibilidad que corren en CI (desde M1) |
 | `tests/` | Reservada para la suite de automatización E2E y de API del dueño |
-| `docs/` | Especificación, arquitectura, contrato de testabilidad, instrucciones de tareas y registros de revisión |
+| `docs/` | Especificación, arquitectura y contrato de testabilidad; las instrucciones de tareas y los registros de revisión se añaden al empezar el trabajo |
 
 ## Cómo empezar
 

@@ -132,13 +132,13 @@ Payments:
 
 | Method | Required data |
 |---|---|
-| `card` | 16-digit number that passes the Luhn check, an expiry month (`MM/YY`) that is not in the past (valid through its last day, using the application clock), 3-digit CVC. Only the last 4 digits are stored. |
+| `card` | 16-digit number (spaces and hyphens are ignored) that passes the Luhn check (`CARD_NUMBER_INVALID`); an expiry in `MM/YY` format (`INVALID_FORMAT` on `card.expiry` if malformed) that is not in the past (`CARD_EXPIRED`; an expiry month is valid through its last day, using the application clock); a 3-digit CVC (`CARD_CVC_INVALID`). Only the last 4 digits are stored. |
 | `transfer` | Reference of 4 to 40 characters. |
 | `cash` | None. |
 
-The payment gateway is fake and replaceable. For `card`, a number ending in `0002` is declined and every other valid card is approved. `transfer` and `cash` are always approved.
+The payment gateway is fake and replaceable. For `card`: a number ending in `0002` is declined (`reason` `CARD_DECLINED`), a number ending in `0003` finds the gateway unavailable (`reason` `GATEWAY_UNAVAILABLE`), and every other valid card is approved. `transfer` and `cash` are always approved. Fault injection can also make the gateway unavailable for any method, so every outcome is reachable by a test.
 
-Test cards (both pass the Luhn check): `4242 4242 4242 4242` is approved and `4000 0000 0000 0002` is declined.
+Test cards (all pass the Luhn check): `4242 4242 4242 4242` is approved, `4000 0000 0000 0002` is declined and `4000 0000 0009 0003` finds the gateway unavailable.
 
 | Outcome | Payment | Invoice | Order |
 |---|---|---|---|

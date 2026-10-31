@@ -8,7 +8,7 @@ An order-to-cash mini-ERP: customers, a read-only seeded product catalog, orders
 
 ## 2. Roles and permissions
 
-Four seeded users, one per role, all sharing one demo password that the login screen displays:
+Four seeded users, one per role, all sharing one demo password that the login screen displays. The API identifies the roles with the values `admin`, `sales`, `finance` and `readonly`:
 
 | Role | Seeded user |
 |---|---|

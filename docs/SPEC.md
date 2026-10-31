@@ -124,3 +124,18 @@ A declined payment can be retried. Requests carry an `Idempotency-Key` header: r
 | Invoice not payable | 409 | `INVOICE_NOT_PAYABLE` | Esta factura no admite pagos. |
 | Amount differs from total | 422 | `PAYMENT_AMOUNT_MISMATCH` | El monto debe ser igual al total de la factura. |
 | Gateway declines | 402 | `PAYMENT_DECLINED` | La pasarela rechazó el pago. Prueba con otra tarjeta. |
+
+## 6. Formats and conventions
+
+- **Money:** USD, stored as `NUMERIC(12,2)`, shown as `$1,234.50`.
+- **Dates:** stored in UTC, shown as `dd/mm/yyyy` (locale `es-US`).
+- **Errors:** RFC 9457 `application/problem+json` with `type`, `title`, `status`, `code` (stable), `detail` (Spanish) and, for validation, `errors[]` entries of `{field, code, message}`. The UI shows the message in an element with `role="alert"`.
+- **Lists:** 20 items per page, newest first, with `page`, `page_size` and `total`. Customers and orders support text search and a status filter.
+- **Request tracing:** every response carries an `X-Request-Id` header.
+
+## 7. Seed data
+
+- The four users from section 2.
+- About 10 customers: some inactive, some without a `tax_id`, one with a long name.
+- About 15 products with SKU, name, price and stock, including one with low stock and one out of stock.
+- Orders, invoices and payments in every state, so each screen has data on first load.

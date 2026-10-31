@@ -69,3 +69,17 @@ backend/
   tests/           pytest suite
   pyproject.toml   dependencies, ruff and pytest configuration
 ```
+
+## Domain
+
+`app/domain/` contains the pure business rules that later HTTP modules call. It performs no
+I/O and raises `ApiError` for rule violations.
+
+- `money.py` — money rounding, order totals and tax-rate validation.
+- `numbering.py` — `PED-` and `FAC-` number formatting.
+- `labels.py` — Spanish labels for states, payment methods and roles.
+- `permissions.py` — the role and action matrix from SPEC section 2.
+- `orders.py` — order transitions, draft line validation and stock checks.
+- `payments.py` — Luhn and card validation, transfer references and the fake gateway.
+
+Tests mirror these modules in `tests/domain/`.

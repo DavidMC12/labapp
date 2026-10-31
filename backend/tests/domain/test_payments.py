@@ -7,7 +7,7 @@ from datetime import date
 
 import pytest
 
-from app.domain.payments import Card, luhn_valid, parse_card
+from app.domain.payments import Card, luhn_valid, parse_card, validate_transfer_reference
 from app.errors import ApiError
 
 TODAY = date(2026, 10, 31)
@@ -173,4 +173,41 @@ def test_all_card_problems_are_reported_together() -> None:
             "code": "CARD_CVC_INVALID",
             "message": "El código de seguridad no es válido.",
         },
+    ]
+
+
+@pytest.mark.parametrize("reference", ["ABCD", "A" * 40])
+def test_transfer_reference_length_is_valid(reference: str) -> None:
+    assert validate_transfer_reference(reference) is None
+
+
+def test_transfer_reference_of_three_characters_is_too_short() -> None:
+    with pytest.raises(ApiError) as error:
+        validate_transfer_reference("ABC")
+
+    assert error.value.status == 422
+    assert error.value.code == "VALIDATION_ERROR"
+    assert error.value.detail == "Revisa los datos ingresados."
+    assert error.value.errors == [
+        {
+            "field": "reference",
+            "code": "TOO_SHORT",
+            "message": "Debe tener al menos 4 caracteres.",
+        }
+    ]
+
+
+def test_transfer_reference_of_forty_one_characters_is_too_long() -> None:
+    with pytest.raises(ApiError) as error:
+        validate_transfer_reference("A" * 41)
+
+    assert error.value.status == 422
+    assert error.value.code == "VALIDATION_ERROR"
+    assert error.value.detail == "Revisa los datos ingresados."
+    assert error.value.errors == [
+        {
+            "field": "reference",
+            "code": "TOO_LONG",
+            "message": "Debe tener como máximo 40 caracteres.",
+        }
     ]

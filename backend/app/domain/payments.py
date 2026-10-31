@@ -100,3 +100,31 @@ def parse_card(number: str, expiry: str, cvc: str, today: date) -> Card:
         raise ApiError(422, "VALIDATION_ERROR", VALIDATION_MESSAGE, errors=errors)
 
     return Card(last4=normalized[-4:])
+
+
+MIN_TRANSFER_REFERENCE_LENGTH = 4
+MAX_TRANSFER_REFERENCE_LENGTH = 40
+
+
+def _reference_error(code: str, message: str) -> ApiError:
+    return ApiError(
+        422,
+        "VALIDATION_ERROR",
+        VALIDATION_MESSAGE,
+        errors=[{"field": "reference", "code": code, "message": message}],
+    )
+
+
+def validate_transfer_reference(reference: str) -> None:
+    """Validate the length of a transfer reference."""
+    length = len(reference)
+    if length < MIN_TRANSFER_REFERENCE_LENGTH:
+        raise _reference_error(
+            "TOO_SHORT",
+            f"Debe tener al menos {MIN_TRANSFER_REFERENCE_LENGTH} caracteres.",
+        )
+    if length > MAX_TRANSFER_REFERENCE_LENGTH:
+        raise _reference_error(
+            "TOO_LONG",
+            f"Debe tener como máximo {MAX_TRANSFER_REFERENCE_LENGTH} caracteres.",
+        )

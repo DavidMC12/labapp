@@ -83,3 +83,30 @@ class AuthService:
             )
         )
         return user, token
+
+    def authenticate(self, token: str | None) -> User:
+        """Return the user for a live session, sliding its idle window."""
+        if not token:
+            raise ApiError(401, "UNAUTHENTICATED", UNAUTHENTICATED_MESSAGE)
+
+        token_hash = self._hash_token(token)
+        session = self._sessions.get(token_hash)
+        if session is None:
+            raise ApiError(401, "UNAUTHENTICATED", UNAUTHENTICATED_MESSAGE)
+
+        now = self._clock.now()
+        if now - session.last_seen_at >= SESSION_IDLE_TIMEOUT:
+            raise ApiError(401, "SESSION_EXPIRED", SESSION_EXPIRED_MESSAGE)
+
+        user = self._users.get_by_id(session.user_id)
+        if user is None:
+            self._sessions.delete(token_hash)
+            raise ApiError(401, "UNAUTHENTICATED", UNAUTHENTICATED_MESSAGE)
+
+        self._sessions.touch(token_hash, now)
+        return user
+
+    def logout(self, token: str | None) -> None:
+        """Delete the session if present; missing tokens are ignored."""
+        if token:
+            self._sessions.delete(self._hash_token(token))

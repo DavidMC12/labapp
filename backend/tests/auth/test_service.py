@@ -16,7 +16,9 @@ from app.modules.auth.models import Session
 from app.modules.auth.seed import DEMO_PASSWORD
 from app.modules.auth.service import (
     INVALID_CREDENTIALS_MESSAGE,
+    SESSION_EXPIRED_MESSAGE,
     SESSION_PURGE_AGE,
+    UNAUTHENTICATED_MESSAGE,
     AuthService,
 )
 from tests.auth.helpers import RecordingVerifier
@@ -209,3 +211,131 @@ def test_verifications_are_limited_to_the_semaphore_size(
 
     assert verifier.max_active == 2
     assert all(user.id == 1 for user, _ in results)
+
+
+def _service_without_users(
+    sessions: InMemorySessionStore,
+    clock: OffsetClock,
+) -> AuthService:
+    return AuthService(
+        InMemoryUserRepository([]),
+        sessions,
+        clock,
+        dummy_hash="dummy-hash",
+        verify=lambda password_hash, password: False,
+    )
+
+
+def test_authenticate_returns_the_user_and_slides_the_window(
+    service: AuthService,
+    sessions: InMemorySessionStore,
+    clock: OffsetClock,
+) -> None:
+    user, token = service.login("admin@labapp.test", DEMO_PASSWORD)
+    token_hash = _hash_token(token)
+
+    clock.advance(timedelta(hours=7, minutes=59))
+    assert service.authenticate(token) == user
+    touched = sessions.get(token_hash)
+    assert touched is not None
+    assert touched.last_seen_at == clock.now()
+
+    clock.advance(timedelta(hours=7, minutes=59))
+    assert service.authenticate(token) == user
+
+
+def test_authenticate_expires_at_exactly_eight_hours(
+    service: AuthService,
+    sessions: InMemorySessionStore,
+    clock: OffsetClock,
+) -> None:
+    _, token = service.login("admin@labapp.test", DEMO_PASSWORD)
+    token_hash = _hash_token(token)
+    stored = sessions.get(token_hash)
+    clock.advance(timedelta(hours=8))
+
+    for _ in range(2):
+        with pytest.raises(ApiError) as error:
+            service.authenticate(token)
+
+        assert error.value.status == 401
+        assert error.value.code == "SESSION_EXPIRED"
+        assert error.value.detail == SESSION_EXPIRED_MESSAGE
+        assert sessions.get(token_hash) == stored
+
+
+@pytest.mark.parametrize("token", [None, "", "unknown-token"])
+def test_missing_or_unknown_tokens_are_unauthenticated(
+    service: AuthService,
+    token: str | None,
+) -> None:
+    with pytest.raises(ApiError) as error:
+        service.authenticate(token)
+
+    assert error.value.status == 401
+    assert error.value.code == "UNAUTHENTICATED"
+    assert error.value.detail == UNAUTHENTICATED_MESSAGE
+
+
+def test_logout_is_idempotent(
+    service: AuthService,
+    sessions: InMemorySessionStore,
+) -> None:
+    _, token = service.login("admin@labapp.test", DEMO_PASSWORD)
+    token_hash = _hash_token(token)
+
+    service.logout(token)
+    assert sessions.get(token_hash) is None
+
+    service.logout(token)
+    service.logout(None)
+    service.logout("unknown-token")
+
+    with pytest.raises(ApiError) as error:
+        service.authenticate(token)
+    assert error.value.code == "UNAUTHENTICATED"
+
+
+def test_expired_session_wins_over_a_missing_user(
+    service: AuthService,
+    sessions: InMemorySessionStore,
+    clock: OffsetClock,
+) -> None:
+    _, token = service.login("admin@labapp.test", DEMO_PASSWORD)
+    token_hash = _hash_token(token)
+    clock.advance(timedelta(hours=8))
+
+    empty_service = _service_without_users(sessions, clock)
+
+    with pytest.raises(ApiError) as error:
+        empty_service.authenticate(token)
+
+    assert error.value.code == "SESSION_EXPIRED"
+    assert sessions.get(token_hash) is not None
+
+
+def test_live_session_for_a_missing_user_is_deleted(
+    service: AuthService,
+    sessions: InMemorySessionStore,
+    clock: OffsetClock,
+) -> None:
+    _, token = service.login("admin@labapp.test", DEMO_PASSWORD)
+    token_hash = _hash_token(token)
+    clock.advance(timedelta(hours=1))
+
+    empty_service = _service_without_users(sessions, clock)
+
+    with pytest.raises(ApiError) as error:
+        empty_service.authenticate(token)
+
+    assert error.value.code == "UNAUTHENTICATED"
+    assert sessions.get(token_hash) is None
+
+
+def test_the_stored_hash_is_not_a_valid_token(service: AuthService) -> None:
+    _, token = service.login("admin@labapp.test", DEMO_PASSWORD)
+
+    with pytest.raises(ApiError) as error:
+        service.authenticate(_hash_token(token))
+
+    assert error.value.code == "UNAUTHENTICATED"

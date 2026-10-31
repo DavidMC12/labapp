@@ -103,7 +103,11 @@ Totals (computed on the server):
 | Not enough stock on confirm | 409 | `INSUFFICIENT_STOCK` | No hay stock suficiente de {product}: disponible {available}, solicitado {requested}. |
 | Stale `version` on update | 409 | `VERSION_CONFLICT` | El registro cambió mientras lo editabas. Recarga e inténtalo de nuevo. |
 
-Concurrency: every mutable record has a `version` (optimistic locking). Confirming an order locks the affected stock rows, so two simultaneous confirmations cannot oversell.
+Concurrency:
+- Every versioned record (customer, order, invoice) has an integer `version`, starting at 1 and increasing by 1 on every change. Edit requests (`PATCH`) must include the `version` they were based on; a stale value returns `VERSION_CONFLICT`. Transition requests (confirm, cancel, ship, invoice, pay) accept an optional `version`: if present and stale they return `VERSION_CONFLICT`; if absent, the state check alone applies.
+- Every transition locks the order row first (`SELECT ... FOR UPDATE`), then its invoice, then the affected stock rows in ascending product id order, and re-validates the state after locking. This prevents overselling, deadlocks and races such as cancelling an order while its payment is being approved: the transaction that locks the order second sees the new state and fails with `INVALID_TRANSITION` or `INVOICE_NOT_PAYABLE`.
+- Confirming is all-or-nothing. If several lines lack stock, the response lists every short line in `shortages[]` (`product_id`, `sku`, `name`, `available`, `requested`) and the message names the first one.
+- Submitting the same transition twice (for example a double click on Confirm) makes the second request fail with `INVALID_TRANSITION`. The UI avoids it by disabling the control while the request runs (`aria-busy`).
 
 ## 6. Invoices and payments (flow 3)
 

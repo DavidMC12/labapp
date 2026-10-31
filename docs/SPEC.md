@@ -217,10 +217,10 @@ Order of checks. A request is rejected by the first rule that fails:
 
 ## 8. Formats and conventions
 
-- **Money:** USD, stored as `NUMERIC(12,2)`, shown as `$1,234.50`.
-- **Dates:** stored in UTC, shown as `dd/mm/yyyy` (locale `es-US`).
-- **Errors:** RFC 9457 `application/problem+json` with `type`, `title`, `status`, `code` (stable), `detail` (Spanish) and, for validation, `errors[]` entries of `{field, code, message}`. The UI shows the message in an element with `role="alert"`.
-- **Lists:** 20 items per page, newest first, with `page`, `page_size` and `total`. Customers and orders support text search and a status filter.
+- **Money:** USD, stored as `NUMERIC(12,2)`, shown as `$1,234.50` (`Intl.NumberFormat('es-US', {style: 'currency', currency: 'USD'})`).
+- **Dates and times:** stored and shown in UTC, never converted to the viewer's time zone, because a conversion would change the date of an invoice depending on who looks at it. Dates look like `31/10/2026` and times like `02:30`, produced with `Intl.DateTimeFormat('es-US', {day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC'})` and `{hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'UTC'}`. Timestamps in the UI carry the suffix "UTC". Without the `2-digit` options, `es-US` does not zero-pad (`3/1/2026`).
+- **Errors:** RFC 9457 `application/problem+json` with `type`, `title`, `status`, `code` (stable), `detail` (Spanish) and, for validation, `errors[]` entries of `{field, code, message}`. Extension members such as `shortages`, `payment_id` and `reason` appear at the top level of the body. The UI shows the message in an element with `role="alert"`.
+- **Lists:** a fixed page size of 20 (the client cannot change it), ordered by creation time descending with the id as tiebreaker, returning `items`, `page`, `page_size` and `total`. Customers are searched by name or email and orders by number or customer name, with a case- and accent-insensitive "contains" match; both accept a `status` filter.
 - **Request tracing:** every response carries an `X-Request-Id` header.
 
 ## 9. Seed data

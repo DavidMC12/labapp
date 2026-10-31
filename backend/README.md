@@ -25,7 +25,8 @@ SESSION_SECRET=dev-secret uv run uvicorn app.main:app --port 8000
 The app refuses to start when `SESSION_SECRET` is empty or still `change-me`, unless
 `TEST_MODE=1`. Settings are read from real environment variables first, then from
 `backend/.env` and the repository-root `.env` (copy `../.env.example` to either place).
-Real environment variables always win over values from those files.
+`backend/.env` wins over the repository-root `.env`, and real environment variables always
+win over both files.
 
 Check the API:
 

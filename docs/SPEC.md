@@ -50,3 +50,40 @@ Rules:
 | Email already used | 409 | `CUSTOMER_EMAIL_TAKEN` | Ya existe un cliente con ese email. |
 | Order for an inactive customer | 422 | `CUSTOMER_INACTIVE` | El cliente está desactivado y no puede recibir pedidos nuevos. |
 | Invoice for a customer without `tax_id` | 422 | `CUSTOMER_TAX_ID_REQUIRED` | El cliente necesita un ID fiscal para poder facturar. |
+
+## 4. Orders (flow 2)
+
+States: `draft`, `confirmed`, `paid`, `shipped`, `cancelled`.
+
+| Transition | Allowed from | Who | Effect |
+|---|---|---|---|
+| Create | none | Admin, Sales | New `draft` with number `PED-0001`, `PED-0002`, ... |
+| Confirm | `draft` | Admin, Sales | Checks stock, decrements it, freezes the tax rate and totals. |
+| Pay | `confirmed` | Set by a successful payment (section 5) | Order becomes `paid`. |
+| Ship | `paid` | Admin, Sales | Order becomes `shipped`. |
+| Cancel | `draft`, `confirmed` | Admin, Sales | A confirmed order gets its stock back and its invoice voided. |
+
+Any other transition returns HTTP 409 `INVALID_TRANSITION`: "No se puede pasar el pedido de {from} a {to}."
+
+Lines:
+- An order has a customer (active) and 1 to 50 lines. Each line has a product and an integer quantity from 1 to 999.
+- A product appears at most once per order. Adding it again returns `ORDER_DUPLICATE_PRODUCT`.
+- The unit price is copied from the product when the line is added.
+- Only a `draft` order can be edited.
+
+Totals (computed on the server):
+- `subtotal` = sum of quantity times unit price.
+- `tax` = `subtotal` times the tax rate, rounded half-up to 2 decimals.
+- `total` = `subtotal` + `tax`.
+- The tax rate is a percentage set by Admin (default 10%, range 0 to 100) and is frozen in the order when it is confirmed.
+
+| Situation | HTTP | Code | Message (es) |
+|---|---|---|---|
+| Product repeated in the order | 422 | `ORDER_DUPLICATE_PRODUCT` | Ese producto ya está en el pedido; edita su cantidad. |
+| More than 50 lines | 422 | `ORDER_TOO_MANY_LINES` | Un pedido admite como máximo 50 líneas. |
+| Confirm without lines | 422 | `ORDER_EMPTY` | El pedido debe tener al menos una línea. |
+| Edit a non-draft order | 409 | `ORDER_NOT_EDITABLE` | Solo se puede editar un pedido en borrador. |
+| Not enough stock on confirm | 409 | `INSUFFICIENT_STOCK` | No hay stock suficiente de {product}: disponible {available}, solicitado {requested}. |
+| Stale `version` on update | 409 | `VERSION_CONFLICT` | El registro cambió mientras lo editabas. Recarga e inténtalo de nuevo. |
+
+Concurrency: every mutable record has a `version` (optimistic locking). Confirming an order locks the affected stock rows, so two simultaneous confirmations cannot oversell.

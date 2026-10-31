@@ -29,7 +29,24 @@ Four seeded users, one per role, all sharing one demo password that the login sc
 
 The server enforces every permission. A forbidden action returns HTTP 403 with code `FORBIDDEN` and the message "No tienes permiso para realizar esta acción." The UI may hide or disable controls, but never replaces the server check.
 
-## 3. Customers (flow 1)
+## 3. Authentication and sessions
+
+- `POST /api/auth/login` takes `{email, password}`. The email is trimmed and lowercased before lookup. On success it returns 200 with the user (`id`, `name`, `email`, `role`) and sets the session cookie `labapp_session` (HttpOnly, SameSite=Lax, Secure over HTTPS).
+- `POST /api/auth/logout` ends the session and returns 204. `GET /api/auth/me` returns the current user.
+- A session expires after 8 hours without activity (sliding window), measured with the application clock, so `SESSION_EXPIRED` can be tested by moving the clock. Only `POST /api/auth/login` and `GET /api/health` work without a session.
+- An unknown email and a wrong password return the same error, so accounts cannot be enumerated.
+- State-changing requests (POST, PUT, PATCH, DELETE) that carry an `Origin` header must match the application origin, otherwise the server answers 403 `CSRF_ORIGIN_MISMATCH`. The application origin is the `APP_ORIGIN` setting (for example `http://localhost:3000` locally and the Vercel URL online); the session cookie is `Secure` when `APP_ORIGIN` starts with `https://`. Requests without `Origin` (API clients and test suites) are allowed because the cookie is SameSite=Lax. An API suite authenticates by calling the login endpoint and reusing the cookie.
+- Rate limits apply only when `TEST_MODE=0`: 120 requests per minute and 10 login attempts per minute per client IP. Exceeding a limit returns 429 `RATE_LIMITED` with a `Retry-After` header. A request with a valid test token is exempt even then. A valid test token is an `X-Test-Token` header equal to a non-empty `TEST_TOKEN`. The client IP is the `X-Forwarded-For` entry that is `TRUSTED_PROXY_COUNT` entries from the right (default 0: the socket address), so online visitors behind the proxies do not share one bucket.
+
+| Situation | HTTP | Code | Message (es) |
+|---|---|---|---|
+| Wrong email or password | 401 | `INVALID_CREDENTIALS` | Email o contraseña incorrectos. |
+| No session | 401 | `UNAUTHENTICATED` | Inicia sesión para continuar. |
+| Session expired | 401 | `SESSION_EXPIRED` | Tu sesión expiró. Inicia sesión de nuevo. |
+| Origin mismatch | 403 | `CSRF_ORIGIN_MISMATCH` | La solicitud no proviene de la aplicación. |
+| Too many requests | 429 | `RATE_LIMITED` | Demasiadas solicitudes. Espera un momento e inténtalo de nuevo. |
+
+## 4. Customers (flow 1)
 
 | Field | Rule |
 |---|---|
@@ -42,16 +59,17 @@ The server enforces every permission. A forbidden action returns HTTP 403 with c
 
 Rules:
 - Customers are never deleted. They are deactivated and can be reactivated.
-- An inactive customer cannot be chosen for a new order. Existing orders are unaffected.
+- An inactive customer cannot be chosen for an order. Deactivating a customer does not change existing orders, but confirming a draft whose customer has become inactive fails with `CUSTOMER_INACTIVE`. A confirmed order of an inactive customer can still be invoiced and paid, and a paid one can still be shipped.
 - Field-level problems return HTTP 422 `VALIDATION_ERROR` with one entry per field.
+- The email is trimmed and lowercased before validation and uniqueness checks.
 
 | Situation | HTTP | Code | Message (es) |
 |---|---|---|---|
 | Email already used | 409 | `CUSTOMER_EMAIL_TAKEN` | Ya existe un cliente con ese email. |
-| Order for an inactive customer | 422 | `CUSTOMER_INACTIVE` | El cliente está desactivado y no puede recibir pedidos nuevos. |
+| Creating, editing or confirming an order for an inactive customer | 422 | `CUSTOMER_INACTIVE` | El cliente está desactivado y no puede recibir pedidos. |
 | Invoice for a customer without `tax_id` | 422 | `CUSTOMER_TAX_ID_REQUIRED` | El cliente necesita un ID fiscal para poder facturar. |
 
-## 4. Orders (flow 2)
+## 5. Orders (flow 2)
 
 States: `draft`, `confirmed`, `paid`, `shipped`, `cancelled`.
 
@@ -59,42 +77,53 @@ States: `draft`, `confirmed`, `paid`, `shipped`, `cancelled`.
 |---|---|---|---|
 | Create | none | Admin, Sales | New `draft` with number `PED-0001`, `PED-0002`, ... |
 | Confirm | `draft` | Admin, Sales | Checks stock, decrements it, freezes the tax rate and totals. |
-| Pay | `confirmed` | Set by a successful payment (section 5) | Order becomes `paid`. |
+| Pay | `confirmed` | Set by a successful payment (section 6) | Order becomes `paid`. |
 | Ship | `paid` | Admin, Sales | Order becomes `shipped`. |
 | Cancel | `draft`, `confirmed` | Admin, Sales | A confirmed order gets its stock back and its invoice voided. |
 
 Any other transition returns HTTP 409 `INVALID_TRANSITION`: "No se puede pasar el pedido de {from} a {to}."
 
+Products are read-only and come from the seed: `id`, `sku` (unique, up to 20 characters), `name` (up to 120), `price` (`NUMERIC(12,2)`, greater than 0) and `stock` (integer, 0 or more).
+
 Lines:
-- An order has a customer (active) and 1 to 50 lines. Each line has a product and an integer quantity from 1 to 999.
+- An order has a customer (active) and up to 10 lines, at least 1 to be confirmed. Each line has a product and an integer quantity from 1 to 999. The cap is below the 15 seeded products so that it can be reached.
 - A product appears at most once per order. Adding it again returns `ORDER_DUPLICATE_PRODUCT`.
 - The unit price is copied from the product when the line is added.
 - Only a `draft` order can be edited.
+- A draft can be saved with no lines; `ORDER_EMPTY` applies only when confirming.
+- The customer of a draft can be changed while it is a draft; the new customer must be active.
+- `shipped` and `cancelled` are final. A `paid` order can only move to `shipped`.
 
 Totals (computed on the server):
 - `subtotal` = sum of quantity times unit price.
-- `tax` = `subtotal` times the tax rate, rounded half-up to 2 decimals.
+- `tax` = `subtotal` × `rate` ÷ 100, rounded half-up to 2 decimals (a tie such as 5.025 becomes 5.03, where half-even would give 5.02).
 - `total` = `subtotal` + `tax`.
-- The tax rate is a percentage set by Admin (default 10%, range 0 to 100) and is frozen in the order when it is confirmed.
+- The tax rate is a percentage set by Admin (default 10.00, range 0.00 to 100.00, up to 2 decimals). A draft shows the current rate as a preview; the rate is frozen in the order when it is confirmed. A reset restores the rate to `DEFAULT_TAX_RATE` (10.00 unless the environment says otherwise); the seed totals assume 10.00.
 
 | Situation | HTTP | Code | Message (es) |
 |---|---|---|---|
 | Product repeated in the order | 422 | `ORDER_DUPLICATE_PRODUCT` | Ese producto ya está en el pedido; edita su cantidad. |
-| More than 50 lines | 422 | `ORDER_TOO_MANY_LINES` | Un pedido admite como máximo 50 líneas. |
+| More than 10 lines | 422 | `ORDER_TOO_MANY_LINES` | Un pedido admite como máximo 10 líneas. |
 | Confirm without lines | 422 | `ORDER_EMPTY` | El pedido debe tener al menos una línea. |
 | Edit a non-draft order | 409 | `ORDER_NOT_EDITABLE` | Solo se puede editar un pedido en borrador. |
 | Not enough stock on confirm | 409 | `INSUFFICIENT_STOCK` | No hay stock suficiente de {product}: disponible {available}, solicitado {requested}. |
 | Stale `version` on update | 409 | `VERSION_CONFLICT` | El registro cambió mientras lo editabas. Recarga e inténtalo de nuevo. |
 
-Concurrency: every mutable record has a `version` (optimistic locking). Confirming an order locks the affected stock rows, so two simultaneous confirmations cannot oversell.
+Concurrency:
+- Every versioned record (customer, order, invoice) has an integer `version`, starting at 1 and increasing by 1 on every change. Responses include `version` and an `ETag` header holding it (for example `"3"`).
+- **Transport.** `PATCH` requests must include `version` in the body; a missing value is a `VALIDATION_ERROR` with `REQUIRED` on `version`. Transition requests (confirm, cancel, ship, invoice, pay) have no body and may send `If-Match: "<version>"`. The version checked is that of the main resource of the endpoint: the order for confirm, cancel, ship and invoice, and the invoice for pay. A stale value returns 409 `VERSION_CONFLICT`; an absent value skips the version check.
+- **Locking.** Every mutation of an order, whether a transition or an edit of its lines or customer, locks the order row first (`SELECT ... FOR UPDATE`), then its invoice, then the customer row (`FOR SHARE`, so a concurrent edit of the customer's `tax_id` cannot race the invoice snapshot), then the affected stock rows in ascending product id order. The `version` and the state are checked after locking, never before. This prevents overselling, deadlocks and races such as cancelling an order while its payment is being approved: the transaction that locks the order second sees the new state and fails with `INVALID_TRANSITION` or `INVOICE_NOT_PAYABLE`. A lock wait longer than 5 seconds returns 503 `LOCK_TIMEOUT`.
+- Confirming is all-or-nothing. If several lines lack stock, the response lists every short line in `shortages[]` (`product_id`, `sku`, `name`, `available`, `requested`), ordered by product id, and the message names the first one.
+- **Double submit.** Because the version is checked under the lock, a repeated transition behaves the same whether it arrives one after the other or at the same time: with a `version` (`If-Match`) the second request returns `VERSION_CONFLICT`, and without one it returns `INVALID_TRANSITION`. The UI avoids both by disabling the control while the request runs (`aria-busy`).
 
-## 5. Invoices and payments (flow 3)
+## 6. Invoices and payments (flow 3)
 
 Invoices:
 - Created manually by Finance or Admin from a `confirmed` order. Any other state returns `ORDER_NOT_INVOICEABLE`.
 - The customer must have a `tax_id` (`CUSTOMER_TAX_ID_REQUIRED`).
 - One invoice per order (`INVOICE_ALREADY_EXISTS`). Number `FAC-0001`, `FAC-0002`, ...
-- The order totals are copied and frozen into the invoice. States: `issued`, `paid`, `void`. A `paid` or `void` invoice is final.
+- The invoice stores a snapshot of the order lines and totals and of the customer's name, `tax_id` and address at issue time. States: `issued`, `paid`, `void`. A `paid` or `void` invoice is final.
+- Issuing an invoice sends the email "Factura FAC-0001 emitida" to the customer's email through the email port (Mailpit locally, only logged online) after the transaction commits. If sending fails, the failure is logged and the invoice stays issued. No other email is sent.
 - Cancelling a `confirmed` order voids its `issued` invoice.
 
 Payments:
@@ -104,18 +133,31 @@ Payments:
 
 | Method | Required data |
 |---|---|
-| `card` | 16-digit number, future expiry date, 3-digit CVC. Only the last 4 digits are stored. |
+| `card` | 16-digit number (spaces and hyphens are ignored) that passes the Luhn check (`CARD_NUMBER_INVALID`); an expiry in `MM/YY` format (`INVALID_FORMAT` on `card.expiry` if malformed) that is not in the past (`CARD_EXPIRED`; an expiry month is valid through its last day, using the application clock); a 3-digit CVC (`CARD_CVC_INVALID`). Only the last 4 digits are stored. |
 | `transfer` | Reference of 4 to 40 characters. |
 | `cash` | None. |
 
-The payment gateway is fake and replaceable. A card ending in `0002` is declined; every other valid card is approved.
+The payment gateway is fake and replaceable. For `card`: a number ending in `0002` is declined (`reason` `CARD_DECLINED`), a number ending in `0003` finds the gateway unavailable (`reason` `GATEWAY_UNAVAILABLE`), and every other valid card is approved. `transfer` and `cash` are always approved. Fault injection can also make the gateway unavailable for any method, so every outcome is reachable by a test.
+
+Test cards (all pass the Luhn check): `4242 4242 4242 4242` is approved, `4000 0000 0000 0002` is declined and `4000 0000 0009 0003` finds the gateway unavailable.
 
 | Outcome | Payment | Invoice | Order |
 |---|---|---|---|
 | Approved | `approved` | `paid` | `paid` |
 | Declined | `declined`, kept in the payment history | unchanged | unchanged |
+| Gateway unavailable | `failed`, kept in the payment history | unchanged | unchanged |
 
-A declined payment can be retried. Requests carry an `Idempotency-Key` header: repeating a key returns the original result and never creates a second payment.
+Atomicity and retries:
+- The order is locked first, then the invoice (section 5, Concurrency). The state is re-validated after locking and the gateway outcome is applied against that locked state.
+- An approved payment, the invoice becoming `paid` and the order becoming `paid` are committed in a single database transaction.
+- A declined or failed payment is committed to the payment history even though the response is an error. The error body carries `payment_id` and `reason`.
+- `POST /api/invoices/{id}/payments` requires an `Idempotency-Key` header of 1 to 64 characters from `[A-Za-z0-9._-]` (missing: `IDEMPOTENCY_KEY_REQUIRED`; malformed: `VALIDATION_ERROR` with `INVALID_FORMAT` on `Idempotency-Key`).
+- A key is scoped to the invoice and remembered for 24 hours. Only outcomes that created a payment row consume it: `approved`, `declined` and `failed`. A request rejected before that point (validation error, state conflict, stale `version`) does not consume the key, so a corrected retry with the same key works.
+- The key is claimed atomically (a unique `(invoice_id, key)` record) before the locks are taken, and looked up again after them. Two concurrent requests with the same key and body therefore produce one payment, and the second replays the first one's response instead of failing with `INVOICE_NOT_PAYABLE`.
+- Same key and same body: the stored response (status and body) is replayed, including declines and `failed` (503) outcomes. Same key and a different body: `IDEMPOTENCY_KEY_REUSED`.
+- The body is compared through a keyed hash (HMAC-SHA-256 of the canonical JSON). The card number and the CVC are never stored, and the stored response contains only the last 4 digits.
+- A retry after a decline or a gateway failure is a new attempt and must use a new key.
+- The gateway is called while the locks are held, so injected latency is capped at 10 seconds.
 
 | Situation | HTTP | Code | Message (es) |
 |---|---|---|---|
@@ -124,18 +166,91 @@ A declined payment can be retried. Requests carry an `Idempotency-Key` header: r
 | Invoice not payable | 409 | `INVOICE_NOT_PAYABLE` | Esta factura no admite pagos. |
 | Amount differs from total | 422 | `PAYMENT_AMOUNT_MISMATCH` | El monto debe ser igual al total de la factura. |
 | Gateway declines | 402 | `PAYMENT_DECLINED` | La pasarela rechazó el pago. Prueba con otra tarjeta. |
+| Gateway unavailable | 503 | `PAYMENT_GATEWAY_UNAVAILABLE` | La pasarela de pago no está disponible. Inténtalo de nuevo. |
+| Missing idempotency key | 422 | `IDEMPOTENCY_KEY_REQUIRED` | Falta la cabecera Idempotency-Key. |
+| Key reused with other data | 422 | `IDEMPOTENCY_KEY_REUSED` | Esa clave de idempotencia ya se usó con otros datos. |
 
-## 6. Formats and conventions
+## 7. Errors and validation order
 
-- **Money:** USD, stored as `NUMERIC(12,2)`, shown as `$1,234.50`.
-- **Dates:** stored in UTC, shown as `dd/mm/yyyy` (locale `es-US`).
-- **Errors:** RFC 9457 `application/problem+json` with `type`, `title`, `status`, `code` (stable), `detail` (Spanish) and, for validation, `errors[]` entries of `{field, code, message}`. The UI shows the message in an element with `role="alert"`.
-- **Lists:** 20 items per page, newest first, with `page`, `page_size` and `total`. Customers and orders support text search and a status filter.
+Every error is `application/problem+json` (section 8). Codes are stable; messages are Spanish and may be reworded. Authentication, rate-limit and permission errors are in sections 2 and 3; feature errors are in sections 4 to 6.
+
+Common errors not tied to one feature:
+
+| Situation | HTTP | Code | Message (es) |
+|---|---|---|---|
+| Resource does not exist | 404 | `NOT_FOUND` | No se encontró el recurso solicitado. |
+| Request body above 100 KB | 413 | `PAYLOAD_TOO_LARGE` | La solicitud es demasiado grande. |
+| Unexpected server error | 500 | `INTERNAL_ERROR` | Ocurrió un error inesperado. Inténtalo de nuevo. |
+| Permission denied | 403 | `FORBIDDEN` | No tienes permiso para realizar esta acción. |
+| Invalid body or parameters | 422 | `VALIDATION_ERROR` | Revisa los datos ingresados. |
+| Order transition not allowed | 409 | `INVALID_TRANSITION` | No se puede pasar el pedido de {from} a {to}. |
+| Malformed JSON body | 400 | `MALFORMED_JSON` | El cuerpo de la solicitud no es un JSON válido. |
+| Lock wait above 5 seconds | 503 | `LOCK_TIMEOUT` | El recurso está ocupado. Inténtalo de nuevo. |
+| Method not allowed | 405 | `METHOD_NOT_ALLOWED` | Método no permitido para este recurso. |
+
+Field-level errors: a 422 `VALIDATION_ERROR` lists one entry per field in `errors[]`, with `field` (a path such as `lines[0].quantity`), `code` and `message`:
+
+| Code | Message (es) |
+|---|---|
+| `REQUIRED` | Este campo es obligatorio. |
+| `TOO_SHORT` | Debe tener al menos {min} caracteres. |
+| `TOO_LONG` | Debe tener como máximo {max} caracteres. |
+| `INVALID_FORMAT` | El formato no es válido. |
+| `OUT_OF_RANGE` | El valor debe estar entre {min} y {max}. |
+| `REFERENCE_NOT_FOUND` | El registro indicado no existe. |
+| `CARD_NUMBER_INVALID` | El número de tarjeta no es válido. |
+| `CARD_EXPIRED` | La tarjeta está vencida. |
+| `CARD_CVC_INVALID` | El código de seguridad no es válido. |
+
+A quantity outside 1 to 999 is `OUT_OF_RANGE`; a quantity that is not an integer is `INVALID_FORMAT`. A `customer_id` or `product_id` that does not exist is `REFERENCE_NOT_FOUND` on that field. Statuses outside this catalog render a generic Spanish message ("No se pudo completar la solicitud.") with the code derived from the status name.
+
+Labels used in messages:
+
+| Concept | Spanish labels |
+|---|---|
+| Order states | borrador, confirmado, pagado, enviado, cancelado |
+| Invoice states | emitida, pagada, anulada |
+| Payment states | aprobado, rechazado, fallido |
+| Payment methods | tarjeta, transferencia, efectivo |
+| Roles | Admin, Ventas, Finanzas, Solo lectura |
+
+Order of checks. A request is rejected by the first rule that fails:
+1. Rate limit (429) and body size (413).
+2. Malformed JSON (400 `MALFORMED_JSON`).
+3. Session (401) and origin (403 `CSRF_ORIGIN_MISMATCH`).
+4. Permission (403 `FORBIDDEN`).
+5. Existence of the target resource (404 `NOT_FOUND`).
+6. Idempotency: a repeated `Idempotency-Key` with the same body replays the stored response and stops here; the same key with a different body is `IDEMPOTENCY_KEY_REUSED`.
+7. Body validation (422), including `IDEMPOTENCY_KEY_REQUIRED`, a malformed `Idempotency-Key` and unknown references (`REFERENCE_NOT_FOUND`).
+8. Under the locks: a stale `version` (409 `VERSION_CONFLICT`), then the business rules of the operation, in this order:
+   - Create customer: `CUSTOMER_EMAIL_TAKEN`.
+   - Edit a draft order: `ORDER_NOT_EDITABLE`, `CUSTOMER_INACTIVE`, `ORDER_DUPLICATE_PRODUCT`, `ORDER_TOO_MANY_LINES`.
+   - Confirm, cancel or ship an order: `INVALID_TRANSITION`, then for confirm `CUSTOMER_INACTIVE`, `ORDER_EMPTY`, `INSUFFICIENT_STOCK`.
+   - Create invoice: `INVOICE_ALREADY_EXISTS`, `ORDER_NOT_INVOICEABLE`, `CUSTOMER_TAX_ID_REQUIRED`.
+   - Register payment: `INVOICE_NOT_PAYABLE`, `PAYMENT_AMOUNT_MISMATCH`, then the gateway (`PAYMENT_DECLINED`, `PAYMENT_GATEWAY_UNAVAILABLE`).
+
+## 8. Formats and conventions
+
+- **Money:** USD, stored as `NUMERIC(12,2)`, shown as `$1,234.50` (`Intl.NumberFormat('es-US', {style: 'currency', currency: 'USD'})`).
+- **Dates and times:** stored and shown in UTC, never converted to the viewer's time zone, because a conversion would change the date of an invoice depending on who looks at it. Dates look like `31/10/2026` and times like `02:30`, produced with `Intl.DateTimeFormat('es-US', {day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC'})` and `{hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'UTC'}`. Timestamps in the UI carry the suffix "UTC". Without the `2-digit` options, `es-US` does not zero-pad (`3/1/2026`).
+- **Errors:** RFC 9457 `application/problem+json` with `type`, `title`, `status`, `code` (stable), `detail` (Spanish) and, for validation, `errors[]` entries of `{field, code, message}`. Extension members such as `shortages`, `payment_id` and `reason` appear at the top level of the body. The UI shows the message in an element with `role="alert"`.
+- **Lists:** a fixed page size of 20 (the client cannot change it), ordered by `created_at` descending and then by `id` descending, returning `items`, `page`, `page_size` and `total`. Customers are searched by name or email and orders by number or customer name, with a case- and accent-insensitive "contains" match; both accept a `status` filter.
 - **Request tracing:** every response carries an `X-Request-Id` header.
 
-## 7. Seed data
+## 9. Seed data
 
-- The four users from section 2.
-- About 10 customers: some inactive, some without a `tax_id`, one with a long name.
-- About 15 products with SKU, name, price and stock, including one with low stock and one out of stock.
-- Orders, invoices and payments in every state, so each screen has data on first load.
+The exact data is in [SEED.md](SEED.md) and is part of the contract:
+- The four users from section 2, with one shared demo password.
+- 10 customers, including inactive ones, ones without a `tax_id` and one with a very long name.
+- 15 products with SKU, name, price and stock, including one with low stock and one out of stock.
+- 7 orders, with their invoices and payments, covering every order state.
+
+Numbers continue after the seed (`PED-0008`, `FAC-0004`).
+
+`POST /__test__/seed` takes `{"dataset": "default" | "empty"}`: `default` is the data in SEED.md and `empty` keeps only the four users and the settings.
+
+A reset restores the data, the number sequences, the tax rate (to `DEFAULT_TAX_RATE`) and the clock offset, and clears every fault rule, the stored idempotency keys and the rate-limit counters. Sessions are kept: the four users keep their ids, so a stored authentication state keeps working after a reset.
+
+## 10. Out of scope
+
+These are decisions, not omissions: refunds, partial payments, discounts, multiple currencies, product management screens (the catalog comes from the seed), user management, password reset, real payment gateways and real email delivery. The only email the system sends is the invoice notice in section 6.

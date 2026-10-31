@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import FrozenInstanceError
 
 import pytest
@@ -188,3 +189,31 @@ def test_sweep_runs_at_most_once_per_window() -> None:
     assert limiter._last_sweep == 60
     assert "a" not in limiter._hits
     assert "b" in limiter._hits
+
+
+@pytest.mark.parametrize("limit", [0, -1])
+def test_limit_must_be_at_least_one(limit: int) -> None:
+    with pytest.raises(ValueError):
+        SlidingWindowLimiter(limit, 60, lambda: 0.0)
+
+
+@pytest.mark.parametrize("window_seconds", [0, -0.1, -60])
+def test_window_must_be_positive(window_seconds: float) -> None:
+    with pytest.raises(ValueError):
+        SlidingWindowLimiter(1, window_seconds, lambda: 0.0)
+
+
+def test_valid_constructor_arguments_are_accepted() -> None:
+    limiter = SlidingWindowLimiter(1, 0.001, lambda: 0.0)
+
+    assert limiter.hit("k").allowed is True
+
+
+def test_concurrent_hits_allow_exactly_the_limit() -> None:
+    limiter = SlidingWindowLimiter(limit=10, window_seconds=60, clock=lambda: 0.0)
+
+    with ThreadPoolExecutor(max_workers=20) as executor:
+        decisions = list(executor.map(limiter.hit, ["same-key"] * 100))
+
+    assert sum(decision.allowed for decision in decisions) == 10
+    assert all(decision.retry_after == 60 for decision in decisions if not decision.allowed)

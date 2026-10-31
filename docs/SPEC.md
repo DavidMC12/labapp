@@ -87,3 +87,40 @@ Totals (computed on the server):
 | Stale `version` on update | 409 | `VERSION_CONFLICT` | El registro cambió mientras lo editabas. Recarga e inténtalo de nuevo. |
 
 Concurrency: every mutable record has a `version` (optimistic locking). Confirming an order locks the affected stock rows, so two simultaneous confirmations cannot oversell.
+
+## 5. Invoices and payments (flow 3)
+
+Invoices:
+- Created manually by Finance or Admin from a `confirmed` order. Any other state returns `ORDER_NOT_INVOICEABLE`.
+- The customer must have a `tax_id` (`CUSTOMER_TAX_ID_REQUIRED`).
+- One invoice per order (`INVOICE_ALREADY_EXISTS`). Number `FAC-0001`, `FAC-0002`, ...
+- The order totals are copied and frozen into the invoice. States: `issued`, `paid`, `void`. A `paid` or `void` invoice is final.
+- Cancelling a `confirmed` order voids its `issued` invoice.
+
+Payments:
+- Registered by Finance or Admin on an `issued` invoice (`INVOICE_NOT_PAYABLE` otherwise).
+- Full payment only: the amount must equal the invoice total (`PAYMENT_AMOUNT_MISMATCH`).
+- Methods: `card`, `transfer`, `cash`.
+
+| Method | Required data |
+|---|---|
+| `card` | 16-digit number, future expiry date, 3-digit CVC. Only the last 4 digits are stored. |
+| `transfer` | Reference of 4 to 40 characters. |
+| `cash` | None. |
+
+The payment gateway is fake and replaceable. A card ending in `0002` is declined; every other valid card is approved.
+
+| Outcome | Payment | Invoice | Order |
+|---|---|---|---|
+| Approved | `approved` | `paid` | `paid` |
+| Declined | `declined`, kept in the payment history | unchanged | unchanged |
+
+A declined payment can be retried. Requests carry an `Idempotency-Key` header: repeating a key returns the original result and never creates a second payment.
+
+| Situation | HTTP | Code | Message (es) |
+|---|---|---|---|
+| Order not confirmed | 409 | `ORDER_NOT_INVOICEABLE` | Solo se puede facturar un pedido confirmado. |
+| Invoice already exists | 409 | `INVOICE_ALREADY_EXISTS` | Este pedido ya tiene una factura. |
+| Invoice not payable | 409 | `INVOICE_NOT_PAYABLE` | Esta factura no admite pagos. |
+| Amount differs from total | 422 | `PAYMENT_AMOUNT_MISMATCH` | El monto debe ser igual al total de la factura. |
+| Gateway declines | 402 | `PAYMENT_DECLINED` | La pasarela rechazó el pago. Prueba con otra tarjeta. |

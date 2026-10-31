@@ -47,4 +47,22 @@ jobs:
       run:
         working-directory: frontend
 
-    steps: []
+    steps:
+      - uses: actions/checkout@v4 # pinned later in this task
+
+      - uses: jdx/mise-action@v5
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build

@@ -166,7 +166,56 @@ Atomicity and retries:
 | Missing idempotency key | 422 | `IDEMPOTENCY_KEY_REQUIRED` | Falta la cabecera Idempotency-Key. |
 | Key reused with other data | 422 | `IDEMPOTENCY_KEY_REUSED` | Esa clave de idempotencia ya se usó con otros datos. |
 
-## 7. Formats and conventions
+## 7. Errors and validation order
+
+Every error is `application/problem+json` (section 8). Codes are stable; messages are Spanish and may be reworded. Authentication, rate-limit and permission errors are in sections 2 and 3; feature errors are in sections 4 to 6.
+
+Common errors not tied to one feature:
+
+| Situation | HTTP | Code | Message (es) |
+|---|---|---|---|
+| Resource does not exist | 404 | `NOT_FOUND` | No se encontró el recurso solicitado. |
+| Request body above 100 KB | 413 | `PAYLOAD_TOO_LARGE` | La solicitud es demasiado grande. |
+| Unexpected server error | 500 | `INTERNAL_ERROR` | Ocurrió un error inesperado. Inténtalo de nuevo. |
+
+Field-level errors: a 422 `VALIDATION_ERROR` lists one entry per field in `errors[]`, with `field` (a path such as `lines[0].quantity`), `code` and `message`:
+
+| Code | Message (es) |
+|---|---|
+| `REQUIRED` | Este campo es obligatorio. |
+| `TOO_SHORT` | Debe tener al menos {min} caracteres. |
+| `TOO_LONG` | Debe tener como máximo {max} caracteres. |
+| `INVALID_FORMAT` | El formato no es válido. |
+| `OUT_OF_RANGE` | El valor debe estar entre {min} y {max}. |
+| `CARD_NUMBER_INVALID` | El número de tarjeta no es válido. |
+| `CARD_EXPIRED` | La tarjeta está vencida. |
+| `CARD_CVC_INVALID` | El código de seguridad no es válido. |
+
+A quantity outside 1 to 999 is `OUT_OF_RANGE`; a quantity that is not an integer is `INVALID_FORMAT`.
+
+Labels used in messages:
+
+| Concept | Spanish labels |
+|---|---|
+| Order states | borrador, confirmado, pagado, enviado, cancelado |
+| Invoice states | emitida, pagada, anulada |
+| Payment states | aprobado, rechazado, fallido |
+| Payment methods | tarjeta, transferencia, efectivo |
+| Roles | Admin, Ventas, Finanzas, Solo lectura |
+
+Order of checks. A request is rejected by the first rule that fails:
+1. Session (401) and origin (403 `CSRF_ORIGIN_MISMATCH`).
+2. Permission (403 `FORBIDDEN`).
+3. Existence of the target (404 `NOT_FOUND`).
+4. A repeated `Idempotency-Key` with the same body replays the stored response and stops here.
+5. Body validation (422), including `IDEMPOTENCY_KEY_REQUIRED`.
+6. Stale `version` (409 `VERSION_CONFLICT`).
+7. Business rules, in this order for each operation:
+   - Create invoice: `INVOICE_ALREADY_EXISTS`, `ORDER_NOT_INVOICEABLE`, `CUSTOMER_TAX_ID_REQUIRED`.
+   - Register payment: `IDEMPOTENCY_KEY_REUSED`, `INVOICE_NOT_PAYABLE`, `PAYMENT_AMOUNT_MISMATCH`, then the gateway (`PAYMENT_DECLINED`, `PAYMENT_GATEWAY_UNAVAILABLE`).
+   - Confirm order: `INVALID_TRANSITION`, `CUSTOMER_INACTIVE`, `ORDER_EMPTY`, `INSUFFICIENT_STOCK`.
+
+## 8. Formats and conventions
 
 - **Money:** USD, stored as `NUMERIC(12,2)`, shown as `$1,234.50`.
 - **Dates:** stored in UTC, shown as `dd/mm/yyyy` (locale `es-US`).
@@ -174,7 +223,7 @@ Atomicity and retries:
 - **Lists:** 20 items per page, newest first, with `page`, `page_size` and `total`. Customers and orders support text search and a status filter.
 - **Request tracing:** every response carries an `X-Request-Id` header.
 
-## 8. Seed data
+## 9. Seed data
 
 - The four users from section 2.
 - About 10 customers: some inactive, some without a `tax_id`, one with a long name.

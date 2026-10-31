@@ -4,7 +4,7 @@ import { Button, Input } from "@/components/ui";
 import { useLogin } from "@/features/auth/hooks";
 import { DEMO_PASSWORD_TEXT, DEMO_USERS } from "@/features/auth/demo";
 import { roleLabel } from "@/features/auth/types";
-import { ApiRequestError } from "@/lib/api";
+import { ApiRequestError, INTERNAL_ERROR_DETAIL } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
@@ -101,7 +101,7 @@ export default function LoginPage() {
           setFormError(error.problem.detail);
         }
       } else {
-        setFormError("Ocurrió un error inesperado. Inténtalo de nuevo.");
+        setFormError(INTERNAL_ERROR_DETAIL);
       }
     } finally {
       submittingRef.current = false;

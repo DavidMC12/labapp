@@ -122,7 +122,7 @@ Invoices:
 - The customer must have a `tax_id` (`CUSTOMER_TAX_ID_REQUIRED`).
 - One invoice per order (`INVOICE_ALREADY_EXISTS`). Number `FAC-0001`, `FAC-0002`, ...
 - The invoice stores a snapshot of the order lines and totals and of the customer's name, `tax_id` and address at issue time. States: `issued`, `paid`, `void`. A `paid` or `void` invoice is final.
-- Issuing an invoice sends the email "Factura FAC-0001 emitida" to the customer's email through the email port (Mailpit locally, only logged online). No other email is sent.
+- Issuing an invoice sends the email "Factura FAC-0001 emitida" to the customer's email through the email port (Mailpit locally, only logged online) after the transaction commits. If sending fails, the failure is logged and the invoice stays issued. No other email is sent.
 - Cancelling a `confirmed` order voids its `issued` invoice.
 
 Payments:
@@ -150,10 +150,13 @@ Atomicity and retries:
 - The order is locked first, then the invoice (section 5, Concurrency). The state is re-validated after locking and the gateway outcome is applied against that locked state.
 - An approved payment, the invoice becoming `paid` and the order becoming `paid` are committed in a single database transaction.
 - A declined or failed payment is committed to the payment history even though the response is an error. The error body carries `payment_id` and `reason`.
-- `POST /api/invoices/{id}/payments` requires an `Idempotency-Key` header of 1 to 64 characters. Keys are remembered for 24 hours per invoice.
-  - Same key and same body: the original response (status and body) is replayed, including declines. No second payment is created.
-  - Same key and a different body: `IDEMPOTENCY_KEY_REUSED`.
-  - A retry after a decline or a gateway failure is a new attempt and must use a new key.
+- `POST /api/invoices/{id}/payments` requires an `Idempotency-Key` header of 1 to 64 characters from `[A-Za-z0-9._-]` (missing: `IDEMPOTENCY_KEY_REQUIRED`; malformed: `VALIDATION_ERROR` with `INVALID_FORMAT` on `Idempotency-Key`).
+- A key is scoped to the invoice and remembered for 24 hours. Only outcomes that created a payment row consume it: `approved`, `declined` and `failed`. A request rejected before that point (validation error, state conflict, stale `version`) does not consume the key, so a corrected retry with the same key works.
+- The key is claimed atomically (a unique `(invoice_id, key)` record) before the locks are taken, and looked up again after them. Two concurrent requests with the same key and body therefore produce one payment, and the second replays the first one's response instead of failing with `INVOICE_NOT_PAYABLE`.
+- Same key and same body: the stored response (status and body) is replayed, including declines and `failed` (503) outcomes. Same key and a different body: `IDEMPOTENCY_KEY_REUSED`.
+- The body is compared through a keyed hash (HMAC-SHA-256 of the canonical JSON). The card number and the CVC are never stored, and the stored response contains only the last 4 digits.
+- A retry after a decline or a gateway failure is a new attempt and must use a new key.
+- The gateway is called while the locks are held, so injected latency is capped at 10 seconds.
 
 | Situation | HTTP | Code | Message (es) |
 |---|---|---|---|

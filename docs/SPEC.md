@@ -59,14 +59,14 @@ The server enforces every permission. A forbidden action returns HTTP 403 with c
 
 Rules:
 - Customers are never deleted. They are deactivated and can be reactivated.
-- An inactive customer cannot be chosen for a new order. Deactivating a customer does not change existing orders, but confirming a draft whose customer has become inactive fails with `CUSTOMER_INACTIVE`. Confirmed and paid orders of an inactive customer can still be invoiced, paid and shipped.
+- An inactive customer cannot be chosen for an order. Deactivating a customer does not change existing orders, but confirming a draft whose customer has become inactive fails with `CUSTOMER_INACTIVE`. A confirmed order of an inactive customer can still be invoiced and paid, and a paid one can still be shipped.
 - Field-level problems return HTTP 422 `VALIDATION_ERROR` with one entry per field.
 - The email is trimmed and lowercased before validation and uniqueness checks.
 
 | Situation | HTTP | Code | Message (es) |
 |---|---|---|---|
 | Email already used | 409 | `CUSTOMER_EMAIL_TAKEN` | Ya existe un cliente con ese email. |
-| Order for an inactive customer | 422 | `CUSTOMER_INACTIVE` | El cliente está desactivado y no puede recibir pedidos nuevos. |
+| Creating, editing or confirming an order for an inactive customer | 422 | `CUSTOMER_INACTIVE` | El cliente está desactivado y no puede recibir pedidos. |
 | Invoice for a customer without `tax_id` | 422 | `CUSTOMER_TAX_ID_REQUIRED` | El cliente necesita un ID fiscal para poder facturar. |
 
 ## 5. Orders (flow 2)
@@ -184,6 +184,9 @@ Common errors not tied to one feature:
 | Permission denied | 403 | `FORBIDDEN` | No tienes permiso para realizar esta acción. |
 | Invalid body or parameters | 422 | `VALIDATION_ERROR` | Revisa los datos ingresados. |
 | Order transition not allowed | 409 | `INVALID_TRANSITION` | No se puede pasar el pedido de {from} a {to}. |
+| Malformed JSON body | 400 | `MALFORMED_JSON` | El cuerpo de la solicitud no es un JSON válido. |
+| Lock wait above 5 seconds | 503 | `LOCK_TIMEOUT` | El recurso está ocupado. Inténtalo de nuevo. |
+| Method not allowed | 405 | `METHOD_NOT_ALLOWED` | Método no permitido para este recurso. |
 
 Field-level errors: a 422 `VALIDATION_ERROR` lists one entry per field in `errors[]`, with `field` (a path such as `lines[0].quantity`), `code` and `message`:
 
@@ -194,11 +197,12 @@ Field-level errors: a 422 `VALIDATION_ERROR` lists one entry per field in `error
 | `TOO_LONG` | Debe tener como máximo {max} caracteres. |
 | `INVALID_FORMAT` | El formato no es válido. |
 | `OUT_OF_RANGE` | El valor debe estar entre {min} y {max}. |
+| `REFERENCE_NOT_FOUND` | El registro indicado no existe. |
 | `CARD_NUMBER_INVALID` | El número de tarjeta no es válido. |
 | `CARD_EXPIRED` | La tarjeta está vencida. |
 | `CARD_CVC_INVALID` | El código de seguridad no es válido. |
 
-A quantity outside 1 to 999 is `OUT_OF_RANGE`; a quantity that is not an integer is `INVALID_FORMAT`.
+A quantity outside 1 to 999 is `OUT_OF_RANGE`; a quantity that is not an integer is `INVALID_FORMAT`. A `customer_id` or `product_id` that does not exist is `REFERENCE_NOT_FOUND` on that field. Statuses outside this catalog render a generic Spanish message ("No se pudo completar la solicitud.") with the code derived from the status name.
 
 Labels used in messages:
 

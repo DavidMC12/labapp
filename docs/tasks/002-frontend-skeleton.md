@@ -53,3 +53,10 @@ pnpm build
 - Do not push. Do not merge. Do not touch `main`.
 - If the contract is ambiguous or contradicts itself, do not guess: write the question in your report.
 - When done, reply with: the branch, the commit range, the exact commands you ran with their results, and any deviation or open question.
+
+## Errata (added after the review)
+
+- `pnpm lint` does not fail on warnings by default. The script must be `eslint . --max-warnings 0`; this is done in task 004.
+- `Input` takes the props `id`, `testId`, `label` and `error`.
+- `errorTestId` and `Input` only support `-input` ids without a numeric suffix; select and textarea fields and suffixed ids are added in task 004, together with the final pattern.
+- TypeScript is pinned to 6.x because `typescript-eslint` does not support TypeScript 7 yet.

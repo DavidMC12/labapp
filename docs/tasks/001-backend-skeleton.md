@@ -54,3 +54,14 @@ SESSION_SECRET=dev-secret uv run uvicorn app.main:app --port 8000   # then: curl
 - Do not push. Do not merge. Do not touch `main`.
 - If the spec is ambiguous or contradicts itself, do not guess: write the question in your report.
 - When done, reply with: the branch, the commit range, the exact commands you ran with their results, and any deviation or open question.
+
+## Errata (added after the review)
+
+- The startup guard and the health endpoint are described under "Operational rules" in `docs/ARCHITECTURE.md`, not under "Sessions and security" or "Test-only controls".
+- Use `httpx2` instead of `httpx` as the dev dependency (Starlette reports `httpx` as deprecated) and make the test run finish with no warnings.
+- `Settings` defaults: `database_url` defaults to the URL in `.env.example`, `test_token` to an empty string and `default_tax_rate` to 10. `session_secret` has no safe default and is checked by the guard. Tests set `SESSION_SECRET` in `conftest.py` before importing the module-level `app`.
+- The last acceptance command starts a server and does not exit: stop it with Ctrl+C after the `curl` check.
+- The request body limit is 100 KB, that is 102,400 bytes, and only the `Content-Length` header is inspected.
+- The problem document uses `type` set to `about:blank` and the English HTTP phrase as `title`. Statuses outside the catalog render a generic Spanish message (SPEC section 7). `field` paths drop the framework prefix (`body`) and use the `lines[0].quantity` notation.
+- An incoming `X-Request-Id` is accepted only if it matches `^[A-Za-z0-9._-]{1,64}$`.
+- Environment files: `backend/.env` wins over the repository-root `.env`, and real environment variables win over both.

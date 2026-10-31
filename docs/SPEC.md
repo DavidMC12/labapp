@@ -28,3 +28,25 @@ Four seeded users, one per role, all sharing one demo password that the login sc
 | Change the tax rate | yes | no | no | no |
 
 The server enforces every permission. A forbidden action returns HTTP 403 with code `FORBIDDEN` and the message "No tienes permiso para realizar esta acción." The UI may hide or disable controls, but never replaces the server check.
+
+## 3. Customers (flow 1)
+
+| Field | Rule |
+|---|---|
+| `name` | Required, 2 to 120 characters. |
+| `email` | Required, valid format, unique (case-insensitive). |
+| `phone` | Optional, 7 to 20 characters of digits, spaces, `+`, `-`, `(`, `)`. |
+| `tax_id` | Optional, 3 to 30 letters, digits or hyphens. Required to issue an invoice. |
+| `address` | Optional, up to 200 characters. |
+| `status` | `active` or `inactive`. A new customer is `active`. |
+
+Rules:
+- Customers are never deleted. They are deactivated and can be reactivated.
+- An inactive customer cannot be chosen for a new order. Existing orders are unaffected.
+- Field-level problems return HTTP 422 `VALIDATION_ERROR` with one entry per field.
+
+| Situation | HTTP | Code | Message (es) |
+|---|---|---|---|
+| Email already used | 409 | `CUSTOMER_EMAIL_TAKEN` | Ya existe un cliente con ese email. |
+| Order for an inactive customer | 422 | `CUSTOMER_INACTIVE` | El cliente está desactivado y no puede recibir pedidos nuevos. |
+| Invoice for a customer without `tax_id` | 422 | `CUSTOMER_TAX_ID_REQUIRED` | El cliente necesita un ID fiscal para poder facturar. |

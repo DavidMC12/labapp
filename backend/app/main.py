@@ -4,7 +4,7 @@ from fastapi import FastAPI
 
 from app.config import Settings
 from app.errors import register_error_handlers
-from app.middleware import RequestIdMiddleware
+from app.middleware import BodySizeLimitMiddleware, RequestIdMiddleware
 
 DEFAULT_SESSION_SECRET = "change-me"
 
@@ -26,6 +26,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="LabApp API")
     app.state.settings = settings
+    app.add_middleware(BodySizeLimitMiddleware)
     app.add_middleware(RequestIdMiddleware)
     register_error_handlers(app)
 

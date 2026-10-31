@@ -9,11 +9,10 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.middleware import REQUEST_ID_HEADER
-
 logger = logging.getLogger(__name__)
 
 PROBLEM_MEDIA_TYPE = "application/problem+json"
+REQUEST_ID_HEADER = "X-Request-Id"
 
 NOT_FOUND = "NOT_FOUND"
 PAYLOAD_TOO_LARGE = "PAYLOAD_TOO_LARGE"
@@ -68,7 +67,7 @@ def _title_for_status(status: int) -> str:
         return "Error"
 
 
-def _request_id(request: Request) -> str:
+def get_request_id(request: Request) -> str:
     request_id = getattr(request.state, "request_id", None)
     if isinstance(request_id, str) and request_id:
         return request_id
@@ -111,7 +110,7 @@ def problem_response(
 
 async def _handle_api_error(request: Request, exc: ApiError) -> JSONResponse:
     return problem_response(
-        _request_id(request),
+        get_request_id(request),
         status=exc.status,
         code=exc.code,
         detail=exc.detail,
@@ -135,7 +134,7 @@ async def _handle_http_exception(request: Request, exc: StarletteHTTPException) 
             default_detail = "Error."
         detail = exc.detail if isinstance(exc.detail, str) and exc.detail else default_detail
     return problem_response(
-        _request_id(request),
+        get_request_id(request),
         status=status,
         code=code,
         detail=detail,

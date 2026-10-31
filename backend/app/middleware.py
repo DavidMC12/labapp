@@ -3,9 +3,18 @@ from __future__ import annotations
 from uuid import uuid4
 
 from starlette.datastructures import Headers, MutableHeaders
+from starlette.requests import Request
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-REQUEST_ID_HEADER = "X-Request-Id"
+from app.errors import (
+    ERROR_MESSAGES,
+    PAYLOAD_TOO_LARGE,
+    REQUEST_ID_HEADER,
+    get_request_id,
+    problem_response,
+)
+
+MAX_BODY_BYTES = 100 * 1024
 
 
 class RequestIdMiddleware:
@@ -30,3 +39,33 @@ class RequestIdMiddleware:
             await send(message)
 
         await self.app(scope, receive, send_with_request_id)
+
+
+class BodySizeLimitMiddleware:
+    """Reject requests whose declared Content-Length exceeds the limit."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        content_length = Headers(scope=scope).get("content-length")
+        if content_length is not None:
+            try:
+                declared_size = int(content_length)
+            except ValueError:
+                declared_size = 0
+            if declared_size > MAX_BODY_BYTES:
+                response = problem_response(
+                    get_request_id(Request(scope)),
+                    status=413,
+                    code=PAYLOAD_TOO_LARGE,
+                    detail=ERROR_MESSAGES[PAYLOAD_TOO_LARGE],
+                )
+                await response(scope, receive, send)
+                return
+
+        await self.app(scope, receive, send)

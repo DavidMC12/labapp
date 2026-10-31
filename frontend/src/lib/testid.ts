@@ -11,45 +11,39 @@
 export const TEST_ID_PATTERN =
   /^(app|auth|customers|products|orders|invoices|payments|settings)(-[a-z0-9]+)+-(button|input|select|textarea|checkbox|radio|switch|link|tab|menuitem|form|table|row|cell|list|item|dialog|alert|error|status|text|heading)(-[0-9]+)?$/;
 
-const TEST_ID_MODULES = [
-  "app",
-  "auth",
-  "customers",
-  "products",
-  "orders",
-  "invoices",
-  "payments",
-  "settings",
-] as const;
+export type TestIdModule =
+  | "app"
+  | "auth"
+  | "customers"
+  | "products"
+  | "orders"
+  | "invoices"
+  | "payments"
+  | "settings";
 
-const TEST_ID_KINDS = [
-  "button",
-  "input",
-  "select",
-  "textarea",
-  "checkbox",
-  "radio",
-  "switch",
-  "link",
-  "tab",
-  "menuitem",
-  "form",
-  "table",
-  "row",
-  "cell",
-  "list",
-  "item",
-  "dialog",
-  "alert",
-  "error",
-  "status",
-  "text",
-  "heading",
-] as const;
-
-export type TestIdModule = (typeof TEST_ID_MODULES)[number];
-
-export type TestIdKind = (typeof TEST_ID_KINDS)[number];
+export type TestIdKind =
+  | "button"
+  | "input"
+  | "select"
+  | "textarea"
+  | "checkbox"
+  | "radio"
+  | "switch"
+  | "link"
+  | "tab"
+  | "menuitem"
+  | "form"
+  | "table"
+  | "row"
+  | "cell"
+  | "list"
+  | "item"
+  | "dialog"
+  | "alert"
+  | "error"
+  | "status"
+  | "text"
+  | "heading";
 
 /**
  * The `<name>` part: one or more kebab-case words describing the element.

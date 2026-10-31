@@ -6,11 +6,13 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
+from app.errors import ApiError
 from app.security.ratelimit import (
     GENERAL_LIMIT,
     LOGIN_LIMIT,
     RateDecision,
     SlidingWindowLimiter,
+    rate_limited_error,
 )
 
 
@@ -133,3 +135,14 @@ def test_decision_is_frozen() -> None:
 
     with pytest.raises(FrozenInstanceError):
         decision.allowed = False
+
+
+@pytest.mark.parametrize("retry_after", [1, 17, 60])
+def test_rate_limited_error_carries_retry_after(retry_after: int) -> None:
+    error = rate_limited_error(retry_after)
+
+    assert isinstance(error, ApiError)
+    assert error.status == 429
+    assert error.code == "RATE_LIMITED"
+    assert error.detail == ("Demasiadas solicitudes. Espera un momento e inténtalo de nuevo.")
+    assert error.extra["retry_after"] == retry_after

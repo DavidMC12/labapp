@@ -7,8 +7,11 @@ from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from app.errors import ApiError
+
 GENERAL_LIMIT = (120, 60)
 LOGIN_LIMIT = (10, 60)
+RATE_LIMITED_MESSAGE = "Demasiadas solicitudes. Espera un momento e inténtalo de nuevo."
 
 
 @dataclass(frozen=True)
@@ -60,3 +63,8 @@ class SlidingWindowLimiter:
     def _retry_after(self, oldest: float, now: float) -> int:
         remaining = oldest + self._window_seconds - now
         return max(1, math.ceil(remaining))
+
+
+def rate_limited_error(retry_after: int) -> ApiError:
+    """Build the 429 error and expose the Retry-After value as an extra member."""
+    return ApiError(429, "RATE_LIMITED", RATE_LIMITED_MESSAGE, retry_after=retry_after)

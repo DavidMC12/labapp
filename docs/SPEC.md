@@ -59,8 +59,9 @@ The server enforces every permission. A forbidden action returns HTTP 403 with c
 
 Rules:
 - Customers are never deleted. They are deactivated and can be reactivated.
-- An inactive customer cannot be chosen for a new order. Existing orders are unaffected.
+- An inactive customer cannot be chosen for a new order. Deactivating a customer does not change existing orders, but confirming a draft whose customer has become inactive fails with `CUSTOMER_INACTIVE`. Confirmed and paid orders of an inactive customer can still be invoiced, paid and shipped.
 - Field-level problems return HTTP 422 `VALIDATION_ERROR` with one entry per field.
+- The email is trimmed and lowercased before validation and uniqueness checks.
 
 | Situation | HTTP | Code | Message (es) |
 |---|---|---|---|
@@ -82,17 +83,22 @@ States: `draft`, `confirmed`, `paid`, `shipped`, `cancelled`.
 
 Any other transition returns HTTP 409 `INVALID_TRANSITION`: "No se puede pasar el pedido de {from} a {to}."
 
+Products are read-only and come from the seed: `id`, `sku` (unique, up to 20 characters), `name` (up to 120), `price` (`NUMERIC(12,2)`, greater than 0) and `stock` (integer, 0 or more).
+
 Lines:
 - An order has a customer (active) and 1 to 50 lines. Each line has a product and an integer quantity from 1 to 999.
 - A product appears at most once per order. Adding it again returns `ORDER_DUPLICATE_PRODUCT`.
 - The unit price is copied from the product when the line is added.
 - Only a `draft` order can be edited.
+- A draft can be saved with no lines; `ORDER_EMPTY` applies only when confirming.
+- The customer of a draft can be changed while it is a draft; the new customer must be active.
+- `shipped` and `cancelled` are final. A `paid` order can only move to `shipped`.
 
 Totals (computed on the server):
 - `subtotal` = sum of quantity times unit price.
 - `tax` = `subtotal` times the tax rate, rounded half-up to 2 decimals.
 - `total` = `subtotal` + `tax`.
-- The tax rate is a percentage set by Admin (default 10%, range 0 to 100) and is frozen in the order when it is confirmed.
+- The tax rate is a percentage set by Admin (default 10.00, range 0.00 to 100.00, up to 2 decimals). A draft shows the current rate as a preview; the rate is frozen in the order when it is confirmed.
 
 | Situation | HTTP | Code | Message (es) |
 |---|---|---|---|
@@ -115,7 +121,8 @@ Invoices:
 - Created manually by Finance or Admin from a `confirmed` order. Any other state returns `ORDER_NOT_INVOICEABLE`.
 - The customer must have a `tax_id` (`CUSTOMER_TAX_ID_REQUIRED`).
 - One invoice per order (`INVOICE_ALREADY_EXISTS`). Number `FAC-0001`, `FAC-0002`, ...
-- The order totals are copied and frozen into the invoice. States: `issued`, `paid`, `void`. A `paid` or `void` invoice is final.
+- The invoice stores a snapshot of the order lines and totals and of the customer's name, `tax_id` and address at issue time. States: `issued`, `paid`, `void`. A `paid` or `void` invoice is final.
+- Issuing an invoice sends the email "Factura FAC-0001 emitida" to the customer's email through the email port (Mailpit locally, only logged online). No other email is sent.
 - Cancelling a `confirmed` order voids its `issued` invoice.
 
 Payments:
@@ -125,11 +132,13 @@ Payments:
 
 | Method | Required data |
 |---|---|
-| `card` | 16-digit number, future expiry date, 3-digit CVC. Only the last 4 digits are stored. |
+| `card` | 16-digit number that passes the Luhn check, an expiry month (`MM/YY`) that is not in the past (valid through its last day, using the application clock), 3-digit CVC. Only the last 4 digits are stored. |
 | `transfer` | Reference of 4 to 40 characters. |
 | `cash` | None. |
 
 The payment gateway is fake and replaceable. For `card`, a number ending in `0002` is declined and every other valid card is approved. `transfer` and `cash` are always approved.
+
+Test cards (both pass the Luhn check): `4242 4242 4242 4242` is approved and `4000 0000 0000 0002` is declined.
 
 | Outcome | Payment | Invoice | Order |
 |---|---|---|---|

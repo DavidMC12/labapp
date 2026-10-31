@@ -77,4 +77,4 @@ Notes:
 ## Numbering and reset
 
 - Numbers are zero-padded to at least 4 digits and grow beyond that (`PED-10000`). After the seed, the next order is `PED-0008`, the next invoice `FAC-0004` and the next payment id 5. Seeded numbers have no gaps; later numbers can skip one, because a rolled-back transaction still consumes a number. Ids of invoices, order lines and payments are assigned in the order they appear in the tables above.
-- `POST /__test__/reset` restores the data above and everything else listed in [SPEC.md](SPEC.md) section 9. `POST /__test__/seed` with the `default` dataset loads the same data without touching the number sequences' definition; with `empty` it keeps only the four users and the settings.
+- `POST /__test__/reset` restores the data above and everything else listed in [SPEC.md](SPEC.md) section 9. `POST /__test__/seed` with the `default` dataset loads this data, and with `empty` it keeps only the four users and the settings.

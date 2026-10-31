@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from argon2 import PasswordHasher
-from argon2.exceptions import InvalidHashError, VerificationError
+from argon2.exceptions import Argon2Error
 from argon2.low_level import Type
 
 _HASHER = PasswordHasher(type=Type.ID)
@@ -20,7 +20,8 @@ def verify_password(hash: str, password: str) -> bool:
         return False
     try:
         return _HASHER.verify(hash, password)
-    except (InvalidHashError, VerificationError):
+    except (Argon2Error, TypeError, ValueError):
+        # Every malformed hash must fail closed instead of raising.
         return False
 
 

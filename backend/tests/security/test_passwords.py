@@ -30,10 +30,19 @@ def test_wrong_password_is_rejected() -> None:
         "not-a-hash",
         "$argon2id$garbage",
         "$argon2id$v=19$m=65536,t=3,p=4$abc$def",
+        "ü",
     ],
 )
 def test_malformed_hash_returns_false(malformed: str) -> None:
     assert verify_password(malformed, PASSWORD) is False
+
+
+def test_non_ascii_password_round_trip() -> None:
+    password = "contraseña-segura"
+    hashed = hash_password(password)
+
+    assert verify_password(hashed, password) is True
+    assert verify_password(hashed, "contrasena-segura") is False
 
 
 def test_two_hashes_of_the_same_password_differ() -> None:

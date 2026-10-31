@@ -86,7 +86,7 @@ Any other transition returns HTTP 409 `INVALID_TRANSITION`: "No se puede pasar e
 Products are read-only and come from the seed: `id`, `sku` (unique, up to 20 characters), `name` (up to 120), `price` (`NUMERIC(12,2)`, greater than 0) and `stock` (integer, 0 or more).
 
 Lines:
-- An order has a customer (active) and 1 to 50 lines. Each line has a product and an integer quantity from 1 to 999.
+- An order has a customer (active) and up to 10 lines, at least 1 to be confirmed. Each line has a product and an integer quantity from 1 to 999. The cap is below the 15 seeded products so that it can be reached.
 - A product appears at most once per order. Adding it again returns `ORDER_DUPLICATE_PRODUCT`.
 - The unit price is copied from the product when the line is added.
 - Only a `draft` order can be edited.
@@ -96,14 +96,14 @@ Lines:
 
 Totals (computed on the server):
 - `subtotal` = sum of quantity times unit price.
-- `tax` = `subtotal` times the tax rate, rounded half-up to 2 decimals.
+- `tax` = `subtotal` × `rate` ÷ 100, rounded half-up to 2 decimals (a tie such as 5.025 becomes 5.03, where half-even would give 5.02).
 - `total` = `subtotal` + `tax`.
-- The tax rate is a percentage set by Admin (default 10.00, range 0.00 to 100.00, up to 2 decimals). A draft shows the current rate as a preview; the rate is frozen in the order when it is confirmed.
+- The tax rate is a percentage set by Admin (default 10.00, range 0.00 to 100.00, up to 2 decimals). A draft shows the current rate as a preview; the rate is frozen in the order when it is confirmed. A reset restores the rate to `DEFAULT_TAX_RATE` (10.00 unless the environment says otherwise); the seed totals assume 10.00.
 
 | Situation | HTTP | Code | Message (es) |
 |---|---|---|---|
 | Product repeated in the order | 422 | `ORDER_DUPLICATE_PRODUCT` | Ese producto ya está en el pedido; edita su cantidad. |
-| More than 50 lines | 422 | `ORDER_TOO_MANY_LINES` | Un pedido admite como máximo 50 líneas. |
+| More than 10 lines | 422 | `ORDER_TOO_MANY_LINES` | Un pedido admite como máximo 10 líneas. |
 | Confirm without lines | 422 | `ORDER_EMPTY` | El pedido debe tener al menos una línea. |
 | Edit a non-draft order | 409 | `ORDER_NOT_EDITABLE` | Solo se puede editar un pedido en borrador. |
 | Not enough stock on confirm | 409 | `INSUFFICIENT_STOCK` | No hay stock suficiente de {product}: disponible {available}, solicitado {requested}. |

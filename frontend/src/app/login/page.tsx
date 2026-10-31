@@ -131,6 +131,7 @@ export default function LoginPage() {
         onSubmit={handleSubmit}
       >
         <Input
+          ref={emailRef}
           id="auth-login-email"
           testId="auth-login-email-input"
           label="Email"
@@ -141,6 +142,7 @@ export default function LoginPage() {
           error={fieldErrors.email}
         />
         <Input
+          ref={passwordRef}
           id="auth-login-password"
           testId="auth-login-password-input"
           label="Contraseña"

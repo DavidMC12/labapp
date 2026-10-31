@@ -59,3 +59,26 @@ src/
 - `Link` wraps `next/link` and always renders `data-testid`.
 - The hydration marker sets `data-hydrated="true"` on `<body>` once the
   client has hydrated.
+
+## Authentication
+
+- Hooks in `src/features/auth/hooks.ts` on TanStack Query (all with
+  `retry: false`): `useMe()` (`GET /api/auth/me`, resolves to `null` on a
+  401), `useLogin()` (`POST /api/auth/login`, caches the returned user with
+  `setQueryData(ME_QUERY_KEY, user)` *before* the page navigates) and
+  `useLogout()` (`POST /api/auth/logout`, clears the whole query cache
+  whatever the answer).
+- The backend does not serve the auth endpoints yet: everything is
+  developed and tested against a mocked `fetch` (no test uses the
+  network), so the same code talks to the real API without changes.
+- A 401 on `me` is treated as "no session" and redirects to the login
+  silently for now; the redirect decision will change when roles and
+  protected routes arrive.
+- `src/app/login/page.tsx` is the login screen (validation, field and
+  form-level errors, demo users box). `src/app/(app)/` is the
+  authenticated shell (header, navigation, logout) with placeholder pages
+  for clients, orders and invoices.
+- API access goes through `src/lib/api.ts` (`apiFetch`), which speaks the
+  `application/problem+json` contract of docs/SPEC.md section 8: failures
+  throw `ApiRequestError` with the problem document, or a synthesized
+  `INTERNAL_ERROR` problem for non-JSON bodies and network errors.

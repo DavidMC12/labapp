@@ -46,10 +46,11 @@ export type TestIdKind =
   | "heading";
 
 /**
- * The `<name>` part: one or more kebab-case words describing the element.
- * Template literal types cannot express "lowercase kebab-case words", so
- * casing and word structure are enforced at runtime by `isValidTestId` (and
- * later by the audit), while modules and kinds are enforced here by `tsc`.
+ * The `<name>` part: one or more kebab-case words describing the element,
+ * each starting with a letter (see docs/TESTABILITY.md). Template literal
+ * types cannot express "lowercase kebab-case words", so casing and word
+ * structure are enforced at runtime by `isValidTestId` (and later by the
+ * audit), while modules and kinds are enforced here by `tsc`.
  */
 export type TestIdName = `${string}`;
 
@@ -69,17 +70,27 @@ export function isValidTestId(id: string): boolean {
   return TEST_ID_PATTERN.test(id);
 }
 
+const FIELD_ID_PATTERN =
+  /^(?<prefix>.+)-(?<kind>input|select|textarea)(?<suffix>-(?<number>[0-9]+))?$/;
+
 /**
- * Turns the test id of a field input into the test id of its error message:
- * `customers-form-email-input` -> `customers-form-email-error`.
+ * Turns the test id of a field control into the test id of its error
+ * message, keeping a numeric record id suffix:
  *
- * Throws when the id does not end in `-input`.
+ * - `customers-form-email-input` -> `customers-form-email-error`
+ * - `orders-line-quantity-input-7` -> `orders-line-quantity-error-7`
+ *
+ * Accepts only ids whose kind is `input`, `select` or `textarea`; throws
+ * for any other kind.
  */
-export function errorTestId(inputTestId: TestId): TestId {
-  if (!inputTestId.endsWith("-input")) {
+export function errorTestId(fieldTestId: TestId): TestId {
+  const match = FIELD_ID_PATTERN.exec(fieldTestId);
+
+  if (!match?.groups) {
     throw new Error(
-      `errorTestId expects an id ending in "-input", received: "${inputTestId}"`,
+      `errorTestId expects an id whose kind is "input", "select" or "textarea", received: "${fieldTestId}"`,
     );
   }
-  return `${inputTestId.slice(0, -"-input".length)}-error` as TestId;
+
+  return `${match.groups.prefix}-error${match.groups.suffix ?? ""}` as TestId;
 }

@@ -78,8 +78,30 @@ describe("errorTestId", () => {
     );
   });
 
-  it("throws when the id does not end in -input", () => {
-    expect(() => errorTestId("orders-confirm-button")).toThrow(/-input/);
-    expect(() => errorTestId("customers-form-email-error")).toThrow(/-input/);
+  it("keeps the numeric suffix of a suffixed field id", () => {
+    expect(errorTestId("orders-line-quantity-input-7")).toBe(
+      "orders-line-quantity-error-7",
+    );
+  });
+
+  it("accepts select and textarea field kinds", () => {
+    expect(errorTestId("customers-form-status-select")).toBe(
+      "customers-form-status-error",
+    );
+    expect(errorTestId("orders-line-notes-textarea")).toBe(
+      "orders-line-notes-error",
+    );
+    expect(errorTestId("orders-line-product-select-3")).toBe(
+      "orders-line-product-error-3",
+    );
+  });
+
+  it("throws for any other kind", () => {
+    expect(() => errorTestId("orders-confirm-button")).toThrow(
+      /"input", "select" or "textarea"/,
+    );
+    expect(() => errorTestId("customers-form-email-error")).toThrow(
+      /"input", "select" or "textarea"/,
+    );
   });
 });

@@ -96,7 +96,14 @@ export async function apiFetch<T>(
     if (response.status === 204) {
       return undefined as T;
     }
-    return (await response.json()) as T;
+    try {
+      return (await response.json()) as T;
+    } catch {
+      // A proxy or a single-page fallback can answer 2xx with a non-JSON
+      // body; report the unexpected answer instead of leaking a raw
+      // SyntaxError.
+      throw new ApiRequestError(internalProblem(response.status));
+    }
   }
 
   let parsed: unknown = null;

@@ -224,4 +224,27 @@ describe("apiFetch", () => {
       );
     }
   });
+
+  it("throws a synthesized problem on a 2xx answer with a non-JSON body", async () => {
+    // A proxy or a single-page fallback can serve HTML with status 200.
+    fetchMock.mockResolvedValue(
+      jsonResponse("<html>SPF fallback</html>", {
+        status: 200,
+        contentType: "text/html",
+      }),
+    );
+
+    try {
+      await apiFetch("/api/auth/me");
+      expect.unreachable("apiFetch should have thrown");
+    } catch (thrown) {
+      const error = thrown as ApiRequestError;
+      expect(error).toBeInstanceOf(ApiRequestError);
+      expect(error.problem.status).toBe(200);
+      expect(error.problem.code).toBe("INTERNAL_ERROR");
+      expect(error.problem.detail).toBe(
+        "Ocurrió un error inesperado. Inténtalo de nuevo.",
+      );
+    }
+  });
 });

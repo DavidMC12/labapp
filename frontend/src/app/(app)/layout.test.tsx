@@ -132,6 +132,26 @@ describe("app shell states", () => {
       );
     });
   });
+
+  it("shows the error alert with retry when a 2xx answer is not JSON", async () => {
+    // A proxy serves its own HTML with status 200; the session cannot be
+    // read, so the shell must not fall through to a blank page.
+    fetchMock.mockResolvedValue(
+      new Response("<html>fallback</html>", {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      }),
+    );
+
+    renderShell();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("app-shell-error-alert")).toHaveTextContent(
+        "Ocurrió un error inesperado. Inténtalo de nuevo.",
+      );
+    });
+    expect(screen.getByTestId("app-shell-retry-button")).toBeInTheDocument();
+  });
 });
 
 describe("app shell session", () => {

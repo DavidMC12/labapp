@@ -3,7 +3,7 @@
 import { Button, Link } from "@/components/ui";
 import { useLogout, useMe } from "@/features/auth/hooks";
 import { roleLabel } from "@/features/auth/types";
-import { ApiRequestError } from "@/lib/api";
+import { ApiRequestError, INTERNAL_ERROR_DETAIL } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
 
@@ -54,12 +54,22 @@ export default function AppLayout({
     );
   }
 
-  if (me.isError && me.error instanceof ApiRequestError
-    && me.error.problem.status !== 401) {
+  // Every error other than a 401 (which useMe resolves to null) goes to
+  // the error branch: an ApiRequestError shows its detail, anything else
+  // shows the INTERNAL_ERROR text.
+  const isSilent401 =
+    me.error instanceof ApiRequestError && me.error.problem.status === 401;
+
+  if (me.isError && !isSilent401) {
+    const problemDetail: string =
+      me.error instanceof ApiRequestError
+        ? me.error.problem.detail
+        : INTERNAL_ERROR_DETAIL;
+
     return (
       <div>
         <p role="alert" data-testid="app-shell-error-alert">
-          {me.error.problem.detail}
+          {problemDetail}
         </p>
         <Button
           testId="app-shell-retry-button"

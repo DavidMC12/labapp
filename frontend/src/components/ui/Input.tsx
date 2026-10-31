@@ -1,5 +1,6 @@
 import type { InputHTMLAttributes } from "react";
 import { errorTestId, type TestId } from "@/lib/testid";
+import { Field, fieldControlProps } from "./Field";
 
 type InputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "id"> & {
   id: string;
@@ -15,24 +16,15 @@ type InputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "id"> & {
  * referenced by the input through `aria-describedby`.
  */
 export function Input({ id, testId, label, error, ...rest }: InputProps) {
-  const hasError = Boolean(error);
   const errorId = errorTestId(testId);
 
   return (
-    <div>
-      <label htmlFor={id}>{label}</label>
+    <Field id={id} label={label} errorId={errorId} error={error}>
       <input
         {...rest}
-        id={id}
+        {...fieldControlProps(id, error, errorId)}
         data-testid={testId}
-        aria-invalid={hasError ? "true" : undefined}
-        aria-describedby={hasError ? errorId : undefined}
       />
-      {error ? (
-        <p role="alert" id={errorId} data-testid={errorId}>
-          {error}
-        </p>
-      ) : null}
-    </div>
+    </Field>
   );
 }

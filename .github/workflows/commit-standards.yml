@@ -8,16 +8,20 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: commit-standards-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   commits:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Resolve commit range
-        id: range
+      - name: Check commit messages and attribution
         env:
           EVENT: ${{ github.event_name }}
           PR_BASE: ${{ github.event.pull_request.base.sha }}
@@ -25,33 +29,41 @@ jobs:
           BEFORE: ${{ github.event.before }}
           SHA: ${{ github.sha }}
         run: |
+          set -euo pipefail
+
+          # Resolve the range of new commits. Any failure in this block fails the job.
           if [ "$EVENT" = "pull_request" ]; then
-            echo "range=$PR_BASE..$PR_HEAD" >> "$GITHUB_OUTPUT"
-          elif [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
-            echo "range=$SHA" >> "$GITHUB_OUTPUT"
+            range="$(git merge-base "$PR_BASE" "$PR_HEAD")..$PR_HEAD"
+          elif [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
+            || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            # First push of a repository, or a force-push whose old tip is gone: check the whole history.
+            range="$SHA"
           else
-            echo "range=$BEFORE..$SHA" >> "$GITHUB_OUTPUT"
+            range="$BEFORE..$SHA"
+          fi
+          echo "Checking range: $range"
+          git rev-list "$range" > /dev/null
+
+          fail=0
+
+          # 1. Every non-merge subject follows Conventional Commits.
+          subjects="$(git log --no-merges --format='%h %s' "$range")"
+          if [ -n "$subjects" ]; then
+            bad="$(grep -vE '^[0-9a-f]+ (feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9._/-]+\))?!?: .+' <<< "$subjects" || true)"
+            if [ -n "$bad" ]; then
+              echo "These commits do not follow Conventional Commits:"
+              echo "$bad"
+              fail=1
+            fi
           fi
 
-      - name: Messages follow Conventional Commits
-        env:
-          RANGE: ${{ steps.range.outputs.range }}
-        run: |
-          bad=$(git log --no-merges --format='%h %s' "$RANGE" \
-            | grep -vE '^[0-9a-f]+ (feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9._/-]+\))?!?: .+' || true)
-          if [ -n "$bad" ]; then
-            echo "These commits do not follow Conventional Commits:"
-            echo "$bad"
-            exit 1
-          fi
-
-      - name: No co-author or tool trailers
-        env:
-          RANGE: ${{ steps.range.outputs.range }}
-        run: |
-          bad=$(git log --format='%h%n%B' "$RANGE" | grep -iE '^co-authored-by:|generated with' || true)
-          if [ -n "$bad" ]; then
+          # 2. No co-author or tool-attribution lines (only at the start of a line).
+          messages="$(git log --format='%h%n%B' "$range")"
+          attribution="$(grep -iE '^[[:space:]]*(co-authored-by:|generated with |🤖)' <<< "$messages" || true)"
+          if [ -n "$attribution" ]; then
             echo "Co-author or tool-attribution lines found:"
-            echo "$bad"
-            exit 1
+            echo "$attribution"
+            fail=1
           fi
+
+          exit "$fail"

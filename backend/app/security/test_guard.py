@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import hmac
 
+# The module name starts with "test", but it is production code, not a test module.
+__test__ = False
+
 
 def has_valid_test_token(test_token: str, header: str | None) -> bool:
     """Return whether a non-empty configured token matches the header."""

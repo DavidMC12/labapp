@@ -4,9 +4,6 @@ from __future__ import annotations
 
 import hmac
 
-# The module name starts with "test", but it is production code, not a test module.
-__test__ = False
-
 
 def has_valid_test_token(test_token: str, header: str | None) -> bool:
     """Return whether a non-empty configured token matches the header."""
@@ -15,7 +12,7 @@ def has_valid_test_token(test_token: str, header: str | None) -> bool:
     return hmac.compare_digest(test_token.encode("utf-8"), header.encode("utf-8"))
 
 
-def test_controls_allowed(test_mode: bool, test_token: str, header: str | None) -> bool:
+def controls_allowed(test_mode: bool, test_token: str, header: str | None) -> bool:
     """Implement the test-controls guard table from the architecture."""
     if test_mode:
         return True

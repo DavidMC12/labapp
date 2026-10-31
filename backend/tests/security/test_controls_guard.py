@@ -4,12 +4,10 @@ from __future__ import annotations
 
 import pytest
 
-from app.security.test_guard import (
+from app.security.controls_guard import (
+    controls_allowed,
     has_valid_test_token,
     rate_limiting_enabled,
-)
-from app.security.test_guard import (
-    test_controls_allowed as controls_allowed,
 )
 
 GUARD_CASES = [
@@ -32,17 +30,17 @@ GUARD_CASES = [
 
 
 @pytest.mark.parametrize(
-    ("test_mode", "test_token", "header", "controls_allowed_result", "limiting_enabled"),
+    ("test_mode", "test_token", "header", "expected_controls_allowed", "limiting_enabled"),
     GUARD_CASES,
 )
-def test_guard_table(
+def test_controls_guard_table(
     test_mode: bool,
     test_token: str,
     header: str | None,
-    controls_allowed_result: bool,
+    expected_controls_allowed: bool,
     limiting_enabled: bool,
 ) -> None:
-    assert controls_allowed(test_mode, test_token, header) is controls_allowed_result
+    assert controls_allowed(test_mode, test_token, header) is expected_controls_allowed
     assert rate_limiting_enabled(test_mode, test_token, header) is limiting_enabled
 
 

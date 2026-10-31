@@ -4,7 +4,14 @@ from __future__ import annotations
 
 import pytest
 
-from app.domain.orders import OrderAction, OrderStatus, next_status
+from app.domain.orders import (
+    DraftLineInput,
+    OrderAction,
+    OrderStatus,
+    ensure_confirmable,
+    next_status,
+    validate_draft_lines,
+)
 from app.errors import ApiError
 
 SPANISH_STATE = {
@@ -74,3 +81,134 @@ def test_invalid_transition_message_uses_spanish_state_labels() -> None:
         next_status(OrderStatus.SHIPPED, OrderAction.CANCEL)
 
     assert error.value.detail == "No se puede pasar el pedido de enviado a cancelado."
+
+
+def _line(product_id: int = 1, quantity: object = 1) -> DraftLineInput:
+    return DraftLineInput(product_id=product_id, quantity=quantity)
+
+
+def _distinct_lines(count: int) -> list[DraftLineInput]:
+    return [_line(product_id=product_id) for product_id in range(1, count + 1)]
+
+
+def test_empty_draft_has_valid_lines() -> None:
+    validate_draft_lines([])
+
+
+@pytest.mark.parametrize("quantity", [1, 2, 999])
+def test_accepts_integer_quantities_in_range(quantity: int) -> None:
+    validate_draft_lines([_line(quantity=quantity)])
+
+
+@pytest.mark.parametrize(
+    ("quantity", "code", "message"),
+    [
+        (0, "OUT_OF_RANGE", "El valor debe estar entre 1 y 999."),
+        (1000, "OUT_OF_RANGE", "El valor debe estar entre 1 y 999."),
+        (-1, "OUT_OF_RANGE", "El valor debe estar entre 1 y 999."),
+        (1.0, "INVALID_FORMAT", "El formato no es válido."),
+        (1.5, "INVALID_FORMAT", "El formato no es válido."),
+        ("2", "INVALID_FORMAT", "El formato no es válido."),
+        (True, "INVALID_FORMAT", "El formato no es válido."),
+        (False, "INVALID_FORMAT", "El formato no es válido."),
+        (None, "INVALID_FORMAT", "El formato no es válido."),
+    ],
+)
+def test_rejects_bad_quantities(quantity: object, code: str, message: str) -> None:
+    with pytest.raises(ApiError) as error:
+        validate_draft_lines([_line(quantity=quantity)])
+
+    assert error.value.status == 422
+    assert error.value.code == "VALIDATION_ERROR"
+    assert error.value.detail == "Revisa los datos ingresados."
+    assert error.value.errors == [{"field": "lines[0].quantity", "code": code, "message": message}]
+
+
+def test_reports_every_bad_line_together() -> None:
+    lines = [_line(1, 0), _line(2, "two"), _line(3, True), _line(4, 1000)]
+
+    with pytest.raises(ApiError) as error:
+        validate_draft_lines(lines)
+
+    assert error.value.errors == [
+        {
+            "field": "lines[0].quantity",
+            "code": "OUT_OF_RANGE",
+            "message": "El valor debe estar entre 1 y 999.",
+        },
+        {
+            "field": "lines[1].quantity",
+            "code": "INVALID_FORMAT",
+            "message": "El formato no es válido.",
+        },
+        {
+            "field": "lines[2].quantity",
+            "code": "INVALID_FORMAT",
+            "message": "El formato no es válido.",
+        },
+        {
+            "field": "lines[3].quantity",
+            "code": "OUT_OF_RANGE",
+            "message": "El valor debe estar entre 1 y 999.",
+        },
+    ]
+
+
+def test_duplicate_product_is_rejected() -> None:
+    with pytest.raises(ApiError) as error:
+        validate_draft_lines([_line(1, 1), _line(2, 1), _line(1, 2)])
+
+    assert error.value.status == 422
+    assert error.value.code == "ORDER_DUPLICATE_PRODUCT"
+    assert error.value.detail == "Ese producto ya está en el pedido; edita su cantidad."
+
+
+def test_ten_lines_are_allowed() -> None:
+    validate_draft_lines(_distinct_lines(10))
+
+
+def test_eleven_lines_are_rejected() -> None:
+    with pytest.raises(ApiError) as error:
+        validate_draft_lines(_distinct_lines(11))
+
+    assert error.value.status == 422
+    assert error.value.code == "ORDER_TOO_MANY_LINES"
+    assert error.value.detail == "Un pedido admite como máximo 10 líneas."
+
+
+def test_field_errors_win_over_the_duplicate_check() -> None:
+    with pytest.raises(ApiError) as error:
+        validate_draft_lines([_line(1, 1), _line(1, 0)])
+
+    assert error.value.code == "VALIDATION_ERROR"
+    assert error.value.errors == [
+        {
+            "field": "lines[1].quantity",
+            "code": "OUT_OF_RANGE",
+            "message": "El valor debe estar entre 1 y 999.",
+        }
+    ]
+
+
+def test_duplicate_products_win_over_the_line_cap() -> None:
+    duplicate = [_line(1, 1), _line(1, 2)]
+    other_lines = [_line(product_id, 1) for product_id in range(2, 11)]
+
+    with pytest.raises(ApiError) as error:
+        validate_draft_lines(duplicate + other_lines)
+
+    assert len(duplicate + other_lines) == 11
+    assert error.value.code == "ORDER_DUPLICATE_PRODUCT"
+
+
+def test_ensure_confirmable_rejects_an_empty_order() -> None:
+    with pytest.raises(ApiError) as error:
+        ensure_confirmable([])
+
+    assert error.value.status == 422
+    assert error.value.code == "ORDER_EMPTY"
+    assert error.value.detail == "El pedido debe tener al menos una línea."
+
+
+def test_ensure_confirmable_accepts_at_least_one_line() -> None:
+    assert ensure_confirmable([_line()]) is None

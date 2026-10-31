@@ -7,7 +7,16 @@ LabApp exists to be easy and reliable to automate. These rules apply to every sc
 1. Semantic HTML first: real `button`, `a`, `label`, `table`, `form`, headings and landmarks.
 2. Every interactive element has an accessible name, so `getByRole` works.
 3. Every interactive element and every element a test needs to read has a `data-testid`.
-4. Naming: `module-element-action` in kebab-case, for example `customers-form-email-input`, `orders-confirm-button`. List rows add the record id: `customers-row-42`.
+4. Naming: `<module>-<name>-<kind>` in kebab-case, with the numeric record id appended after the kind for list items.
+   - `module` is one of `app`, `auth`, `customers`, `products`, `orders`, `invoices`, `payments`, `settings`.
+   - `name` is one or more kebab-case words describing the element (`form-email`, `confirm`, `list`).
+   - `kind` is one of `button`, `input`, `select`, `textarea`, `checkbox`, `radio`, `switch`, `link`, `tab`, `menuitem`, `form`, `table`, `row`, `cell`, `list`, `item`, `dialog`, `alert`, `error`, `status`, `text`, `heading`.
+   - Examples: `customers-form-email-input`, `customers-form-email-error`, `orders-confirm-button`, `customers-list-row-42`, `orders-total-text`.
+   - The pattern checked by the lint rule, the types and the audit is:
+
+```
+^(app|auth|customers|products|orders|invoices|payments|settings)(-[a-z0-9]+)+-(button|input|select|textarea|checkbox|radio|switch|link|tab|menuitem|form|table|row|cell|list|item|dialog|alert|error|status|text|heading)(-[0-9]+)?$
+```
 
 Playwright configuration for this attribute:
 
@@ -24,13 +33,17 @@ export default defineConfig({ use: { testIdAttribute: 'data-testid' } });
 | `aria-busy="true"` | A region is loading or submitting. |
 | `data-hydrated="true"` | Set on `<body>` once the client has hydrated, so tests never click a server-only render. |
 
-Errors from the API are shown in an element with `role="alert"` and a `data-testid`, containing the Spanish message from the response.
+Errors from the API are shown in an element with `role="alert"` and a `data-testid`, containing the Spanish message from the response. A field-level error uses kind `error` (`customers-form-email-error`); a form- or page-level API error uses kind `alert` (`customers-form-alert`).
+
+## What counts as interactive
+
+An element is interactive if it is natively focusable or clickable (`a[href]`, `button`, `input` other than `type=hidden`, `select`, `textarea`, `summary`), has a `tabindex` of 0 or more, has one of the roles `button`, `link`, `checkbox`, `radio`, `switch`, `tab`, `menuitem`, `option`, `combobox`, `textbox`, `slider` or `spinbutton`, or has a click handler.
 
 ## Enforcement (planned for M1)
 
 - **Types:** shared UI components take a required `testId` prop; a missing one fails `tsc`.
-- **Lint:** an ESLint rule rejects interactive elements without `data-testid`.
-- **Audit:** `tools/audit/` loads each route in a browser and fails if an interactive element lacks `data-testid` or if axe reports serious accessibility violations. It runs in CI.
+- **Lint:** an ESLint rule rejects interactive elements without `data-testid` and ids that do not match the pattern above.
+- **Audit:** `tools/audit/` opens a browser on every route and scripted state listed in `tools/audit/states.json` (each dialog, empty state, validation-error state and error state, and the detail pages of fixed seed records). It fails if an interactive element lacks a valid `data-testid` or if axe reports serious or critical violations, and it prints the states it covered. The 100% goal is measured over those states, so a state missing from the list is a gap in the audit, not a pass. It runs in CI.
 
 ## Deterministic data
 
@@ -42,7 +55,7 @@ Errors from the API are shown in an element with `role="alert"` and a `data-test
 
 1. 100% of interactive elements carry `data-testid`, verified in CI.
 2. One command starts the app and the data reset takes seconds.
-3. No serious accessibility violations reported by axe.
+3. No serious or critical accessibility violations reported by axe.
 
 ## Not covered here
 

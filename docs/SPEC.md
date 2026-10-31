@@ -125,14 +125,22 @@ Payments:
 | `transfer` | Reference of 4 to 40 characters. |
 | `cash` | None. |
 
-The payment gateway is fake and replaceable. A card ending in `0002` is declined; every other valid card is approved.
+The payment gateway is fake and replaceable. For `card`, a number ending in `0002` is declined and every other valid card is approved. `transfer` and `cash` are always approved.
 
 | Outcome | Payment | Invoice | Order |
 |---|---|---|---|
 | Approved | `approved` | `paid` | `paid` |
 | Declined | `declined`, kept in the payment history | unchanged | unchanged |
+| Gateway unavailable | `failed`, kept in the payment history | unchanged | unchanged |
 
-A declined payment can be retried. Requests carry an `Idempotency-Key` header: repeating a key returns the original result and never creates a second payment.
+Atomicity and retries:
+- The order is locked first, then the invoice (section 5, Concurrency). The state is re-validated after locking and the gateway outcome is applied against that locked state.
+- An approved payment, the invoice becoming `paid` and the order becoming `paid` are committed in a single database transaction.
+- A declined or failed payment is committed to the payment history even though the response is an error. The error body carries `payment_id` and `reason`.
+- `POST /api/invoices/{id}/payments` requires an `Idempotency-Key` header of 1 to 64 characters. Keys are remembered for 24 hours per invoice.
+  - Same key and same body: the original response (status and body) is replayed, including declines. No second payment is created.
+  - Same key and a different body: `IDEMPOTENCY_KEY_REUSED`.
+  - A retry after a decline or a gateway failure is a new attempt and must use a new key.
 
 | Situation | HTTP | Code | Message (es) |
 |---|---|---|---|
@@ -141,6 +149,9 @@ A declined payment can be retried. Requests carry an `Idempotency-Key` header: r
 | Invoice not payable | 409 | `INVOICE_NOT_PAYABLE` | Esta factura no admite pagos. |
 | Amount differs from total | 422 | `PAYMENT_AMOUNT_MISMATCH` | El monto debe ser igual al total de la factura. |
 | Gateway declines | 402 | `PAYMENT_DECLINED` | La pasarela rechazó el pago. Prueba con otra tarjeta. |
+| Gateway unavailable | 503 | `PAYMENT_GATEWAY_UNAVAILABLE` | La pasarela de pago no está disponible. Inténtalo de nuevo. |
+| Missing idempotency key | 422 | `IDEMPOTENCY_KEY_REQUIRED` | Falta la cabecera Idempotency-Key. |
+| Key reused with other data | 422 | `IDEMPOTENCY_KEY_REUSED` | Esa clave de idempotencia ya se usó con otros datos. |
 
 ## 7. Formats and conventions
 

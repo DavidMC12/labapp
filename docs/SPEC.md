@@ -177,6 +177,9 @@ Common errors not tied to one feature:
 | Resource does not exist | 404 | `NOT_FOUND` | No se encontró el recurso solicitado. |
 | Request body above 100 KB | 413 | `PAYLOAD_TOO_LARGE` | La solicitud es demasiado grande. |
 | Unexpected server error | 500 | `INTERNAL_ERROR` | Ocurrió un error inesperado. Inténtalo de nuevo. |
+| Permission denied | 403 | `FORBIDDEN` | No tienes permiso para realizar esta acción. |
+| Invalid body or parameters | 422 | `VALIDATION_ERROR` | Revisa los datos ingresados. |
+| Order transition not allowed | 409 | `INVALID_TRANSITION` | No se puede pasar el pedido de {from} a {to}. |
 
 Field-level errors: a 422 `VALIDATION_ERROR` lists one entry per field in `errors[]`, with `field` (a path such as `lines[0].quantity`), `code` and `message`:
 

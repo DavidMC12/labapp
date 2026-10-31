@@ -62,6 +62,22 @@ def test_host_is_compared_case_insensitively() -> None:
     assert check_origin("POST", "http://LOCALHOST:3000", APP_ORIGIN) is None
 
 
+@pytest.mark.parametrize(
+    ("origin", "app_origin"),
+    [
+        ("https://app.test", "https://app.test:443"),
+        ("http://app.test", "http://app.test:80"),
+    ],
+)
+def test_default_ports_are_equivalent(origin: str, app_origin: str) -> None:
+    assert check_origin("POST", origin, app_origin) is None
+
+
+def test_an_explicit_non_default_port_is_still_different() -> None:
+    with pytest.raises(ApiError):
+        check_origin("POST", "http://app.test:8080", "http://app.test")
+
+
 @pytest.mark.parametrize("origin", ["not-a-url", "http://localhost:notaport"])
 def test_malformed_origin_is_rejected(origin: str) -> None:
     with pytest.raises(ApiError) as error:

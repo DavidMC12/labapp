@@ -8,11 +8,15 @@ from app.errors import ApiError
 
 CHECKED_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 ORIGIN_MISMATCH_MESSAGE = "La solicitud no proviene de la aplicación."
+_DEFAULT_PORTS = {"http": 80, "https": 443}
 
 
 def _origin_parts(origin: str) -> tuple[str, str | None, int | None]:
     parts = urlsplit(origin.rstrip("/"))
-    return parts.scheme, parts.hostname, parts.port
+    port = parts.port
+    if port is None:
+        port = _DEFAULT_PORTS.get(parts.scheme)
+    return parts.scheme, parts.hostname, port
 
 
 def check_origin(method: str, origin: str | None, app_origin: str) -> None:

@@ -1,0 +1,253 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import AppLayout from "./layout";
+
+const { routerMock } = vi.hoisted(() => ({
+  routerMock: {
+    push: vi.fn(),
+    replace: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+    prefetch: vi.fn(),
+  },
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => routerMock,
+}));
+
+const fetchMock = vi.fn();
+
+let queryClient: QueryClient;
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
+function jsonResponse(
+  body: string,
+  status: number,
+  contentType = "application/problem+json",
+) {
+  return new Response(body, {
+    status,
+    headers: { "content-type": contentType },
+  });
+}
+
+function problemResponse(status: number, code: string, detail: string) {
+  return jsonResponse(
+    JSON.stringify({ status, code, detail }),
+    status,
+  );
+}
+
+function userPayload(role: string, email: string) {
+  return JSON.stringify({
+    id: 1,
+    name: "Admin Demo",
+    email,
+    role,
+  });
+}
+
+function renderShell() {
+  render(
+    <QueryClientProvider client={queryClient}>
+      <AppLayout>
+        <h1 data-testid="app-page-heading">Página</h1>
+      </AppLayout>
+    </QueryClientProvider>,
+  );
+}
+
+beforeEach(() => {
+  vi.stubGlobal("fetch", fetchMock);
+  fetchMock.mockReset();
+  routerMock.replace.mockClear();
+  queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+});
+
+describe("app shell states", () => {
+  it("shows a busy status element while the session loads", async () => {
+    fetchMock.mockReturnValueOnce(new Promise<Response>(() => {}));
+
+    renderShell();
+
+    const status = screen.getByTestId("app-shell-loading-status");
+    expect(status).toHaveTextContent("Cargando…");
+    expect(status).toHaveAttribute("aria-busy", "true");
+    expect(status).toHaveAttribute("role", "status");
+  });
+
+  it("redirects without a session", async () => {
+    fetchMock.mockResolvedValueOnce(
+      problemResponse(401, "UNAUTHENTICATED", "Inicia sesión para continuar."),
+    );
+
+    renderShell();
+
+    await waitFor(() => {
+      expect(routerMock.replace).toHaveBeenCalledWith("/login");
+    });
+  });
+
+  it("shows the error detail with retry for a failure other than 401", async () => {
+    fetchMock.mockResolvedValue(
+      problemResponse(
+        500,
+        "INTERNAL_ERROR",
+        "Ocurrió un error inesperado. Inténtalo de nuevo.",
+      ),
+    );
+    renderShell();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("app-shell-error-alert")).toHaveTextContent(
+        "Ocurrió un error inesperado. Inténtalo de nuevo.",
+      );
+    });
+
+    // Retry succeeds this time.
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(userPayload("admin", "admin@labapp.test"), 200,
+        "application/json"),
+    );
+
+    await userEvent.setup().click(
+      screen.getByTestId("app-shell-retry-button"),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("app-user-name-text")).toHaveTextContent(
+        "Admin Demo",
+      );
+    });
+  });
+});
+
+describe("app shell session", () => {
+  const cases = [
+    { role: "admin", email: "admin@labapp.test", label: "Admin" },
+    { role: "sales", email: "sales@labapp.test", label: "Ventas" },
+    { role: "finance", email: "finance@labapp.test", label: "Finanzas" },
+    { role: "readonly", email: "readonly@labapp.test", label: "Solo lectura" },
+  ] as const;
+
+  for (const { role, email, label } of cases) {
+    it(`shows the user and the navigation for ${label}`, async () => {
+      fetchMock.mockResolvedValue(
+        jsonResponse(userPayload(role, email), 200, "application/json"),
+      );
+
+      renderShell();
+
+      await waitFor(() => {
+        expect(screen.getByTestId("app-user-name-text")).toHaveTextContent(
+          "Admin Demo",
+        );
+      });
+
+      expect(screen.getByTestId("app-user-role-text")).toHaveTextContent(
+        label,
+      );
+
+      expect(screen.getByTestId("app-nav-home-link")).toHaveAttribute(
+        "href",
+        "/",
+      );
+      expect(screen.getByTestId("app-nav-customers-link")).toHaveAttribute(
+        "href",
+        "/customers",
+      );
+      expect(screen.getByTestId("app-nav-orders-link")).toHaveAttribute(
+        "href",
+        "/orders",
+      );
+      expect(screen.getByTestId("app-nav-invoices-link")).toHaveAttribute(
+        "href",
+        "/invoices",
+      );
+      expect(screen.getByRole("navigation", { name: "Principal" }))
+        .toBeInTheDocument();
+      expect(
+        screen.getByRole("link", { name: "Clientes" }),
+      ).toHaveAttribute("href", "/customers");
+      expect(
+        screen.getByRole("link", { name: "Pedidos" }),
+      ).toHaveAttribute("href", "/orders");
+      expect(
+        screen.getByRole("link", { name: "Facturas" }),
+      ).toHaveAttribute("href", "/invoices");
+    });
+  }
+});
+
+describe("app shell logout", () => {
+  it("logs out, goes to /login and clears the cache", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(userPayload("admin", "admin@labapp.test"), 200,
+        "application/json"),
+    );
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+    // What the mocked router never unmounts, the shell refetches; keep it
+    // pending so the emptied cache stays stable.
+    fetchMock.mockReturnValueOnce(new Promise<Response>(() => {}));
+
+    renderShell();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("app-user-name-text")).toBeInTheDocument();
+    });
+    expect(queryClient.getQueryData(["auth", "me"])).toMatchObject({
+      role: "admin",
+    });
+
+    await userEvent.setup().click(screen.getByTestId("app-logout-button"));
+
+    await waitFor(() => {
+      expect(routerMock.replace).toHaveBeenCalledWith("/login");
+    });
+    expect(
+      queryClient
+        .getQueryCache()
+        .getAll()
+        .every((query) => query.state.data === undefined),
+    ).toBe(true);
+  });
+
+  it("goes to /login and clears the cache even when the logout request fails", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(userPayload("admin", "admin@labapp.test"), 200,
+        "application/json"),
+    );
+    fetchMock.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    fetchMock.mockReturnValueOnce(new Promise<Response>(() => {}));
+
+    renderShell();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("app-user-name-text")).toBeInTheDocument();
+    });
+
+    await userEvent.setup().click(screen.getByTestId("app-logout-button"));
+
+    await waitFor(() => {
+      expect(routerMock.replace).toHaveBeenCalledWith("/login");
+    });
+    expect(
+      queryClient
+        .getQueryCache()
+        .getAll()
+        .every((query) => query.state.data === undefined),
+    ).toBe(true);
+  });
+});

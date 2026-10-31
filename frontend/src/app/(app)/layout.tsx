@@ -33,6 +33,9 @@ export default function AppLayout({
     loggingOutRef.current = true;
     try {
       await logout.mutateAsync();
+    } catch {
+      // Whatever the answer, the hook already cleared the cache; the
+      // rejection is not actionable and is swallowed on purpose.
     } finally {
       loggingOutRef.current = false;
       router.replace("/login");

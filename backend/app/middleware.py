@@ -46,7 +46,10 @@ class RequestIdMiddleware:
 
 
 class BodySizeLimitMiddleware:
-    """Reject requests whose declared Content-Length exceeds the limit."""
+    """Reject requests whose declared Content-Length exceeds the limit.
+
+    Chunked requests that carry no Content-Length header are not limited yet.
+    """
 
     def __init__(self, app: ASGIApp) -> None:
         self.app = app

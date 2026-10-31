@@ -33,7 +33,13 @@ Check the API:
 curl -i localhost:8000/api/health
 ```
 
-Every response carries an `X-Request-Id` header. Send your own `X-Request-Id` to have it echoed.
+Every response carries an `X-Request-Id` header. Send your own `X-Request-Id` to have it
+echoed; values must match `^[A-Za-z0-9._-]{1,64}$`, otherwise a new UUID4 is generated.
+
+## Limits
+
+The 100 KB request body limit only inspects the `Content-Length` header; chunked requests
+without that header are not limited yet.
 
 ## Test
 

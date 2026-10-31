@@ -8,6 +8,8 @@ from app.domain.orders import (
     DraftLineInput,
     OrderAction,
     OrderStatus,
+    ProductStock,
+    check_stock,
     ensure_confirmable,
     next_status,
     validate_draft_lines,
@@ -212,3 +214,87 @@ def test_ensure_confirmable_rejects_an_empty_order() -> None:
 
 def test_ensure_confirmable_accepts_at_least_one_line() -> None:
     assert ensure_confirmable([_line()]) is None
+
+
+STOCK = {
+    1: ProductStock(sku="KB-100", name="Teclado USB", available=5),
+    2: ProductStock(sku="MS-200", name="Mouse óptico", available=0),
+    3: ProductStock(sku="MN-240", name='Monitor 24"', available=10),
+}
+
+
+def test_stock_check_accepts_enough_stock_including_the_boundary() -> None:
+    assert check_stock([_line(1, 5), _line(3, 10)], STOCK) is None
+
+
+def test_stock_check_accepts_no_lines() -> None:
+    assert check_stock([], STOCK) is None
+
+
+def test_single_shortage_reports_the_line_details() -> None:
+    with pytest.raises(ApiError) as error:
+        check_stock([_line(2, 1)], STOCK)
+
+    assert error.value.status == 409
+    assert error.value.code == "INSUFFICIENT_STOCK"
+    assert error.value.detail == (
+        "No hay stock suficiente de Mouse óptico: disponible 0, solicitado 1."
+    )
+    assert error.value.extra["shortages"] == [
+        {
+            "product_id": 2,
+            "sku": "MS-200",
+            "name": "Mouse óptico",
+            "available": 0,
+            "requested": 1,
+        }
+    ]
+
+
+def test_multiple_shortages_are_ordered_by_product_id() -> None:
+    lines = [_line(3, 20), _line(1, 6), _line(2, 1)]
+
+    with pytest.raises(ApiError) as error:
+        check_stock(lines, STOCK)
+
+    assert error.value.detail == (
+        "No hay stock suficiente de Teclado USB: disponible 5, solicitado 6."
+    )
+    assert error.value.extra["shortages"] == [
+        {
+            "product_id": 1,
+            "sku": "KB-100",
+            "name": "Teclado USB",
+            "available": 5,
+            "requested": 6,
+        },
+        {
+            "product_id": 2,
+            "sku": "MS-200",
+            "name": "Mouse óptico",
+            "available": 0,
+            "requested": 1,
+        },
+        {
+            "product_id": 3,
+            "sku": "MN-240",
+            "name": 'Monitor 24"',
+            "available": 10,
+            "requested": 20,
+        },
+    ]
+
+
+def test_lines_with_enough_stock_are_not_listed() -> None:
+    with pytest.raises(ApiError) as error:
+        check_stock([_line(1, 5), _line(2, 1)], STOCK)
+
+    assert error.value.extra["shortages"] == [
+        {
+            "product_id": 2,
+            "sku": "MS-200",
+            "name": "Mouse óptico",
+            "available": 0,
+            "requested": 1,
+        }
+    ]

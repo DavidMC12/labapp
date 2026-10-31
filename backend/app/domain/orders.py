@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import cast
 
 from app.domain.labels import ORDER_STATUS_LABELS
 from app.errors import ApiError
@@ -61,6 +62,15 @@ class DraftLineInput:
     quantity: object
 
 
+@dataclass(frozen=True)
+class ProductStock:
+    """Stock data needed to detect shortages."""
+
+    sku: str
+    name: str
+    available: int
+
+
 def next_status(current: OrderStatus, action: OrderAction) -> OrderStatus:
     """Return the status produced by the action or raise INVALID_TRANSITION."""
     new_status = _TRANSITIONS.get((current, action))
@@ -114,3 +124,35 @@ def ensure_confirmable(lines: Sequence[object]) -> None:
     """Raise ORDER_EMPTY when a draft has no lines."""
     if not lines:
         raise ApiError(422, "ORDER_EMPTY", "El pedido debe tener al menos una línea.")
+
+
+def check_stock(
+    lines: Iterable[DraftLineInput],
+    stock_by_product: Mapping[int, ProductStock],
+) -> None:
+    """Raise INSUFFICIENT_STOCK listing every short line, ordered by product id."""
+    shortages: list[dict[str, object]] = []
+    for line in lines:
+        stock = stock_by_product[line.product_id]
+        requested = cast(int, line.quantity)
+        if requested > stock.available:
+            shortages.append(
+                {
+                    "product_id": line.product_id,
+                    "sku": stock.sku,
+                    "name": stock.name,
+                    "available": stock.available,
+                    "requested": requested,
+                }
+            )
+
+    if not shortages:
+        return
+
+    shortages.sort(key=lambda shortage: cast(int, shortage["product_id"]))
+    first = shortages[0]
+    detail = (
+        f"No hay stock suficiente de {first['name']}: "
+        f"disponible {first['available']}, solicitado {first['requested']}."
+    )
+    raise ApiError(409, "INSUFFICIENT_STOCK", detail, shortages=shortages)

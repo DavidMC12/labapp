@@ -29,7 +29,24 @@ Four seeded users, one per role, all sharing one demo password that the login sc
 
 The server enforces every permission. A forbidden action returns HTTP 403 with code `FORBIDDEN` and the message "No tienes permiso para realizar esta acción." The UI may hide or disable controls, but never replaces the server check.
 
-## 3. Customers (flow 1)
+## 3. Authentication and sessions
+
+- `POST /api/auth/login` takes `{email, password}`. The email is trimmed and lowercased before lookup. On success it returns 200 with the user (`id`, `name`, `email`, `role`) and sets the session cookie `labapp_session` (HttpOnly, SameSite=Lax, Secure over HTTPS).
+- `POST /api/auth/logout` ends the session and returns 204. `GET /api/auth/me` returns the current user.
+- A session expires after 8 hours without activity (sliding window).
+- An unknown email and a wrong password return the same error, so accounts cannot be enumerated.
+- State-changing requests (POST, PUT, PATCH, DELETE) that carry an `Origin` header must match the application origin, otherwise the server answers 403 `CSRF_ORIGIN_MISMATCH`. Requests without `Origin` (API clients and test suites) are allowed because the cookie is SameSite=Lax. An API suite authenticates by calling the login endpoint and reusing the cookie.
+- Rate limits per client IP: 120 requests per minute overall and 10 login attempts per minute. Exceeding a limit returns 429 `RATE_LIMITED` with a `Retry-After` header. Requests carrying a valid test token (see ARCHITECTURE.md) are exempt.
+
+| Situation | HTTP | Code | Message (es) |
+|---|---|---|---|
+| Wrong email or password | 401 | `INVALID_CREDENTIALS` | Email o contraseña incorrectos. |
+| No session | 401 | `UNAUTHENTICATED` | Inicia sesión para continuar. |
+| Session expired | 401 | `SESSION_EXPIRED` | Tu sesión expiró. Inicia sesión de nuevo. |
+| Origin mismatch | 403 | `CSRF_ORIGIN_MISMATCH` | La solicitud no proviene de la aplicación. |
+| Too many requests | 429 | `RATE_LIMITED` | Demasiadas solicitudes. Espera un momento e inténtalo de nuevo. |
+
+## 4. Customers (flow 1)
 
 | Field | Rule |
 |---|---|
@@ -51,7 +68,7 @@ Rules:
 | Order for an inactive customer | 422 | `CUSTOMER_INACTIVE` | El cliente está desactivado y no puede recibir pedidos nuevos. |
 | Invoice for a customer without `tax_id` | 422 | `CUSTOMER_TAX_ID_REQUIRED` | El cliente necesita un ID fiscal para poder facturar. |
 
-## 4. Orders (flow 2)
+## 5. Orders (flow 2)
 
 States: `draft`, `confirmed`, `paid`, `shipped`, `cancelled`.
 
@@ -59,7 +76,7 @@ States: `draft`, `confirmed`, `paid`, `shipped`, `cancelled`.
 |---|---|---|---|
 | Create | none | Admin, Sales | New `draft` with number `PED-0001`, `PED-0002`, ... |
 | Confirm | `draft` | Admin, Sales | Checks stock, decrements it, freezes the tax rate and totals. |
-| Pay | `confirmed` | Set by a successful payment (section 5) | Order becomes `paid`. |
+| Pay | `confirmed` | Set by a successful payment (section 6) | Order becomes `paid`. |
 | Ship | `paid` | Admin, Sales | Order becomes `shipped`. |
 | Cancel | `draft`, `confirmed` | Admin, Sales | A confirmed order gets its stock back and its invoice voided. |
 
@@ -88,7 +105,7 @@ Totals (computed on the server):
 
 Concurrency: every mutable record has a `version` (optimistic locking). Confirming an order locks the affected stock rows, so two simultaneous confirmations cannot oversell.
 
-## 5. Invoices and payments (flow 3)
+## 6. Invoices and payments (flow 3)
 
 Invoices:
 - Created manually by Finance or Admin from a `confirmed` order. Any other state returns `ORDER_NOT_INVOICEABLE`.
@@ -125,7 +142,7 @@ A declined payment can be retried. Requests carry an `Idempotency-Key` header: r
 | Amount differs from total | 422 | `PAYMENT_AMOUNT_MISMATCH` | El monto debe ser igual al total de la factura. |
 | Gateway declines | 402 | `PAYMENT_DECLINED` | La pasarela rechazó el pago. Prueba con otra tarjeta. |
 
-## 6. Formats and conventions
+## 7. Formats and conventions
 
 - **Money:** USD, stored as `NUMERIC(12,2)`, shown as `$1,234.50`.
 - **Dates:** stored in UTC, shown as `dd/mm/yyyy` (locale `es-US`).
@@ -133,7 +150,7 @@ A declined payment can be retried. Requests carry an `Idempotency-Key` header: r
 - **Lists:** 20 items per page, newest first, with `page`, `page_size` and `total`. Customers and orders support text search and a status filter.
 - **Request tracing:** every response carries an `X-Request-Id` header.
 
-## 7. Seed data
+## 8. Seed data
 
 - The four users from section 2.
 - About 10 customers: some inactive, some without a `tax_id`, one with a long name.

@@ -16,16 +16,20 @@ PROBLEM_MEDIA_TYPE = "application/problem+json"
 REQUEST_ID_HEADER = "X-Request-Id"
 
 NOT_FOUND = "NOT_FOUND"
+METHOD_NOT_ALLOWED = "METHOD_NOT_ALLOWED"
 PAYLOAD_TOO_LARGE = "PAYLOAD_TOO_LARGE"
 VALIDATION_ERROR = "VALIDATION_ERROR"
 INTERNAL_ERROR = "INTERNAL_ERROR"
 
 ERROR_MESSAGES: dict[str, str] = {
     NOT_FOUND: "No se encontró el recurso solicitado.",
+    METHOD_NOT_ALLOWED: "Método no permitido para este recurso.",
     PAYLOAD_TOO_LARGE: "La solicitud es demasiado grande.",
     VALIDATION_ERROR: "La solicitud contiene datos no válidos.",
     INTERNAL_ERROR: "Ocurrió un error inesperado. Inténtalo de nuevo.",
 }
+
+DEFAULT_ERROR_DETAIL = "No se pudo completar la solicitud."
 
 FIELD_MESSAGES: dict[str, str] = {
     "REQUIRED": "Este campo es obligatorio.",
@@ -34,6 +38,7 @@ FIELD_MESSAGES: dict[str, str] = {
 
 _HTTP_ERRORS: dict[int, tuple[str, str]] = {
     404: (NOT_FOUND, ERROR_MESSAGES[NOT_FOUND]),
+    405: (METHOD_NOT_ALLOWED, ERROR_MESSAGES[METHOD_NOT_ALLOWED]),
     413: (PAYLOAD_TOO_LARGE, ERROR_MESSAGES[PAYLOAD_TOO_LARGE]),
     500: (INTERNAL_ERROR, ERROR_MESSAGES[INTERNAL_ERROR]),
 }
@@ -129,11 +134,9 @@ async def _handle_http_exception(request: Request, exc: StarletteHTTPException) 
     else:
         try:
             code = HTTPStatus(status).name
-            default_detail = HTTPStatus(status).phrase
         except ValueError:
             code = "HTTP_ERROR"
-            default_detail = "Error."
-        detail = exc.detail if isinstance(exc.detail, str) and exc.detail else default_detail
+        detail = DEFAULT_ERROR_DETAIL
     return problem_response(
         get_request_id(request),
         status=status,

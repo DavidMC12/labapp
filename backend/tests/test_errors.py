@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
@@ -49,6 +49,34 @@ def test_unknown_route_returns_not_found(client: TestClient) -> None:
         code="NOT_FOUND",
         detail="No se encontró el recurso solicitado.",
     )
+
+
+def test_method_not_allowed_uses_the_spanish_detail(client: TestClient) -> None:
+    response = client.post("/api/health")
+
+    _assert_problem(
+        response,
+        status=405,
+        code="METHOD_NOT_ALLOWED",
+        detail="Método no permitido para este recurso.",
+    )
+
+
+def test_status_outside_the_table_uses_the_default_spanish_detail(app: FastAPI) -> None:
+    @app.get("/teapot")
+    def teapot() -> None:
+        raise HTTPException(status_code=418, detail="I'm a teapot")
+
+    response = TestClient(app).get("/teapot")
+
+    body = _assert_problem(
+        response,
+        status=418,
+        code="IM_A_TEAPOT",
+        detail="No se pudo completar la solicitud.",
+    )
+    assert body["title"] == "I'm a Teapot"
+    assert "teapot" not in body["detail"]
 
 
 def test_error_response_echoes_request_id(client: TestClient) -> None:

@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "LabApp API"
 requires-python = ">=3.13"
 dependencies = [
+    "argon2-cffi>=25.1.0",
     "fastapi",
     "pydantic-settings",
     "uvicorn[standard]",

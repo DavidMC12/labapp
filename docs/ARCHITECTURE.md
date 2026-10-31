@@ -32,7 +32,7 @@ Next.js (web)  --/api rewrite-->  FastAPI (API)  -->  PostgreSQL
 | `POST /__test__/reset` | Restore the seed data. |
 | `POST /__test__/seed` | Load a named dataset. |
 | `POST /__test__/clock` | Set or advance the application clock. |
-| `POST /__test__/faults` | Inject latency or errors on a given route. |
+| `POST /__test__/faults` | Inject latency or errors on a given route, or make the payment gateway unavailable (target `gateway`). Latency is capped at 10 seconds. `/__test__/*` and `GET /api/health` are never affected, so a test cannot lock itself out. |
 
 They are always registered under `/__test__` at the root of the API (not under `/api`) and guarded like this:
 
@@ -43,7 +43,7 @@ They are always registered under `/__test__` at the root of the API (not under `
 | `0` | missing or different | 404, as if the route did not exist. |
 | `0` with an empty `TEST_TOKEN` | any | 404. |
 
-Docker Compose sets `TEST_MODE=1` for local development; every public deployment keeps it at 0. The web app proxies only `/api/*`, so online the controls are reachable only by calling the API host directly with the token. A valid token also exempts the request from rate limiting. The clock offset and the fault rules are stored in the database, so they survive restarts. A reset restores the data, the number sequences, the tax rate and the clock offset, and clears every fault rule (see [SEED.md](SEED.md)).
+Docker Compose sets `TEST_MODE=1` for local development; every public deployment keeps it at 0. The web app proxies only `/api/*`, so online the controls are reachable only by calling the API host directly with the token. The token is compared in constant time. Rate limiting is off when `TEST_MODE=1` and, otherwise, skipped for a valid token (SPEC section 3). The clock offset and the fault rules are stored in the database, so they survive restarts. What a reset restores and keeps is defined in SPEC section 9 and [SEED.md](SEED.md).
 
 ## Sessions and security
 
@@ -54,6 +54,8 @@ HTTP-only session cookie with SameSite=Lax, same origin (the web app proxies `/a
 - **Health and warm-up:** `GET /api/health` answers 200 `{"status": "ok"}` without authentication. It doubles as the warm-up request for a sleeping Render instance, which can take about a minute to wake.
 - **Startup guard:** the API refuses to start when `SESSION_SECRET` is empty or `change-me`, unless `TEST_MODE=1`.
 - **PostgreSQL version:** pin the same major version in Docker Compose and on Neon when Compose is added in M1.
+- **Settings defined by the spec:** `APP_ORIGIN` (allowed origin and `Secure` cookie), `TRUSTED_PROXY_COUNT` (client IP from `X-Forwarded-For`) and `DEFAULT_TAX_RATE`, besides the ones already in `.env.example`.
+- **Frontend toolchain:** TypeScript is pinned to 6.x because `typescript-eslint` does not support TypeScript 7 yet; revisit when it does.
 
 ## Deployment
 

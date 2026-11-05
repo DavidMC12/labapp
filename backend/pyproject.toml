@@ -36,3 +36,7 @@ select = ["E", "F", "I", "B", "UP"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.vercel.scripts]
+# Runs after the dependencies are installed and before the deployment goes live.
+build = "python -m app.cli migrate"

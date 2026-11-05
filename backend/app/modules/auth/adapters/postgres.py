@@ -6,7 +6,7 @@ from collections.abc import Iterable, Mapping
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import BigInteger, cast, delete, func, select, text, update
+from sqlalchemy import BigInteger, cast, delete, func, literal, select, text, update
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.engine import Engine
 
@@ -162,7 +162,12 @@ class PostgresSessionStore:
             connection.execute(
                 update(sessions)
                 .where(sessions.c.token_hash == token_hash)
-                .values(last_seen_at=func.greatest(sessions.c.last_seen_at, when))
+                .values(
+                    last_seen_at=func.greatest(
+                        sessions.c.last_seen_at,
+                        literal(when, sessions.c.last_seen_at.type),
+                    )
+                )
             )
 
     def delete(self, token_hash: str) -> None:

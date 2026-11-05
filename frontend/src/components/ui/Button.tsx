@@ -11,8 +11,8 @@ type ButtonVariant = "primary" | "secondary" | "rail";
  * lightens/darkens with an opacity of its own token; no raw color.
  */
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-  primary: "bg-accent text-accent-ink hover:bg-accent/90",
-  secondary: "bg-transparent text-accent border border-accent hover:bg-accent/10",
+  primary: "bg-accent text-accent-ink hover:bg-accent-hover",
+  secondary: "bg-transparent text-accent border border-accent hover:bg-ok-bg",
   rail: "bg-transparent text-rail-ink border border-transparent hover:bg-rail-hover",
 };
 

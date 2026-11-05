@@ -5,8 +5,10 @@
 //   - an interactive or semantic element without a test id;
 //   - a literal test id that does not match the grammar in src/lib/testid.ts;
 //   - a test id expression it cannot check, outside the UI primitives.
-// A constant or property whose name ends in "testId" is accepted without being followed:
-// the TypeScript type `TestId` checks its value at compile time. Uniqueness inside one
+// A JSX attribute whose value is a constant or a property ending in "testId" is accepted
+// without being followed, because the literal it holds is checked where it is written: every
+// `const xTestId = "..."` and every `testId: "..."` in a .ts or .tsx file must match the grammar
+// (the TypeScript type `TestId` does not check casing or word structure). Uniqueness inside one
 // rendered page is a property of the DOM, not of the source, so it is left to the browser audit.
 // Exit code 1 when anything is reported.
 import { createRequire } from "node:module";
@@ -40,7 +42,7 @@ function* sourceFiles(directory) {
     const path = join(directory, name);
     if (statSync(path).isDirectory()) {
       yield* sourceFiles(path);
-    } else if (name.endsWith(".tsx") && !/\.test\.tsx$/.test(name)) {
+    } else if (/\.tsx?$/.test(name) && !/\.(test|d)\.tsx?$/.test(name)) {
       yield path;
     }
   }
@@ -62,6 +64,14 @@ function literalValues(expression) {
   }
   if (ts.isParenthesizedExpression(expression)) return literalValues(expression.expression);
   return null;
+}
+
+function unwrap(expression) {
+  let current = expression;
+  while (ts.isAsExpression(current) || ts.isSatisfiesExpression(current) || ts.isParenthesizedExpression(current)) {
+    current = current.expression;
+  }
+  return current;
 }
 
 function isTypedIdReference(expression) {
@@ -89,14 +99,28 @@ function attributeExpression(attribute) {
 export function auditSource(fileName, text, pattern, inPrimitives = false) {
   const problems = [];
   const literals = [];
-  const sourceFile = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const kind = fileName.endsWith(".ts") ? ts.ScriptKind.TS : ts.ScriptKind.TSX;
+  const sourceFile = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, kind);
 
   const report = (node, message) => {
     const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
     problems.push({ file: fileName, line: line + 1, message });
   };
 
+  const checkLiteral = (node, expression) => {
+    for (const value of literalValues(expression) ?? []) {
+      if (!pattern.test(value)) report(node, `test id "${value}" does not match the grammar`);
+    }
+  };
+
   const visit = (node) => {
+    // `const loginHeadingTestId: TestId = "..."` and `{ testId: "..." }`: the literal is checked here.
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && /testid$/i.test(node.name.text) && node.initializer) {
+      checkLiteral(node, unwrap(node.initializer));
+    }
+    if (ts.isPropertyAssignment(node) && /^testid$/i.test(node.name.getText().replace(/["']/g, ""))) {
+      checkLiteral(node, unwrap(node.initializer));
+    }
     if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
       const name = node.tagName.getText();
       const attributes = attributeMap(node.attributes);
@@ -104,8 +128,11 @@ export function auditSource(fileName, text, pattern, inPrimitives = false) {
       const idAttribute = [...ID_ATTRIBUTES].map((a) => attributes.get(a)).find(Boolean);
       const role = attributes.get("role") ? attributeExpression(attributes.get("role"))?.text : undefined;
 
+      const typeAttribute = attributes.get("type") ? attributeExpression(attributes.get("type"))?.text : undefined;
+      const hiddenInput = name === "input" && typeAttribute === "hidden";
       const needsId =
-        REQUIRED_ELEMENTS.has(name) || ID_COMPONENTS.has(name) || (role !== undefined && REQUIRED_ROLES.has(role));
+        !hiddenInput &&
+        (REQUIRED_ELEMENTS.has(name) || ID_COMPONENTS.has(name) || (role !== undefined && REQUIRED_ROLES.has(role)));
 
       if (idAttribute) {
         const expression = attributeExpression(idAttribute);

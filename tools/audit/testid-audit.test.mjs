@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { cpSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import { audit, auditSource, loadPattern } from "./testid-audit.mjs";
 
@@ -65,6 +68,29 @@ test("allows spread props only inside the UI primitives", () => {
 
 test("elements outside the required set need no id", () => {
   assert.deepEqual(check(`export const A = () => <div><p>x</p><span>y</span><ul><li>z</li></ul></div>;`), []);
+});
+
+test("checks the literal of a typed id constant and of a testId property", () => {
+  assert.deepEqual(check(`const headingTestId: TestId = "orders-list-heading";`), []);
+  assert.equal(messages(`const badTestId: TestId = "customers-Bad_Name-button";`).length, 1);
+  assert.equal(messages(`const x = { email: "a", testId: "bad" };`).length, 1);
+  assert.equal(messages(`const x = { "testId": "auth-login-demo-item-1" as const };`).length, 0);
+  assert.equal(messages(`export const ITEMS = [{ testId: "nope" }];`).length, 1);
+});
+
+test("a hidden input needs no id", () => {
+  assert.deepEqual(check(`export const A = () => <input type="hidden" name="x" />;`), []);
+  assert.equal(messages(`export const A = () => <input type="text" name="x" />;`).length, 1);
+});
+
+test("a tree with a violation fails the audit", () => {
+  const root = mkdtempSync(join(tmpdir(), "audit-"));
+  mkdirSync(join(root, "src", "lib"), { recursive: true });
+  cpSync(join(import.meta.dirname, "..", "..", "frontend", "src", "lib", "testid.ts"), join(root, "src", "lib", "testid.ts"));
+  writeFileSync(join(root, "src", "page.tsx"), `export const P = () => <button onClick={f}>x</button>;`);
+  writeFileSync(join(root, "src", "data.ts"), `export const D = { testId: "wrong" };`);
+  const result = audit(root);
+  assert.equal(result.problems.length, 2);
 });
 
 test("the real frontend passes", () => {

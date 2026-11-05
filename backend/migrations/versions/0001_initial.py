@@ -30,9 +30,10 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("version", sa.Integer(), server_default=sa.text("1"), nullable=False),
         sa.PrimaryKeyConstraint("id", name="pk_users"),
+        # The metadata convention wraps check names; op.f keeps these exactly as written.
         sa.CheckConstraint(
             "role IN ('admin', 'sales', 'finance', 'readonly')",
-            name="ck_users_role",
+            name=op.f("ck_users_role"),
         ),
     )
     op.create_index(
@@ -73,7 +74,7 @@ def upgrade() -> None:
         sa.Column("name_search", sa.Text(), nullable=False),
         sa.Column("email_search", sa.Text(), nullable=False),
         sa.PrimaryKeyConstraint("id", name="pk_customers"),
-        sa.CheckConstraint("status IN ('active', 'inactive')", name="ck_customers_status"),
+        sa.CheckConstraint("status IN ('active', 'inactive')", name=op.f("ck_customers_status")),
     )
     op.create_index(
         "customers_email_lower_key",

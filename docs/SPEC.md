@@ -139,6 +139,41 @@ Concurrency:
 - Confirming is all-or-nothing. If several lines lack stock, the response lists every short line in `shortages[]` (`product_id`, `sku`, `name`, `available`, `requested`), ordered by product id, and the message names the first one.
 - **Double submit.** Because the version is checked under the lock, a repeated transition behaves the same whether it arrives one after the other or at the same time: with a `version` (`If-Match`) the second request returns `VERSION_CONFLICT`, and without one it returns `INVALID_TRANSITION`. The UI avoids both by disabling the control while the request runs (`aria-busy`).
 
+### Orders API
+
+Every route needs a session. Reading (orders and products) is open to every role. Creating an order, changing its customer and adding, editing or removing lines need the permission to edit draft orders; confirming, cancelling and shipping need the permission to transition orders (both are Admin and Sales, section 2); changing the tax rate is Admin only. Anything else is 403 `FORBIDDEN`.
+
+Money in JSON is a string with exactly 2 decimals (`"19.90"`), never a number; the tax rate is a string with 2 decimals (`"10.00"`). Ids and quantities are integers. Timestamps follow section 4 (UTC with a trailing `Z`).
+
+| Request | Purpose | Answer |
+|---|---|---|
+| `GET /api/products` | The whole catalog, ordered by `id`; no paging | 200 `{items: [Product]}` |
+| `GET /api/settings` | Current settings | 200 `{tax_rate}` |
+| `PATCH /api/settings` | Change the tax rate (Admin) | 200 `{tax_rate}` |
+| `GET /api/orders` | List, with the query parameters below | 200 `{items: [OrderSummary], page, page_size, total}` |
+| `POST /api/orders` | Create a draft: `{customer_id}` | 201 `Order`, `Location: /api/orders/{id}` |
+| `GET /api/orders/{id}` | Read one | 200 `Order` |
+| `PATCH /api/orders/{id}` | Change the customer of a draft: `{customer_id, version}` | 200 `Order` |
+| `POST /api/orders/{id}/lines` | Add a line: `{product_id, quantity, version}` | 201 `Order` |
+| `PATCH /api/orders/{id}/lines/{line_id}` | Change a quantity: `{quantity, version}` | 200 `Order` |
+| `DELETE /api/orders/{id}/lines/{line_id}` | Remove a line; optional `If-Match` | 200 `Order` |
+| `POST /api/orders/{id}/confirm`, `/cancel`, `/ship` | Transitions; no body; optional `If-Match` | 200 `Order` |
+
+Shapes:
+- `Product` is `{id, sku, name, price, stock}`; `stock` is live (it changes when orders are confirmed or cancelled).
+- `OrderSummary` is `{id, number, status, customer_id, customer_name, line_count, total, version, created_at, updated_at}`.
+- `Order` is `{id, number, status, customer: {id, name, status}, lines: [OrderLine], subtotal, tax_rate, tax, total, invoice_id, version, created_at, updated_at}`. `OrderLine` is `{id, product_id, sku, name, quantity, unit_price, line_total}` (`line_total` is quantity times unit price). Lines are ordered by `id`. `invoice_id` is `null` until the order has an invoice (section 6). While the order is a `draft`, `tax_rate` is the current rate and the totals are computed on every read; from the moment it is confirmed they are the frozen values. Every response that returns one order also carries `ETag: "<version>"`, and every change to the order, including each line change, increases its `version` by 1 and sets `updated_at`.
+- A new draft has no lines, `subtotal`, `tax` and `total` of `"0.00"`, `version` 1 and `updated_at` equal to `created_at`. Its number is the next one of the `PED` sequence (`format_number("PED", n)`), taken inside the same transaction as the insert.
+
+Rules:
+- **Create.** `customer_id` is required (`REQUIRED`), an integer (`INVALID_FORMAT`), must exist (`REFERENCE_NOT_FOUND` on `customer_id`) and the customer must be active (422 `CUSTOMER_INACTIVE`). An unknown field in any body is a 422 `INVALID_FORMAT` on that field.
+- **Edit.** Only a `draft` can be edited (`ORDER_NOT_EDITABLE`). The customer of the draft must be active at the time of every edit (`CUSTOMER_INACTIVE`). `version` is required in the bodies that carry it (`REQUIRED`) and is an integer from 1 to 2147483647 (otherwise `OUT_OF_RANGE`). Adding a line: `product_id` is required and must exist (`REFERENCE_NOT_FOUND` on `product_id`), `quantity` is an integer from 1 to 999 (`INVALID_FORMAT`, `OUT_OF_RANGE`), the unit price is copied from the product at that moment, a product already in the order is `ORDER_DUPLICATE_PRODUCT` and an 11th line is `ORDER_TOO_MANY_LINES`. Changing a quantity keeps the unit price of the line. A `line_id` that does not belong to the order is 404 `NOT_FOUND`. Stock is not checked when editing, only when confirming.
+- **Transitions.** They follow the table above. A transition that the state does not allow is 409 `INVALID_TRANSITION` with `{from}` and `{to}` in Spanish labels (section 7 labels). Confirming runs, in this order, the version check, the transition check, `CUSTOMER_INACTIVE`, `ORDER_EMPTY` and `INSUFFICIENT_STOCK` (with `shortages[]`), and then in one atomic step decrements the stock of every line, freezes the tax rate and the totals and sets the status. Cancelling a `confirmed` order gives every line's stock back; cancelling a `draft` changes no stock. Cancelling also voids the order's `issued` invoice once invoices exist (section 6). Shipping needs `paid`. Section 5 (Concurrency) applies: `If-Match` is optional, a stale value is 409 `VERSION_CONFLICT`, and an absent value skips the check.
+- **Settings.** `tax_rate` is a string of up to 3 digits before the point and up to 2 after it (`INVALID_FORMAT` otherwise) between `"0.00"` and `"100.00"` (`OUT_OF_RANGE` with the message "El valor debe estar entre 0 y 100."). It is stored with 2 decimals (`"7"` becomes `"7.00"`). Changing it does not alter confirmed orders. `DEFAULT_TAX_RATE` is the initial value.
+- **List.** `page` follows the customers rule. `status` is one of the five order states (otherwise 422 `INVALID_FORMAT` on `status`). `customer_id` is an integer of 1 or more (otherwise 422 `INVALID_FORMAT`; an id that does not exist simply matches nothing). `q` has the customers rules (trimmed, ignored when empty, at most 100 characters, no control characters, literal, the same normalization) and matches the order number or the customer's name by "contains". The order is `created_at` descending, then `id` descending; `total` counts every match.
+- **Not found.** An unknown id and any integer outside 1 to 2147483647 is 404 `NOT_FOUND`; an id that is not an integer is a 422 `VALIDATION_ERROR` on `id` (and `line_id` likewise). For routes with ids the order of section 7 holds: permission, existence of the order (then of the line), body validation, version and business rules.
+- **Seed.** The 15 products and the 7 orders (with their lines, frozen totals and tax rate 10.00) of `docs/SEED.md` exist from the start, all with `version` 1 and `updated_at` equal to `created_at`; `invoice_id` is filled in by the invoices module and is `null` until it exists.
+
 ## 6. Invoices and payments (flow 3)
 
 Invoices:

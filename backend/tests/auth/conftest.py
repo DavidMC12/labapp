@@ -20,7 +20,7 @@ from tests.auth.helpers import DUMMY_HASH, NOW, FixedClock, RecordingVerifier
 
 @pytest.fixture
 def fixed_clock() -> FixedClock:
-    return FixedClock()
+    return FixedClock(NOW)
 
 
 @pytest.fixture

@@ -6,18 +6,9 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 
 from app.infra.clock import OffsetClock, SystemClock
+from tests.infra.helpers import FixedClock
 
 BASE = datetime(2026, 1, 1, 8, 0, tzinfo=UTC)
-
-
-class FixedClock:
-    """A deterministic base clock."""
-
-    def __init__(self, now: datetime = BASE) -> None:
-        self._now = now
-
-    def now(self) -> datetime:
-        return self._now
 
 
 def test_system_clock_returns_utc() -> None:

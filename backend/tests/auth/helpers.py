@@ -5,19 +5,12 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from app.modules.auth.seed import DEMO_PASSWORD
+from tests.infra.helpers import FixedClock
 
 NOW = datetime(2026, 1, 2, 12, 0, tzinfo=UTC)
 DUMMY_HASH = "dummy-hash"
 
-
-class FixedClock:
-    """A deterministic base clock for tests."""
-
-    def __init__(self, now: datetime = NOW) -> None:
-        self._now = now
-
-    def now(self) -> datetime:
-        return self._now
+__all__ = ["DUMMY_HASH", "FixedClock", "NOW", "RecordingVerifier"]
 
 
 class RecordingVerifier:

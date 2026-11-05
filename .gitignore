@@ -37,7 +37,6 @@ blob-report/
 # Local data and overrides
 *.sqlite3
 *.db
-docker-compose.override.yml
 
 # Editors, OS, logs
 .idea/

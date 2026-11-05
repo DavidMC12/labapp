@@ -1,0 +1,59 @@
+# Task 017: backend stateless request guards
+
+Assignee: Worker 1. Branch: `w1/request-guards`. Reviewer: Supervisor, with a second-agent review because this is security code.
+
+**Base.** Branch from `main` after tasks 010, 012 and 015 are merged. It uses `app/security/` (already merged and tested), `app/middleware.py`, `app/errors.py`, `app/main.py` and `app/modules/auth/container.py`.
+
+## Goal
+
+Wire into the running application the guards that need no stored state: the origin check on state-changing requests, the mapping of malformed JSON, a real body size limit, the rate limits (in memory, best effort: on a serverless deployment each instance has its own counters, and a stateful alternative comes later), and the reusable guard dependency of the test-only controls. The test controls themselves (reset, seed, clock, faults) come in a later task because their state must live in the database.
+
+## Read first
+
+- `docs/SPEC.md`: section 3 (origin check, rate limits, client IP, test token), section 7 (the error catalog and the order of checks: rate limit and body size, then malformed JSON, then session and origin, then permission, then validation).
+- `docs/ARCHITECTURE.md`: "Test-only controls" (the guard table).
+- `backend/app/security/` (`origin.py`, `client_ip.py`, `ratelimit.py`, `controls_guard.py`) and their tests: the building blocks you wire, do not rewrite them. `backend/app/middleware.py`, `backend/app/errors.py`, `backend/app/main.py`, `backend/app/modules/auth/container.py`.
+
+## Scope
+
+You may create files under `backend/app/guards/` and `backend/tests/guards/` (the package is not called `http`, which would shadow the standard library module); edit `backend/app/main.py`, `backend/app/middleware.py`, `backend/app/errors.py`, `backend/app/config.py`, `backend/app/security/ratelimit.py` (and its test) and `backend/app/modules/auth/container.py` only to wire or extend what this task needs; add an autouse fixture that calls `reset_limiters()` to `backend/tests/auth/conftest.py`, `backend/tests/customers/conftest.py` and, if it exists when you start, `backend/tests/orders/conftest.py` (these module-scoped test applications run with `test_mode=False` and share one client address, so once the limits are enforced they would hit 120 requests or 10 logins per minute); update the "Limits" paragraph of `backend/README.md` and the docstring of `BodySizeLimitMiddleware`, which become false; and add a "Request guards" section to `backend/README.md`. Every new folder needs an `__init__.py`. Do not change anything else. No new dependencies. Name no module `test_*.py` unless it is a test.
+
+## Requirements
+
+1. **Rate limits** (`app/guards/ratelimit_middleware.py`, a pure ASGI middleware, not `BaseHTTPMiddleware`). It applies to paths under `/api/` and under `/__test__/` (so a client without the token cannot guess it without limit) and never to `GET /api/health`. It computes the client IP with `client_ip(peer, x_forwarded_for, settings.trusted_proxy_count)` (the peer is `scope["client"][0]`, or `"unknown"` if absent), where `x_forwarded_for` is **all** the `X-Forwarded-For` header lines joined with commas (`Headers.getlist`): a proxy that appends a separate header line must not leave a client-supplied value as the key. Limits are enabled only when `rate_limiting_enabled(settings.test_mode, settings.test_token, x-test-token header)` is true. When enabled, every `/api/` request is counted against the general limiter (`GENERAL_LIMIT`), and `POST /api/auth/login` is also counted against the login limiter (`LOGIN_LIMIT`); a rejected request gets the 429 `RATE_LIMITED` problem document of `rate_limited_error` and a `Retry-After` header with the `retry_after` seconds (the extra member stays in the body too). Both limiters use the real monotonic clock (`time.monotonic`, injectable for tests), not the application clock. The limiters live in the container so tests can reach them, and `SlidingWindowLimiter` in `app/security/ratelimit.py` has no bound on the number of tracked keys today (its dictionary only shrinks when a window expires), so add one: a `max_keys` constructor argument (default 10,000); when a new key arrives and the limiter is full, drop the key whose last hit is the oldest before tracking the new one. Test the bound and that an existing key keeps its count.
+2. **Origin check.** A global FastAPI dependency (registered with `FastAPI(dependencies=[...])`, plain `def`) that calls `check_origin(request.method, request.headers.get("origin"), origin)` for every `/api/` route and accepts the request when it passes for **any** of the allowed origins. The allowed origins are a new `Settings.allowed_origins` property (a tuple of strings): `APP_ORIGIN`, plus `https://<value>` for each of the variables `VERCEL_URL`, `VERCEL_BRANCH_URL` and `VERCEL_PROJECT_PRODUCTION_URL` that is set and non-blank (the platform sets them to a bare host name on every deployment, and preview URLs change with every deployment, so a single fixed origin would reject the real browser). Add them as optional settings fields (`vercel_url`, `vercel_branch_url`, `vercel_project_production_url`, all `str | None`, blank means `None`, none hidden). Validate that each resulting origin has the form `scheme://host[:port]` with no path, and ignore a value that does not (never raise at startup for it). Because it is a dependency it runs after the body is parsed and before the route's own checks, which is the order of SPEC section 7. It does not apply to `/__test__` routes (which do not exist yet; the dependency must skip any path outside `/api/`).
+3. **Malformed JSON.** In `app/errors.py`, a `RequestValidationError` that contains an error of type `json_invalid` becomes a 400 `MALFORMED_JSON` problem with the message "El cuerpo de la solicitud no es un JSON válido." (SPEC section 7); every other validation error keeps its current 422 behavior. Today a broken body gives a 422 whose error field is `[1]`; the tests must pin the new behavior.
+4. **Body size.** `BodySizeLimitMiddleware` only checks the declared `Content-Length`; a chunked request without it is not limited. Make it enforce the 100 KB limit while the body streams: wrap `receive`, count the bytes of the `http.request` messages and, when the total exceeds the limit, **raise `starlette.exceptions.HTTPException(status_code=413)` from the wrapped `receive`** (verified: FastAPI turns that into the 413 response through the exception handlers, which `app/errors.py` already maps to the `PAYLOAD_TOO_LARGE` problem document; any other exception raised there, for example a custom one or `ApiError`, becomes a 500). Never try to send a response from inside `receive`. Keep the declared-length fast path. Remember that an `ApiError` raised inside a middleware is not handled by FastAPI's handlers: build middleware responses (429, 404, 413) with `problem_response` as `BodySizeLimitMiddleware` does. Write the failing test first (a streamed body without `Content-Length` of 100 KB plus one byte).
+5. **Test-controls guard** (`app/guards/controls.py`): a pure ASGI middleware that, for every path under `/__test__/` (any method), calls `controls_allowed(settings.test_mode, settings.test_token, x-test-token header)` and, when it is false, answers the 404 `NOT_FOUND` problem document **before anything else looks at the request**. A dependency would run after routing and body parsing, so an unauthenticated probe could still tell the routes exist by getting 405 for a wrong method, a redirect for a trailing slash, 400 for a bad body or 413 for a big one; the middleware makes all of those 404. The later task adds the `/__test__` router with `include_in_schema=False`; here the guard is covered by tests that mount a tiny router of their own.
+6. **Middleware order.** From outside to inside: request id, rate limit, controls guard, body size, the application (SPEC section 7 puts the rate limit first). State this order in the README and cover it with a test (a rate-limited request that also exceeds the size limit answers 429; a request over the size limit, declared or streamed, that is not rate limited answers 413; a rate-limited request that carries malformed JSON answers 429; an unauthorized request to `/__test__/x` with a wrong method, a trailing slash, a bad body or a big body answers 404 every time).
+7. **Container.** Extend the container with `limiters` (general and login) and a `reset_limiters()` method that clears both; do not reach into private attributes from outside.
+8. **Tests** (`backend/tests/guards/`), deterministic: inject the monotonic function, never sleep for real. Cover:
+   - Rate limits: `/__test__/` requests count too (and a valid token exempts them), a split `X-Forwarded-For` header (two header lines) uses the last entry of the joined value, the general limit at the boundary (the 120th request in a window allowed, the 121st rejected with `Retry-After`), the login limit (10th allowed, 11th rejected), health never limited, limits off with `TEST_MODE=1` and with a valid token, still on with a wrong token, separate buckets per client IP, the client IP taken from `X-Forwarded-For` with `TRUSTED_PROXY_COUNT` 0, 1 and 2 (and a spoofed leftmost entry ignored), the window moving with the monotonic clock only, and the bound on tracked IPs.
+   - Settings: `allowed_origins` with only `APP_ORIGIN`, with the three platform variables set (a host name becomes `https://host`), with blank and malformed values ignored, and without duplicates.
+   - Origin: a different origin is 403 `CSRF_ORIGIN_MISMATCH` on POST, PUT, PATCH and DELETE; a matching origin and a missing origin pass; GET is never checked; the order against malformed JSON (a malformed body with a wrong origin answers 400 first) and against the session check (wrong origin and no session answers 403: SPEC section 7 puts the origin check before the session check).
+   - Malformed JSON: 400 `MALFORMED_JSON` for broken JSON on a customers route and on the login route; valid JSON with a missing field is still 422.
+   - Body size: declared and streamed (a chunked body without `Content-Length`), at the limit (allowed) and one byte above (413 with the `PAYLOAD_TOO_LARGE` problem document).
+   - Guard: the four rows of the guard table (`TEST_MODE` 0 or 1, token missing, wrong, right, and an empty configured token never matching), with the token compared exactly, and the 404-for-everything behavior listed under the middleware order.
+9. **Docs.** The README section: the middleware order, the guard table, the best-effort note for the rate limits on serverless, and an example `curl` for the 429 and the 400.
+
+## Acceptance criteria
+
+From `backend/`, all of these pass:
+
+```bash
+uv sync
+uv run ruff check .
+uv run ruff format --check .
+uv run pytest -q -W error
+```
+
+and, manually, with the server started as in the backend README, show with `curl -i` the 400 for `-d '{bad'` on the login route, the 403 for `-H 'Origin: http://evil.test'` on a POST, and the 413 for a 200 KB body sent with chunked encoding.
+
+## Rules for this task
+
+- Commit as you go, in small real steps (about 14 to 20 commits): the limiter bound, the rate limit middleware, the origin dependency, the JSON mapping, the streaming size limit, the controls guard, the container methods, then tests next to each piece and the README. Conventional Commits, in English, for example `feat(backend): add the rate limit middleware`.
+- Do not add `Co-Authored-By` or any tool-attribution line. Do not change the git identity.
+- Do not push. Do not merge. Do not touch `main`.
+- Use paths relative to your working directory.
+- If the spec is ambiguous or contradicts itself, do not guess: write the question in your report.
+- When done, reply with: the branch, the commit range, the exact commands you ran with their results, and any deviation or open question.

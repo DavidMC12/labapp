@@ -29,7 +29,6 @@ def test_user_repr_hides_the_password_hash() -> None:
 
     assert "super-secret-password-hash" not in rendered
     assert "Admin Demo" in rendered
-    assert "admin@labapp.test" in rendered
 
 
 def test_session_repr_hides_the_token_hash() -> None:

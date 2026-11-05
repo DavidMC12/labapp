@@ -224,3 +224,77 @@ curl -i -b /tmp/labapp-cookies -X PATCH \
   -d '{"name":"Nuevo Cliente S.A.","version":1}' \
   localhost:8000/api/customers/11
 ```
+
+## Orders
+
+`app/modules/orders/` implements the read-only product catalog, the tax-rate setting and
+the order API under `/api/products`, `/api/settings` and `/api/orders`.
+
+- `routes.py` — the product, settings and order endpoints, all plain `def`. Reads need a
+  session; draft edits need the draft-edit permission; confirm, cancel and ship need the
+  transition permission; the tax rate is Admin only.
+- `service.py` — body and query validation, the port exception translation, and the view
+  building: totals from `app.domain.money`, the current rate for a draft and the frozen
+  rate for every other state.
+- `ports.py` — `OrderStore` with its exceptions. Every method states the rules a
+  PostgreSQL adapter must honour.
+- `adapters/memory.py` — the thread-safe in-memory store used as a test double and
+  development aid.
+- `models.py`, `schemas.py`, `seed.py` — the domain records, the JSON shapes (money as
+  strings with two decimals) and the 15 products plus the 7 orders of `docs/SEED.md`.
+
+A PostgreSQL adapter must guarantee the same behaviour as the in-memory one:
+
+- Every order mutation locks the order row first (`SELECT ... FOR UPDATE`), then the
+  customer row (`FOR SHARE`), then the affected product rows in ascending id order. The
+  version and the state are checked after locking.
+- Confirming is all-or-nothing: check every shortage, then decrement every line, freeze
+  the current tax rate and the totals and set the status in one transaction. Cancelling a
+  confirmed order returns every line's stock; both cancels store the current tax rate.
+- The next `PED` number is assigned inside the same transaction as the insert and
+  continues after the highest existing number. Line ids use one sequence for all orders.
+- Search uses the normalized forms of the order number and the customer's current name
+  stored at write time, and treats `%`, `_` and `\` as literal text.
+
+```bash
+# Log in as sales and keep the session cookie (if not done already).
+curl -i -c /tmp/labapp-cookies \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"sales@labapp.test","password":"Demo-LabApp-2026!"}' \
+  localhost:8000/api/auth/login
+
+# Read the catalog and the current tax rate (every role).
+curl -b /tmp/labapp-cookies localhost:8000/api/products
+curl -b /tmp/labapp-cookies localhost:8000/api/settings
+
+# Create a draft for customer 1. The answer carries Location and ETag: "1".
+curl -i -b /tmp/labapp-cookies \
+  -H 'Content-Type: application/json' \
+  -d '{"customer_id":1}' \
+  localhost:8000/api/orders
+
+# Add two units of product 1; the answer carries ETag: "2".
+curl -i -b /tmp/labapp-cookies \
+  -H 'Content-Type: application/json' \
+  -d '{"product_id":1,"quantity":2,"version":1}' \
+  localhost:8000/api/orders/8/lines
+
+# Product 1 stock before confirming.
+curl -b /tmp/labapp-cookies localhost:8000/api/products
+
+# Confirm the draft; the answer carries ETag: "3".
+curl -i -b /tmp/labapp-cookies -X POST \
+  -H 'If-Match: "2"' \
+  localhost:8000/api/orders/8/confirm
+
+# Product 1 stock after confirming (two units fewer).
+curl -b /tmp/labapp-cookies localhost:8000/api/products
+
+# Read the order.
+curl -i -b /tmp/labapp-cookies localhost:8000/api/orders/8
+
+# Cancel it; the stock comes back and the answer carries ETag: "4".
+curl -i -b /tmp/labapp-cookies -X POST \
+  -H 'If-Match: "3"' \
+  localhost:8000/api/orders/8/cancel
+```

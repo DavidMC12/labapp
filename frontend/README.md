@@ -115,6 +115,41 @@ src/
   throw `ApiRequestError` with the problem document, or a synthesized
   `INTERNAL_ERROR` problem for non-JSON bodies and network errors.
 
+## Orders
+
+- Pages: the list (`/orders`), the create page (`/orders/new`) and the
+  detail (`/orders/{id}`) of flow 2, following docs/SPEC.md section 5.
+  Feature code in `src/features/orders/` (`api.ts`, `hooks.ts`,
+  `params.ts`, `permissions.ts`, `types.ts`); money, dates and time are
+  formatted by `src/lib/format.ts` (`formatMoney`, `formatDate`,
+  `formatTime`, `formatDateTime`, both in UTC).
+- URL parameters of the list: `page` (integer up to 1000000, valid or page
+  1), `q` (trimmed, only when it has a value, matched against the order
+  number or the customer name) and `status` (one of the five states, no
+  filter when absent). Search goes to page 1; a page beyond the last is
+  `max(1, ceil(total / 20))` and the URL is replaced by it.
+- Keys: `["orders","list",{page,q,status}]`, `["orders","detail",id]`
+  (numbers always), `["products"]`. Every successful order mutation
+  writes the returned order with `setQueryData` on its detail key,
+  invalidates `["orders","list"]`, and a 401 writes `null` into
+  `["auth","me"]`.
+- Bodies follow the spec: money as strings, `customer_id`,
+  `product_id` and `quantity` as integers (a non-digit quantity typed in
+  the UI is sent as the typed string so the server's `INVALID_FORMAT`
+  shows on the field), `version` in the bodies that change the order,
+  `If-Match: "<version>"` on confirm/cancel/ship and the line deletion.
+  Confirm and cancel additionally invalidate `["products"]` (stock).
+- Permissions (`src/features/orders/permissions.ts`):
+  `canEditOrders(role)` (create, change the customer, add/edit/remove
+  lines) and `canTransitionOrders(role)` (confirm, cancel, ship) are true
+  for `admin` and `sales` only; the UI hides the controls for the other
+  roles and the server remains the authority. On a draft, every mutation
+  control of the detail is disabled while any one of them is pending
+  (they would otherwise race on `version`).
+- Customer pickers (create and "Cambiar cliente") start with a disabled
+  "Elige un cliente" placeholder, list at most 20 active customers and
+  reset a choice the list no longer contains.
+
 ## Customers
 
 Feature code in `src/features/customers/`, screens under

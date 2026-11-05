@@ -44,9 +44,7 @@ def test_default_configuration_has_no_database() -> None:
     assert settings.database_schema is None
 
 
-def test_env_file_is_read_when_reenabled(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_env_file_is_read_when_reenabled(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     backend_dir = tmp_path / "backend"
     backend_dir.mkdir()
     (backend_dir / ".env").write_text(

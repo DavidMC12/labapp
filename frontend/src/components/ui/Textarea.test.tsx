@@ -3,6 +3,28 @@ import { describe, expect, it } from "vitest";
 import { Textarea } from "./Textarea";
 
 describe("Textarea", () => {
+  it("forwards the ref to the textarea element", () => {
+    const controlRef = { current: null as HTMLTextAreaElement | null };
+
+    render(
+      <Textarea
+        ref={controlRef}
+        id="order-notes"
+        testId="orders-form-notes-textarea"
+        label="Notas"
+      />,
+    );
+
+    expect(controlRef.current).toBeInstanceOf(HTMLTextAreaElement);
+    expect(controlRef.current).toBe(
+      screen.getByTestId("orders-form-notes-textarea"),
+    );
+    controlRef.current?.focus();
+    expect(document.activeElement).toBe(
+      screen.getByTestId("orders-form-notes-textarea"),
+    );
+  });
+
   it("associates the label with the textarea", () => {
     render(
       <Textarea

@@ -82,3 +82,39 @@ src/
   `application/problem+json` contract of docs/SPEC.md section 8: failures
   throw `ApiRequestError` with the problem document, or a synthesized
   `INTERNAL_ERROR` problem for non-JSON bodies and network errors.
+
+## Customers
+
+Feature code in `src/features/customers/`, screens under
+`src/app/(app)/customers/`. Every screen is a client component; all text is
+Spanish.
+
+- Pages: the list (`/customers`), the create form (`/customers/new`), the
+  detail (`/customers/{id}`) and the edit form (`/customers/{id}/edit`).
+  Create and edit share `src/features/customers/CustomerForm.tsx`.
+- URL parameters of the list (the state lives in the URL so links can be
+  shared): `page` (integer up to 1000000, falls back to 1 when invalid or
+  out of range — the API answers 422 `OUT_OF_RANGE` beyond that), `q`
+  (the search text, trimmed, present only when it has a value) and
+  `status` (`active`/`inactive`, no filter when absent). Submitting the
+  search goes back to page 1; a page beyond the last one is replaced in
+  the URL by the last page (`max(1, ceil(total / 20))`).
+- Data layer on TanStack Query, all with `retry: false`:
+  `useCustomers({page, q, status})`, `useCustomer(id)`,
+  `useCreateCustomer()`, `useUpdateCustomer()` and
+  `useSetCustomerStatus()`. Keys: `["customers","list",{page,q,status}]`
+  and `["customers","detail",id]`, with the id always a number (the route
+  parameter is parsed once by `parseCustomerIdParam`, which only accepts
+  `^[1-9][0-9]*$` up to 2147483647). A successful write caches the returned
+  customer under its detail key before navigating and invalidates
+  `["customers","list"]`; a status change sends
+  `If-Match: "<version>"`, and any failure refetches the customer.
+- Permission rule: `canManageCustomers(role)` in
+  `src/features/customers/permissions.ts` is true for `admin` and `sales`
+  only; the UI hides the write controls ("Nuevo cliente", "Editar",
+  "Desactivar"/"Reactivar") for `finance` and `readonly`, which also see
+  the "No tienes permiso para realizar esta acción." alert on the create
+  and edit pages. The server remains the authority.
+- The edit form captures the `version` when it is initialized or last
+  reset ("Recargar datos"), never the one of a later background refetch,
+  so an update cannot silently overwrite another user's change.

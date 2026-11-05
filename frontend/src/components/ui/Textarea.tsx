@@ -1,4 +1,4 @@
-import type { TextareaHTMLAttributes } from "react";
+import { type Ref, type TextareaHTMLAttributes } from "react";
 import { errorTestId, type TestId } from "@/lib/testid";
 import { Field, fieldControlProps } from "./Field";
 
@@ -7,6 +7,8 @@ type TextareaProps = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "id"> & {
   testId: TestId;
   label: string;
   error?: string;
+  /** React 19 forwards `ref` as a prop. */
+  ref?: Ref<HTMLTextAreaElement>;
 };
 
 /**
@@ -20,6 +22,7 @@ export function Textarea({
   testId,
   label,
   error,
+  ref: controlRef,
   ...rest
 }: TextareaProps) {
   const errorId = errorTestId(testId);
@@ -27,6 +30,7 @@ export function Textarea({
   return (
     <Field id={id} label={label} errorId={errorId} error={error}>
       <textarea
+        ref={controlRef}
         {...rest}
         {...fieldControlProps(id, error, errorId)}
         data-testid={testId}

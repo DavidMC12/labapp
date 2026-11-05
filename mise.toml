@@ -2,3 +2,7 @@
 node = "24.22.2"
 pnpm = "12.16.1"
 uv = "0.13.6"
+
+[tasks.dev]
+description = "Start the API and the web app for local development"
+run = "scripts/dev.sh"

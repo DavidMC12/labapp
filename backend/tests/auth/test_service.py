@@ -16,6 +16,7 @@ from app.modules.auth.models import Session
 from app.modules.auth.seed import DEMO_PASSWORD
 from app.modules.auth.service import (
     INVALID_CREDENTIALS_MESSAGE,
+    SERVICE_BUSY_MESSAGE,
     SESSION_EXPIRED_MESSAGE,
     SESSION_PURGE_AGE,
     UNAUTHENTICATED_MESSAGE,
@@ -211,6 +212,107 @@ def test_verifications_are_limited_to_the_semaphore_size(
 
     assert verifier.max_active == 2
     assert all(user.id == 1 for user, _ in results)
+
+
+class BlockingEventVerifier:
+    """A verifier that holds its slot until the test releases it."""
+
+    def __init__(self) -> None:
+        self.entered = Event()
+        self.release = Event()
+
+    def __call__(self, password_hash: str, password: str) -> bool:
+        self.entered.set()
+        self.release.wait(timeout=5)
+        return True
+
+
+def test_login_fails_with_service_busy_when_no_hash_slot_is_free(
+    users: InMemoryUserRepository,
+    sessions: InMemorySessionStore,
+    clock: OffsetClock,
+) -> None:
+    verifier = BlockingEventVerifier()
+    service = AuthService(
+        users,
+        sessions,
+        clock,
+        dummy_hash="dummy-hash",
+        verify=verifier,
+        max_concurrent_hashes=1,
+        hash_wait_seconds=0.05,
+    )
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        blocked = executor.submit(service.login, "admin@labapp.test", DEMO_PASSWORD)
+        assert verifier.entered.wait(timeout=5) is True
+        try:
+            with pytest.raises(ApiError) as error:
+                service.login("admin@labapp.test", DEMO_PASSWORD)
+        finally:
+            verifier.release.set()
+
+        assert blocked.result(timeout=5)[0].id == 1
+
+    assert error.value.status == 503
+    assert error.value.code == "SERVICE_BUSY"
+    assert error.value.detail == SERVICE_BUSY_MESSAGE
+
+
+class RaisingVerifier:
+    """A verifier that raises on the first call and succeeds afterwards."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def __call__(self, password_hash: str, password: str) -> bool:
+        self.calls += 1
+        if self.calls == 1:
+            raise RuntimeError("verifier failed")
+        return True
+
+
+def test_a_hash_slot_is_released_when_verify_raises(
+    users: InMemoryUserRepository,
+    sessions: InMemorySessionStore,
+    clock: OffsetClock,
+) -> None:
+    verifier = RaisingVerifier()
+    service = AuthService(
+        users,
+        sessions,
+        clock,
+        dummy_hash="dummy-hash",
+        verify=verifier,
+        max_concurrent_hashes=1,
+        hash_wait_seconds=0.05,
+    )
+
+    with pytest.raises(RuntimeError, match="verifier failed"):
+        service.login("admin@labapp.test", DEMO_PASSWORD)
+
+    user, token = service.login("admin@labapp.test", DEMO_PASSWORD)
+
+    assert user.id == 1
+    assert token
+    assert verifier.calls == 2
+
+
+@pytest.mark.parametrize("max_concurrent_hashes", [0, -1])
+def test_max_concurrent_hashes_below_one_is_rejected(
+    users: InMemoryUserRepository,
+    sessions: InMemorySessionStore,
+    clock: OffsetClock,
+    max_concurrent_hashes: int,
+) -> None:
+    with pytest.raises(ValueError, match="max_concurrent_hashes must be at least 1"):
+        AuthService(
+            users,
+            sessions,
+            clock,
+            dummy_hash="dummy-hash",
+            max_concurrent_hashes=max_concurrent_hashes,
+        )
 
 
 def _service_without_users(

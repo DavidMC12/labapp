@@ -21,6 +21,7 @@ SESSION_PURGE_AGE = SESSION_IDLE_TIMEOUT + SESSION_PURGE_GRACE
 INVALID_CREDENTIALS_MESSAGE = "Email o contraseña incorrectos."
 UNAUTHENTICATED_MESSAGE = "Inicia sesión para continuar."
 SESSION_EXPIRED_MESSAGE = "Tu sesión expiró. Inicia sesión de nuevo."
+SERVICE_BUSY_MESSAGE = "El servicio está ocupado. Inténtalo de nuevo en unos segundos."
 
 
 class AuthService:
@@ -35,17 +36,25 @@ class AuthService:
         dummy_hash: str,
         verify: Callable[[str, str], bool] = verify_password,
         max_concurrent_hashes: int = 2,
+        hash_wait_seconds: float = 2.0,
     ) -> None:
+        if max_concurrent_hashes < 1:
+            raise ValueError("max_concurrent_hashes must be at least 1")
         self._users = users
         self._sessions = sessions
         self._clock = clock
         self._dummy_hash = dummy_hash
         self._verify = verify
+        self._hash_wait_seconds = hash_wait_seconds
         self._hash_slots = threading.BoundedSemaphore(max_concurrent_hashes)
 
     def _verify_password(self, password_hash: str, password: str) -> bool:
-        with self._hash_slots:
+        if not self._hash_slots.acquire(timeout=self._hash_wait_seconds):
+            raise ApiError(503, "SERVICE_BUSY", SERVICE_BUSY_MESSAGE)
+        try:
             return self._verify(password_hash, password)
+        finally:
+            self._hash_slots.release()
 
     @staticmethod
     def _hash_token(token: str) -> str:

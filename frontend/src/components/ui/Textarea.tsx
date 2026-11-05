@@ -16,7 +16,10 @@ const CONTROL_CLASSES: string = [
   // The textarea is at least 96px high; same touch target as the other
   // controls below 768px.
   "min-h-[96px]",
-  "text-[15px] text-ink placeholder:text-muted",
+  // 16px below 768px: iOS Safari zooms the control on focus at smaller
+  // text.
+  "text-[16px] md:text-[15px]",
+  "text-ink placeholder:text-muted",
   // The only allowed transition: 120ms of color.
   "transition-colors duration-120",
 ].join(" ");

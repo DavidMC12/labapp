@@ -15,7 +15,10 @@ const CONTROL_CLASSES: string = [
   "w-full rounded-md border bg-surface px-[10px]",
   // Touch targets are 44px below 768px; the control is 38px from then up.
   "h-[44px] md:h-[38px]",
-  "text-[15px] text-ink placeholder:text-muted",
+  // 16px below 768px: iOS Safari zooms the control on focus at smaller
+  // text.
+  "text-[16px] md:text-[15px]",
+  "text-ink placeholder:text-muted",
   // The only allowed transition: 120ms of color.
   "transition-colors duration-120",
 ].join(" ");

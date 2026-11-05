@@ -1,12 +1,100 @@
 @import "tailwindcss";
 
+/*
+ * "Libro mayor" light theme. Every color of the app is defined once, here,
+ * and exposed to Tailwind with `@theme inline`, so utilities such as
+ * `bg-paper` and `text-ink` exist. A future dark theme changes only this
+ * file. The values were checked for WCAG contrast (tokens.test.ts).
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --paper: #FBFAF6; /* page background */
+  --surface: #FFFFFF; /* inputs, cards, table body */
+  --ink: #18241F; /* main text, table header rule */
+  --muted: #5B6B63; /* secondary text, labels */
+  --line: #D9D4C5; /* decorative separators, row rules */
+  --control-border: #8A8470; /* borders of inputs and selects */
+  --rail: #14342B; /* side rail background */
+  --rail-ink: #E8F0EA; /* text on the rail */
+  --rail-muted: #A9C2B6; /* links on the rail */
+  --rail-hover: #1D4A3D; /* hovered link on the rail */
+  --accent: #0F5B46; /* primary buttons, links, active badge text */
+  --accent-ink: #FFFFFF; /* text on accent */
+  --ok-bg: #DCEBE3; /* active badge background */
+  --off-bg: #ECE9DF; /* inactive badge background */
+  --danger: #A3261B; /* error text */
+  --danger-bg: #F9E1DE; /* error background */
+  --focus: #1F8A6C; /* focus ring */
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-control-border: var(--control-border);
+  --color-rail: var(--rail);
+  --color-rail-ink: var(--rail-ink);
+  --color-rail-muted: var(--rail-muted);
+  --color-rail-hover: var(--rail-hover);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-ok-bg: var(--ok-bg);
+  --color-off-bg: var(--off-bg);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-focus: var(--focus);
+  --font-sans: var(--font-plex-sans, system-ui);
+  --font-serif: var(--font-plex-serif, Georgia);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-plex-sans, system-ui), "Helvetica Neue", Arial,
+    sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+/* Headings of every page: the serif voice of the theme ("Libro mayor"). */
+h1 {
+  font-family: var(--font-plex-serif, Georgia), serif;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+/*
+ * The one allowed animation: a 120ms color transition on buttons and
+ * links, defined in the components with `transition-colors
+ * duration-120`.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/*
+ * Global focus style: never remove an outline without replacing it.
+ */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/*
+ * Hovered table rows of the ledger: a tint of ink at low opacity.
+ */
+.ledger-row:hover {
+  background-color: color-mix(in srgb, var(--ink) 4%, transparent);
 }

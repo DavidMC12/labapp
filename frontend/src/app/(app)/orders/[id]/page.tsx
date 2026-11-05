@@ -108,15 +108,18 @@ function fieldErrorOf(
   return entry ?? null;
 }
 
-/** A helper status line of both pickers ("Buscando clientes…" / empty). */
-function PickerStatus({ testId, children }: {
+/** A helper status line of the pickers ("Buscando clientes…" / empty). */
+function PickerStatus({ testId, busy = false, children }: {
   testId: string;
+  /** The loading status of a picker is a busy region. */
+  busy?: boolean;
   children: string;
 }) {
   return (
     <p
       role="status"
       data-testid={testId}
+      aria-busy={busy ? "true" : undefined}
       className="mt-3 text-[13px] text-muted"
     >
       {children}
@@ -425,7 +428,7 @@ function ChangeCustomerPanel({ mutationsPending, pageFailureCount, changeCustome
         </form>
 
         {customers.isPending ? (
-          <PickerStatus testId="orders-detail-changecustomer-loading-status">
+          <PickerStatus busy testId="orders-detail-changecustomer-loading-status">
             Buscando clientes…
           </PickerStatus>
         ) : customers.isError ? (

@@ -6,27 +6,8 @@ import { useLogout, useMe } from "@/features/auth/hooks";
 import { roleLabel } from "@/features/auth/types";
 import { ApiRequestError, INTERNAL_ERROR_DETAIL } from "@/lib/api";
 import type { TestId } from "@/lib/testid";
-import * as nextNavigation from "next/navigation";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef } from "react";
-
-/**
- * The current pathname, or "" when `next/navigation` exposes no
- * `usePathname`. The shell test doubles mock the navigation module with
- * `useRouter` only, and reading a missing export from such a mock throws,
- * so the read is guarded; in the real app `usePathname` exists and the
- * current section is derived from it.
- */
-function usePathnameSafe(): string {
-  try {
-    const { usePathname } = nextNavigation as unknown as {
-      usePathname?: () => string | null;
-    };
-    return usePathname?.() ?? "";
-  } catch {
-    return "";
-  }
-}
 
 /** A section link covers the section root and everything under it. */
 function isCurrentSection(pathname: string, href: string): boolean {
@@ -103,7 +84,7 @@ export default function AppLayout({
   const logout = useLogout();
   const loggingOutRef = useRef(false);
 
-  const pathname = usePathnameSafe();
+  const pathname = usePathname();
 
   // No session: an expired or missing session redirects silently for now.
   useEffect(() => {

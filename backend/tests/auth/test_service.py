@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from hashlib import sha256
@@ -218,13 +219,20 @@ class BlockingEventVerifier:
     """A verifier that holds its slot until the test releases it."""
 
     def __init__(self) -> None:
+        self._lock = Lock()
+        self.started = 0
         self.entered = Event()
+        self.two_started = Event()
         self.release = Event()
 
     def __call__(self, password_hash: str, password: str) -> bool:
-        self.entered.set()
-        self.release.wait(timeout=5)
-        return True
+        with self._lock:
+            self.started += 1
+            self.entered.set()
+            if self.started == 2:
+                self.two_started.set()
+        self.release.wait(timeout=10)
+        return password == DEMO_PASSWORD
 
 
 def test_login_fails_with_service_busy_when_no_hash_slot_is_free(
@@ -240,6 +248,7 @@ def test_login_fails_with_service_busy_when_no_hash_slot_is_free(
         dummy_hash="dummy-hash",
         verify=verifier,
         max_concurrent_hashes=1,
+        max_waiting_hashes=1,
         hash_wait_seconds=0.05,
     )
 
@@ -252,11 +261,67 @@ def test_login_fails_with_service_busy_when_no_hash_slot_is_free(
         finally:
             verifier.release.set()
 
+        assert service._hash_load == 1
         assert blocked.result(timeout=5)[0].id == 1
 
+    assert service._hash_load == 0
     assert error.value.status == 503
     assert error.value.code == "SERVICE_BUSY"
     assert error.value.detail == SERVICE_BUSY_MESSAGE
+
+
+def test_excess_verifications_are_shed_without_waiting(
+    users: InMemoryUserRepository,
+    sessions: InMemorySessionStore,
+    clock: OffsetClock,
+) -> None:
+    verifier = BlockingEventVerifier()
+    service = AuthService(
+        users,
+        sessions,
+        clock,
+        dummy_hash="dummy-hash",
+        verify=verifier,
+        max_concurrent_hashes=2,
+        max_waiting_hashes=2,
+        hash_wait_seconds=5,
+    )
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        futures = [
+            executor.submit(service.login, "admin@labapp.test", "wrong-password") for _ in range(8)
+        ]
+        assert verifier.two_started.wait(timeout=10) is True
+
+        deadline = time.monotonic() + 5
+        while True:
+            shed = [future for future in futures if future.done()]
+            if len(shed) == 4:
+                break
+            assert time.monotonic() < deadline
+
+        for future in shed:
+            with pytest.raises(ApiError) as error:
+                future.result()
+            assert error.value.status == 503
+            assert error.value.code == "SERVICE_BUSY"
+
+        assert verifier.started == 2
+        assert service._hash_load == 4
+
+        verifier.release.set()
+        for future in futures:
+            if future in shed:
+                continue
+            with pytest.raises(ApiError) as error:
+                future.result(timeout=5)
+            assert error.value.status == 401
+            assert error.value.code == "INVALID_CREDENTIALS"
+
+    assert service._hash_load == 0
+    user, token = service.login("admin@labapp.test", DEMO_PASSWORD)
+    assert user.id == 1
+    assert token
 
 
 class RaisingVerifier:
@@ -285,12 +350,14 @@ def test_a_hash_slot_is_released_when_verify_raises(
         dummy_hash="dummy-hash",
         verify=verifier,
         max_concurrent_hashes=1,
+        max_waiting_hashes=0,
         hash_wait_seconds=0.05,
     )
 
     with pytest.raises(RuntimeError, match="verifier failed"):
         service.login("admin@labapp.test", DEMO_PASSWORD)
 
+    assert service._hash_load == 0
     user, token = service.login("admin@labapp.test", DEMO_PASSWORD)
 
     assert user.id == 1
@@ -312,6 +379,21 @@ def test_max_concurrent_hashes_below_one_is_rejected(
             clock,
             dummy_hash="dummy-hash",
             max_concurrent_hashes=max_concurrent_hashes,
+        )
+
+
+def test_max_waiting_hashes_below_zero_is_rejected(
+    users: InMemoryUserRepository,
+    sessions: InMemorySessionStore,
+    clock: OffsetClock,
+) -> None:
+    with pytest.raises(ValueError, match="max_waiting_hashes must be at least 0"):
+        AuthService(
+            users,
+            sessions,
+            clock,
+            dummy_hash="dummy-hash",
+            max_waiting_hashes=-1,
         )
 
 

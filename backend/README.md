@@ -120,8 +120,8 @@ Run the API and log in with any seeded email (`admin@labapp.test`, `sales@labapp
 `Demo-LabApp-2026!`. A PostgreSQL adapter later only implements the two ports; the service,
 routes and tests stay unchanged.
 
-Two Argon2 verifications run at a time (about 64 MiB each). A login that cannot get a slot
-within two seconds answers 503 `SERVICE_BUSY`; the per-IP login limit from task 008 is the
-other protection. The session cap can still be flooded by design because the demo password is
-public: at roughly 54 logins per second the oldest sessions are evicted, so the per-IP limit is
-what makes that impractical.
+Two Argon2 verifications run at a time (about 64 MiB each), with room for two more waiting.
+Everything beyond that answers 503 `SERVICE_BUSY` immediately instead of queueing behind the
+thread pool; the per-IP login limit from task 008 is the other protection. The session cap can
+still be flooded by design because the demo password is public: at roughly 54 logins per
+second the oldest sessions are evicted, so the per-IP limit is what makes that impractical.

@@ -36,10 +36,13 @@ class AuthService:
         dummy_hash: str,
         verify: Callable[[str, str], bool] = verify_password,
         max_concurrent_hashes: int = 2,
+        max_waiting_hashes: int = 2,
         hash_wait_seconds: float = 2.0,
     ) -> None:
         if max_concurrent_hashes < 1:
             raise ValueError("max_concurrent_hashes must be at least 1")
+        if max_waiting_hashes < 0:
+            raise ValueError("max_waiting_hashes must be at least 0")
         self._users = users
         self._sessions = sessions
         self._clock = clock
@@ -47,14 +50,25 @@ class AuthService:
         self._verify = verify
         self._hash_wait_seconds = hash_wait_seconds
         self._hash_slots = threading.BoundedSemaphore(max_concurrent_hashes)
+        self._max_hash_load = max_concurrent_hashes + max_waiting_hashes
+        self._hash_load = 0
+        self._hash_load_lock = threading.Lock()
 
     def _verify_password(self, password_hash: str, password: str) -> bool:
-        if not self._hash_slots.acquire(timeout=self._hash_wait_seconds):
-            raise ApiError(503, "SERVICE_BUSY", SERVICE_BUSY_MESSAGE)
+        with self._hash_load_lock:
+            if self._hash_load >= self._max_hash_load:
+                raise ApiError(503, "SERVICE_BUSY", SERVICE_BUSY_MESSAGE)
+            self._hash_load += 1
         try:
-            return self._verify(password_hash, password)
+            if not self._hash_slots.acquire(timeout=self._hash_wait_seconds):
+                raise ApiError(503, "SERVICE_BUSY", SERVICE_BUSY_MESSAGE)
+            try:
+                return self._verify(password_hash, password)
+            finally:
+                self._hash_slots.release()
         finally:
-            self._hash_slots.release()
+            with self._hash_load_lock:
+                self._hash_load -= 1
 
     @staticmethod
     def _hash_token(token: str) -> str:

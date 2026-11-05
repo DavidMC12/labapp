@@ -40,15 +40,13 @@ export default function CustomerCreatePage() {
   // selection goes back to the placeholder. The reset runs during render —
   // the "adjust state when a dependency changes" pattern of the
   // customers list — instead of setting state inside an effect.
-  const [lastOptions, setLastOptions] = useState<
-    Array<{ id: number }> | undefined
-  >(undefined);
-  const pickerItemsNow = customers.isSuccess ? customers.data.items : [];
-  if (pickerItemsNow !== lastOptions) {
-    setLastOptions(pickerItemsNow);
+  const [lastData, setLastData] = useState<typeof customers.data>(undefined);
+  if (customers.data !== lastData) {
+    setLastData(customers.data);
+    const items = customers.data?.items ?? [];
     if (
       customerId !== ""
-      && !pickerItemsNow.some((candidate) => String(candidate.id) === customerId)
+      && !items.some((candidate) => String(candidate.id) === customerId)
     ) {
       setCustomerId("");
     }
@@ -146,7 +144,7 @@ export default function CustomerCreatePage() {
     }
   }
 
-  const pickerItems = pickerItemsNow;
+  const pickerItems = customers.isSuccess ? customers.data.items : [];
 
   return (
     <div>

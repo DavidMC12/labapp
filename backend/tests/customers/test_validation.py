@@ -57,7 +57,7 @@ def test_name_length_boundaries(length: int, code: str | None) -> None:
 
 
 @pytest.mark.parametrize("field", ["name", "email"])
-@pytest.mark.parametrize("value", ["", "   "])
+@pytest.mark.parametrize("value", ["", "   ", "\t\n"])
 def test_required_fields_reject_empty_values(field: str, value: str) -> None:
     assert _errors({field: value}) == [
         {
@@ -237,6 +237,14 @@ def test_text_is_trimmed_optional_fields_become_none_and_email_is_lowercased() -
         tax_id=None,
         address=None,
     )
+
+
+def test_optional_fields_with_only_control_whitespace_become_none() -> None:
+    customer = _new(phone="\t\n", tax_id=" \t ", address="\n")
+
+    assert customer.phone is None
+    assert customer.tax_id is None
+    assert customer.address is None
 
 
 def test_update_validates_only_the_fields_that_were_sent() -> None:

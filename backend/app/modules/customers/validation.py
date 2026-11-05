@@ -75,12 +75,12 @@ def _clean_text(
         return None, _required(field) if required else None
     if not isinstance(value, str):
         return None, _invalid_format(field)
-    if has_control_character(value):
-        return None, _invalid_format(field)
 
     text = value.strip()
     if not text:
         return None, _required(field) if required else None
+    if has_control_character(value):
+        return None, _invalid_format(field)
 
     if email:
         if not _valid_email(text):

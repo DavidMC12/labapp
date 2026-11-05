@@ -8,6 +8,10 @@ from app.infra.clock import OffsetClock, SystemClock
 from app.middleware import BodySizeLimitMiddleware, RequestIdMiddleware
 from app.modules.auth.container import build_container
 from app.modules.auth.routes import router as auth_router
+from app.modules.customers.adapters.memory import InMemoryCustomerRepository
+from app.modules.customers.routes import router as customers_router
+from app.modules.customers.seed import seed_customers
+from app.modules.customers.service import CustomerService
 
 DEFAULT_SESSION_SECRET = "change-me"
 
@@ -33,14 +37,19 @@ def create_app(
 
     application_clock = clock if clock is not None else OffsetClock(SystemClock())
     container = build_container(settings, application_clock)
+    customer_repository = InMemoryCustomerRepository(seed_customers())
+    customers = CustomerService(customer_repository, application_clock)
 
     app = FastAPI(title="LabApp API")
     app.state.settings = settings
     app.state.container = container
+    app.state.customer_repository = customer_repository
+    app.state.customers = customers
     app.add_middleware(BodySizeLimitMiddleware)
     app.add_middleware(RequestIdMiddleware)
     register_error_handlers(app)
     app.include_router(auth_router)
+    app.include_router(customers_router)
 
     @app.get("/api/health")
     async def health() -> dict[str, str]:

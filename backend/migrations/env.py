@@ -13,6 +13,9 @@ from app.infra.db import metadata, normalize_database_url
 
 target_metadata = metadata
 
+# Two builds that migrate at the same time wait for each other instead of racing.
+_MIGRATION_LOCK_KEY = 7_239_014
+
 
 def _settings() -> Settings:
     provided = context.config.attributes.get("settings")
@@ -48,6 +51,7 @@ def run_migrations_online() -> None:
             connection.commit()
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
+            connection.exec_driver_sql(f"select pg_advisory_xact_lock({_MIGRATION_LOCK_KEY})")
             context.run_migrations()
     engine.dispose()
 

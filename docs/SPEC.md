@@ -248,6 +248,32 @@ Atomicity and retries:
 | Missing idempotency key | 422 | `IDEMPOTENCY_KEY_REQUIRED` | Falta la cabecera Idempotency-Key. |
 | Key reused with other data | 422 | `IDEMPOTENCY_KEY_REUSED` | Esa clave de idempotencia ya se usó con otros datos. |
 
+### Invoices and payments API
+
+Every route needs a session. Reading is open to every role. Issuing an invoice and registering a payment need the permissions to create invoices and to register payments (Admin and Finance, section 2); anything else is 403 `FORBIDDEN`. Money is a string with 2 decimals, ids and quantities are integers, timestamps follow section 4.
+
+| Request | Purpose | Answer |
+|---|---|---|
+| `GET /api/invoices` | List, with the query parameters below | 200 `{items: [InvoiceSummary], page, page_size, total}` |
+| `GET /api/invoices/{id}` | Read one | 200 `Invoice` |
+| `POST /api/orders/{id}/invoice` | Issue the invoice of a `confirmed` order; no body; optional `If-Match` (the version of the **order**) | 201 `Invoice`, `Location: /api/invoices/{id}` |
+| `POST /api/invoices/{id}/payments` | Register a payment; `Idempotency-Key` required; optional `If-Match` (the version of the **invoice**) | 201 `PaymentResult`, or an error below |
+
+Shapes:
+- `InvoiceSummary` is `{id, number, status, order_id, order_number, customer_name, total, version, created_at, updated_at}`.
+- `Invoice` is `{id, number, status, order_id, order_number, customer, lines, subtotal, tax_rate, tax, total, payments, version, created_at, updated_at}`. `customer` is the snapshot taken at issue, `{id, name, tax_id, address}` (`address` may be `null`); `lines` are the snapshot of the order lines, `{id, product_id, sku, name, quantity, unit_price, line_total}`; `subtotal`, `tax_rate`, `tax` and `total` are the order's frozen values; `payments` is the list of every attempt, ordered by `id`. Every response with one invoice carries `ETag: "<version>"`.
+- `Payment` is `{id, method, status, amount, reference, card_last4, reason, created_at}`: `status` is `approved`, `declined` or `failed`; `reference` is set only for a transfer and `card_last4` only for a card (the only part of a card that is ever stored or returned); `reason` is `CARD_DECLINED` or `GATEWAY_UNAVAILABLE` for a declined or failed payment and `null` otherwise.
+- `PaymentResult` is `{payment, invoice}`: the payment just created and the invoice after the payment. When the payment is approved the order is `paid` too; the screens read it again from the orders API.
+- A declined payment answers 402 `PAYMENT_DECLINED` and a failed one 503 `PAYMENT_GATEWAY_UNAVAILABLE`, as problem documents with the extra members `payment_id` and `reason`; the attempt is stored and appears in `payments`.
+
+Rules:
+- **Issue.** The order must exist (404) and, under its lock and after the version check, the checks are `INVOICE_ALREADY_EXISTS`, `ORDER_NOT_INVOICEABLE` (the order is not `confirmed`) and `CUSTOMER_TAX_ID_REQUIRED` (the customer has no `tax_id`), in that order. The invoice takes the next number of the `FAC` sequence, status `issued`, `version` 1, and copies the snapshots; the order gets its `invoice_id` and its `version` increases by 1 (so a stale order version held by a screen conflicts, which is right: cancelling would now void an invoice). After the transaction commits the email "Factura FAC-0001 emitida" is sent through the email port, which only writes it to the log; a failure of the port is logged and never changes the answer.
+- **Cancel.** Cancelling a `confirmed` order voids its `issued` invoice in the same transaction (`status` `void`, `version` + 1). `paid` and `void` invoices are final.
+- **Register a payment.** `Idempotency-Key` is 1 to 64 characters of `[A-Za-z0-9._-]` (missing: `IDEMPOTENCY_KEY_REQUIRED`; malformed: `INVALID_FORMAT` on `Idempotency-Key`). The body is `{method, amount, card?, reference?}` with no other field. `method` is required and is `card`, `transfer` or `cash` (`REQUIRED`, `INVALID_FORMAT`). `amount` is required, a string that fully matches `^[0-9]{1,10}(\.[0-9]{1,2})?$` (`REQUIRED`, `INVALID_FORMAT`). For `card`, `card` is required and is `{number, expiry, cvc}` validated by the card rules of this section (the field paths are `card.number`, `card.expiry` and `card.cvc`); for `transfer`, `reference` is required (`REQUIRED`, then `TOO_SHORT` or `TOO_LONG`); a `card` object with another method, or a `reference` with another method, is `INVALID_FORMAT` on that field. The expiry is checked against the application clock. The checks run in the order of section 7: permission, existence of the invoice, idempotency (replay), body validation, and then under the locks the stale `version`, `INVOICE_NOT_PAYABLE` (the invoice is not `issued`), `PAYMENT_AMOUNT_MISMATCH` (422, a top-level code, when `amount` differs from the total) and the gateway. An approved payment, the invoice becoming `paid` and the order becoming `paid` (each with its `version` + 1) are one transaction.
+- **Idempotency.** As described above: scoped to the invoice, 24 hours, consumed only by `approved`, `declined` and `failed` outcomes; the same key with the same body replays the stored status and body (also the 402 and 503 ones) and adds the header `Idempotency-Replayed: true`; the same key with another body is 422 `IDEMPOTENCY_KEY_REUSED`. The body is compared through `app/security/idempotency.py` (keyed hash of the canonical JSON, with the card redacted); the card number and the CVC are never stored.
+- **List.** `page`, `q` and the ordering follow the orders rules. `q` matches the invoice number or the customer's name in the snapshot; `status` is `issued`, `paid` or `void` (otherwise 422 `INVALID_FORMAT`); `order_id` is an optional integer from 1 to 2147483647.
+- **Seed.** The 3 invoices and 4 payments of `docs/SEED.md` exist from the start (with the order `invoice_id` filled in), all with `version` 1 where the seed says nothing else; the next invoice is `FAC-0004` and the next payment id is 5.
+
 ## 7. Errors and validation order
 
 Every error is `application/problem+json` (section 8). Codes are stable; messages are Spanish and may be reworded. Authentication, rate-limit and permission errors are in sections 2 and 3; feature errors are in sections 4 to 6.

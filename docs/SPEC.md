@@ -146,7 +146,7 @@ Invoices:
 - The customer must have a `tax_id` (`CUSTOMER_TAX_ID_REQUIRED`).
 - One invoice per order (`INVOICE_ALREADY_EXISTS`). Number `FAC-0001`, `FAC-0002`, ...
 - The invoice stores a snapshot of the order lines and totals and of the customer's name, `tax_id` and address at issue time. States: `issued`, `paid`, `void`. A `paid` or `void` invoice is final.
-- Issuing an invoice sends the email "Factura FAC-0001 emitida" to the customer's email through the email port (Mailpit locally, only logged online) after the transaction commits. If sending fails, the failure is logged and the invoice stays issued. No other email is sent.
+- Issuing an invoice sends the email "Factura FAC-0001 emitida" to the customer's email through the email port (only written to the log: no real email is sent anywhere) after the transaction commits. If sending fails, the failure is logged and the invoice stays issued. No other email is sent.
 - Cancelling a `confirmed` order voids its `issued` invoice.
 
 Payments:

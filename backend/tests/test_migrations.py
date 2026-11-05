@@ -71,6 +71,11 @@ def test_cli_dispatches_seed_without_a_database(
     assert len(calls) == 1
 
 
+def test_seed_requires_a_database() -> None:
+    with pytest.raises(RuntimeError, match="Database is not configured"):
+        cli_module.seed_database(Settings())
+
+
 @pytest.mark.parametrize("argv", [[], ["unknown"], ["migrate", "extra"]])
 def test_cli_rejects_anything_else(argv: list[str]) -> None:
     with pytest.raises(SystemExit) as info:

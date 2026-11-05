@@ -69,6 +69,29 @@ Rules:
 | Creating, editing or confirming an order for an inactive customer | 422 | `CUSTOMER_INACTIVE` | El cliente está desactivado y no puede recibir pedidos. |
 | Invoice for a customer without `tax_id` | 422 | `CUSTOMER_TAX_ID_REQUIRED` | El cliente necesita un ID fiscal para poder facturar. |
 
+### Customers API
+
+Every route needs a session. Reading is open to every role; creating, editing, deactivating and reactivating need the customer-management permission (Admin and Sales, SPEC section 2), otherwise 403 `FORBIDDEN`.
+
+| Request | Purpose | Answer |
+|---|---|---|
+| `GET /api/customers` | List, with the query parameters below | 200 `{items, page, page_size, total}` |
+| `POST /api/customers` | Create | 201 `Customer`, `Location: /api/customers/{id}` |
+| `GET /api/customers/{id}` | Read one | 200 `Customer` |
+| `PATCH /api/customers/{id}` | Partial update; the body must carry `version` | 200 `Customer` |
+| `POST /api/customers/{id}/deactivate` | Set the status to `inactive` | 200 `Customer` |
+| `POST /api/customers/{id}/reactivate` | Set the status to `active` | 200 `Customer` |
+
+`Customer` is `{id, name, email, phone, tax_id, address, status, version, created_at, updated_at}`. Optional fields are `null` when empty. Timestamps are ISO 8601 in UTC with a trailing `Z`. Every response that returns one customer also carries `ETag: "<version>"`.
+
+Rules:
+- **Create.** `name` and `email` are required: an empty or whitespace-only value is `REQUIRED`, and a missing one is reported together with every other problem. Text fields are trimmed, and an empty optional field is stored as `null`. The email is also lowercased. Limits and formats are those of the field table above. Each field reports only the first check that fails, in this order: required, character set or format, minimum length, maximum length (so `"abc"` as a phone is `INVALID_FORMAT`, not `TOO_SHORT`). A control character, NUL included, in any text value is `INVALID_FORMAT`. `phone` and `tax_id` accept ASCII only, as the field table says; `name` and `address` accept any other characters. A valid email has no whitespace, one `@`, a non-empty local part, a domain of at least two non-empty labels separated by dots, and at most 254 characters. A new customer has `status` `active`, `version` 1 and `updated_at` equal to `created_at`. An unknown field in the body is a 422 `INVALID_FORMAT` on that field.
+- **Update.** Only the fields present in the body change. `version` is required (`REQUIRED` on `version` when missing) and is an integer from 1 to 2147483647 (otherwise `OUT_OF_RANGE` on `version`). An unknown field in the body is a 422 `INVALID_FORMAT` on that field. `null` clears `phone`, `tax_id` and `address`; `null` for `name` or `email` is `REQUIRED`. An email already used by another customer is 409 `CUSTOMER_EMAIL_TAKEN`. A stale `version` is 409 `VERSION_CONFLICT`. A request that changes nothing answers 200 and leaves `version` and `updated_at` as they were; a request that changes something increases `version` by 1 and sets `updated_at`.
+- **Deactivate and reactivate.** They accept an optional `If-Match: "<version>"`; a malformed value is a 422 `INVALID_FORMAT` on `If-Match`, and a stale one is 409 `VERSION_CONFLICT` even when the customer already has the requested state. Asking for the state the customer already has, with a current or absent `If-Match`, answers 200 with no change.
+- **List.** `page` is an integer from 1 to 1000000 (a non-integer is 422 `INVALID_FORMAT` on `page`; any other value is 422 `OUT_OF_RANGE` on `page` with the message "El valor debe estar entre 1 y 1000000."); a page beyond the last one returns empty `items`. `page_size` is always 20. `q` is trimmed and ignored when empty; it has at most 100 characters (`TOO_LONG` on `q`) and no control characters (`INVALID_FORMAT` on `q`). It is literal text, never a pattern: `%`, `_` and `\` mean themselves. It matches customers whose name or email contains it, ignoring case and accents, where "ignoring case and accents" is defined as: Unicode NFKD, combining marks removed, case-folded, applied to both the text and `q`. `status` is `active` or `inactive` (otherwise 422 `INVALID_FORMAT` on `status`) and filters by status; without it every customer is listed. The order is `created_at` descending, then `id` descending. `total` counts every match, not only the current page.
+- **Not found.** An unknown id, and any integer outside 1 to 2147483647, is 404 `NOT_FOUND`; an id that is not an integer is a 422 `VALIDATION_ERROR` on `id`. For routes with an id, the order of SPEC section 7 holds: permission, then existence (404), then body validation (422), then the version.
+- **Seed.** The ten customers of `docs/SEED.md` exist from the start, with `version` 1 and `updated_at` equal to `created_at`.
+
 ## 5. Orders (flow 2)
 
 States: `draft`, `confirmed`, `paid`, `shipped`, `cancelled`.
@@ -186,6 +209,7 @@ Common errors not tied to one feature:
 | Order transition not allowed | 409 | `INVALID_TRANSITION` | No se puede pasar el pedido de {from} a {to}. |
 | Malformed JSON body | 400 | `MALFORMED_JSON` | El cuerpo de la solicitud no es un JSON válido. |
 | Lock wait above 5 seconds | 503 | `LOCK_TIMEOUT` | El recurso está ocupado. Inténtalo de nuevo. |
+| All password-check slots busy for 2 seconds | 503 | `SERVICE_BUSY` | El servicio está ocupado. Inténtalo de nuevo en unos segundos. |
 | Method not allowed | 405 | `METHOD_NOT_ALLOWED` | Método no permitido para este recurso. |
 
 Field-level errors: a 422 `VALIDATION_ERROR` lists one entry per field in `errors[]`, with `field` (a path such as `lines[0].quantity`), `code` and `message`:
@@ -223,7 +247,7 @@ Order of checks. A request is rejected by the first rule that fails:
 6. Idempotency: a repeated `Idempotency-Key` with the same body replays the stored response and stops here; the same key with a different body is `IDEMPOTENCY_KEY_REUSED`.
 7. Body validation (422), including `IDEMPOTENCY_KEY_REQUIRED`, a malformed `Idempotency-Key` and unknown references (`REFERENCE_NOT_FOUND`).
 8. Under the locks: a stale `version` (409 `VERSION_CONFLICT`), then the business rules of the operation, in this order:
-   - Create customer: `CUSTOMER_EMAIL_TAKEN`.
+   - Create or edit a customer: `CUSTOMER_EMAIL_TAKEN`.
    - Edit a draft order: `ORDER_NOT_EDITABLE`, `CUSTOMER_INACTIVE`, `ORDER_DUPLICATE_PRODUCT`, `ORDER_TOO_MANY_LINES`.
    - Confirm, cancel or ship an order: `INVALID_TRANSITION`, then for confirm `CUSTOMER_INACTIVE`, `ORDER_EMPTY`, `INSUFFICIENT_STOCK`.
    - Create invoice: `INVOICE_ALREADY_EXISTS`, `ORDER_NOT_INVOICEABLE`, `CUSTOMER_TAX_ID_REQUIRED`.

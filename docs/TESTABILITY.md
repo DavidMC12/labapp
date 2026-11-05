@@ -1,6 +1,6 @@
 # Testability contract
 
-LabApp exists to be easy and reliable to automate. These rules apply to every screen. They are a contract, not a suggestion; the enforcement described below is planned for M1 and is not in place yet.
+LabApp exists to be easy and reliable to automate. These rules apply to every screen. They are a contract, not a suggestion; the enforcement described below is partly in place (types and the static audit) and partly planned (the lint rule and the browser audit).
 
 ## Locators
 
@@ -54,11 +54,12 @@ Errors from the API are shown in an element with `role="alert"` and a `data-test
 
 An element is interactive if it is natively focusable or clickable (`a[href]`, `button`, `input` other than `type=hidden`, `select`, `textarea`, `summary`), has a `tabindex` of 0 or more, has one of the roles `button`, `link`, `checkbox`, `radio`, `switch`, `tab`, `menuitem`, `option`, `combobox`, `textbox`, `slider` or `spinbutton`, or has a click handler.
 
-## Enforcement (planned for M1)
+## Enforcement
 
-- **Types:** shared UI components take a required `testId` prop; a missing one fails `tsc`.
-- **Lint:** an ESLint rule rejects interactive elements without `data-testid` and ids that do not match the pattern above.
-- **Audit:** `tools/audit/` opens a browser on every route and scripted state listed in `tools/audit/states.json` (each dialog, empty state, validation-error state and error state, and the detail pages of fixed seed records). It fails if an interactive element lacks a valid `data-testid` or if axe reports serious or critical violations, and it prints the states it covered. The 100% goal is measured over those states, so a state missing from the list is a gap in the audit, not a pass. It runs in CI.
+- **Types (in place):** shared UI components take a required `testId` prop; a missing one fails `tsc`.
+- **Static audit (in place):** `tools/audit/testid-audit.mjs` parses the frontend source and fails when an interactive or semantic element, a shared UI component or an element with `role="alert"` or `role="status"` has no test id, or when a literal id does not match the grammar. It runs in CI (see [tools/audit/README.md](../tools/audit/README.md)).
+- **Lint (planned):** an ESLint rule rejects interactive elements without `data-testid` and ids that do not match the pattern above.
+- **Browser audit (planned):** `tools/audit/` opens a browser on every route and scripted state listed in `tools/audit/states.json` (each dialog, empty state, validation-error state and error state, and the detail pages of fixed seed records). It fails if an interactive element lacks a valid `data-testid` or if axe reports serious or critical violations, and it prints the states it covered. The 100% goal is measured over those states, so a state missing from the list is a gap in the audit, not a pass. It runs in CI.
 
 ## Deterministic data
 

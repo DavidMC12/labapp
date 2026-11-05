@@ -7,6 +7,12 @@ type FieldProps = {
   error?: string;
   /** Extra classes for the wrapper, for example a grid column width. */
   className?: string;
+  /**
+   * Keeps the `<label>` linked to the control but visually hidden
+   * (`sr-only`): for repeated controls whose column is already labeled,
+   * like the quantity inputs of the order lines.
+   */
+  hideLabel?: boolean;
   children: ReactNode;
 };
 
@@ -23,13 +29,19 @@ export function Field({
   errorId,
   error,
   className,
+  hideLabel = false,
   children,
 }: FieldProps) {
   return (
     <div
       className={["flex flex-col gap-1", className].filter(Boolean).join(" ")}
     >
-      <label htmlFor={id} className="text-[13px] font-medium text-ink">
+      <label
+        htmlFor={id}
+        className={hideLabel
+          ? "sr-only text-[13px] font-medium text-ink"
+          : "text-[13px] font-medium text-ink"}
+      >
         {label}
       </label>
       {children}

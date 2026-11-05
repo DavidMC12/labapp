@@ -69,4 +69,34 @@ describe("Input", () => {
       "El correo electrónico no es válido.",
     );
   });
+
+  it("keeps the label visible by default", () => {
+    render(
+      <Input
+        id="orders-form-customer"
+        testId="orders-form-customer-select"
+        label="Cantidad"
+      />,
+    );
+
+    expect(screen.getByLabelText("Cantidad")).toBeInTheDocument();
+    expect(screen.getByText("Cantidad")).not.toHaveClass("sr-only");
+  });
+
+  it("visually hides the label of a repeated control with hideLabel", () => {
+    render(
+      <Input
+        id="orders-detail-line-quantity-input-10"
+        testId="orders-detail-line-quantity-input-10"
+        label="Cantidad"
+        hideLabel
+      />,
+    );
+
+    const input = screen.getByLabelText("Cantidad");
+    // The link stays for screen readers...
+    expect(input).toHaveAttribute("id", "orders-detail-line-quantity-input-10");
+    // ...but the visible label is hidden by the sr-only utility.
+    expect(screen.getByText("Cantidad")).toHaveClass("sr-only");
+  });
 });

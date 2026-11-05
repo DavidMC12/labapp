@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from alembic.script import ScriptDirectory
 
+import app.cli as cli_module
 from app.cli import _alembic_config, build_parser
 from app.config import Settings
 
@@ -53,7 +54,24 @@ def test_cli_parses_migrate() -> None:
     assert arguments.command == "migrate"
 
 
-@pytest.mark.parametrize("argv", [[], ["seed"], ["migrate", "extra"]])
+def test_cli_parses_seed() -> None:
+    arguments = build_parser().parse_args(["seed"])
+
+    assert arguments.command == "seed"
+
+
+def test_cli_dispatches_seed_without_a_database(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = []
+    monkeypatch.setattr(cli_module, "seed_database", calls.append)
+
+    assert cli_module.main(["seed"]) == 0
+
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("argv", [[], ["unknown"], ["migrate", "extra"]])
 def test_cli_rejects_anything_else(argv: list[str]) -> None:
     with pytest.raises(SystemExit) as info:
         build_parser().parse_args(argv)

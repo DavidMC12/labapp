@@ -87,6 +87,7 @@ const REQUIRED_IDS: readonly TestId[] = [
   "orders-detail-changecustomer-loading-status",
   "orders-detail-changecustomer-empty-status",
   "orders-detail-changecustomer-error-alert",
+  "orders-detail-changecustomer-retry-button",
   "orders-detail-products-error-alert",
   "orders-detail-products-retry-button",
   "orders-detail-confirm-button",

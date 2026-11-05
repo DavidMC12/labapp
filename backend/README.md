@@ -39,8 +39,10 @@ echoed; values must match `^[A-Za-z0-9._-]{1,64}$`, otherwise a new UUID4 is gen
 
 ## PostgreSQL
 
-The API still stores everything in memory. These variables prepare the PostgreSQL
-adapters; their absence keeps the in-memory defaults.
+Without `DATABASE_URL` the API stores everything in memory, which is the default for
+tests. When it is set, the app builds one engine and uses the PostgreSQL adapters for
+users, sessions and customers; the in-memory adapters remain the test doubles. Creating
+the app and serving `GET /api/health` never opens a connection.
 
 - `DATABASE_URL` — the runtime connection string. It must point at the provider's
   pooler. A blank value means "no database".
@@ -53,11 +55,28 @@ adapters; their absence keeps the in-memory defaults.
 The placeholder form is `postgresql+psycopg://user:password@host/db`; `postgres://` and
 `postgresql://` are accepted too and converted to the psycopg form.
 
-Apply the migrations:
+Apply the migrations and load the demo data into empty tables:
 
 ```bash
 uv run python -m app.cli migrate
+uv run python -m app.cli seed
 ```
+
+`seed` adds the four users only when the `users` table is empty and the ten customers
+only when the `customers` table is empty; running it twice changes nothing. Startup
+never seeds.
+
+The adapters follow two rules:
+
+- Raw SQL that names a table uses `qualified_table_name(engine, table)`, which adds the
+  translated schema. `schema_translate_map` only rewrites `Table` constructs, so an
+  unqualified raw statement would run against `public`.
+- Unique violations are mapped by index name with `unique_violation_of`. Only
+  `customers_email_lower_key` becomes `EmailTaken`; every other database error
+  propagates and answers 500 `INTERNAL_ERROR`.
+
+For database errors the unexpected-error handler logs only the exception class, the
+SQLSTATE and the request id: never the message, the statement or the bound parameters.
 
 The integration tests create a random schema, run the migrations there and drop the
 schema when they finish. They are skipped unless `TEST_DATABASE_URL` is set to a direct,
@@ -93,7 +112,7 @@ uv run ruff format --check .
 backend/
   app/
     config.py      Settings read from environment variables
-    cli.py         the migrate command
+    cli.py         the migrate and seed commands
     errors.py      ApiError, problem+json rendering and exception handlers
     infra/db.py    engine, metadata and URL helpers
     main.py        create_app() and the application instance

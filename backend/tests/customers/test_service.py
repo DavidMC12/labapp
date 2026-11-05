@@ -34,6 +34,33 @@ def test_list_trims_the_query_and_ignores_an_empty_one() -> None:
     assert len(items) == 10
 
 
+class RecordingRepository:
+    """A repository that records the query it receives."""
+
+    def __init__(self) -> None:
+        self.query: str | None | object = object()
+
+    def list(
+        self,
+        *,
+        query: str | None,
+        status: CustomerStatus | None,
+        page: int,
+        page_size: int,
+    ) -> tuple[list[object], int]:
+        self.query = query
+        return [], 0
+
+
+def test_list_passes_none_for_an_empty_query() -> None:
+    repository = RecordingRepository()
+    service = CustomerService(repository, OffsetClock(FixedClock(NOW)))  # type: ignore[arg-type]
+
+    service.list_customers(1, "   ", None)
+
+    assert repository.query is None
+
+
 @pytest.mark.parametrize("page", [0, 1_000_001])
 def test_page_out_of_range(page: int) -> None:
     service = _service()

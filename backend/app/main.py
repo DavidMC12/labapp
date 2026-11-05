@@ -3,10 +3,11 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 
 from app.config import Settings
 from app.errors import register_error_handlers
+from app.guards.origin import origin_guard
 from app.guards.ratelimit_middleware import RateLimitMiddleware
 from app.infra.clock import OffsetClock, SystemClock
 from app.infra.db import create_db_engine
@@ -56,7 +57,7 @@ def create_app(
         customer_repository = InMemoryCustomerRepository(seed_customers())
     customers = CustomerService(customer_repository, application_clock)
 
-    app = FastAPI(title="LabApp API")
+    app = FastAPI(title="LabApp API", dependencies=[Depends(origin_guard)])
     app.state.settings = settings
     app.state.engine = database_engine
     app.state.container = container

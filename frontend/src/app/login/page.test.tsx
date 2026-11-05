@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import LoginPage from "./page";
 import { DEMO_USERS } from "@/features/auth/demo";
+import { roleLabel } from "@/features/auth/types";
 
 const { routerMock } = vi.hoisted(() => ({
   routerMock: {
@@ -105,7 +106,7 @@ describe("login page structure", () => {
     DEMO_USERS.forEach((user, index) => {
       const item = screen.getByTestId(`auth-login-demo-item-${index + 1}`);
       expect(item).toHaveTextContent(user.email);
-      expect(item).toHaveTextContent("· ");
+      expect(item).toHaveTextContent(roleLabel(user.role));
     });
     expect(screen.getByTestId("auth-login-demo-password-text"))
       .toHaveTextContent("Contraseña para todos: Demo-LabApp-2026!");

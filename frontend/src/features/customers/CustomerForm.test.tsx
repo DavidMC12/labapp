@@ -101,6 +101,14 @@ describe("the customer form structure", () => {
       .toHaveTextContent("Guardar");
     expect(screen.getByTestId("customers-form-cancel-link"))
       .toHaveAttribute("href", "/customers");
+
+    // The column keeps the 520px cap of the theme and is left aligned,
+    // like every other page; it does not float in the middle.
+    const column =
+      screen.getByTestId("customers-form-heading").parentElement;
+    const columnClasses = (column?.getAttribute("class") ?? "").split(" ");
+    expect(columnClasses).toContain("max-w-[520px]");
+    expect(columnClasses).not.toContain("mx-auto");
   });
 
   it("renders the edit form prefilled and pointed back at the detail", () => {

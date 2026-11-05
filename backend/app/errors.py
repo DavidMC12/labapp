@@ -5,9 +5,11 @@ from http import HTTPStatus
 from typing import Any
 from uuid import uuid4
 
+import psycopg
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import DBAPIError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 logger = logging.getLogger(__name__)
@@ -184,7 +186,17 @@ async def _handle_validation_error(request: Request, exc: RequestValidationError
 
 
 async def _handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
-    logger.error("Unhandled exception on %s %s", request.method, request.url.path, exc_info=exc)
+    if isinstance(exc, (DBAPIError, psycopg.Error)):
+        original = getattr(exc, "orig", None)
+        sqlstate = getattr(original, "sqlstate", None) or getattr(exc, "sqlstate", None)
+        logger.error(
+            "Unhandled database exception %s (SQLSTATE %s) on request %s",
+            type(exc).__name__,
+            sqlstate or "unknown",
+            get_request_id(request),
+        )
+    else:
+        logger.error("Unhandled exception on %s %s", request.method, request.url.path, exc_info=exc)
     return problem_response(
         get_request_id(request),
         status=500,

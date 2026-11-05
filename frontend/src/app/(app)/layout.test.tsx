@@ -17,6 +17,8 @@ const { routerMock } = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({
   useRouter: () => routerMock,
+  // "/": no section is current for the shell behavior tests.
+  usePathname: () => "/",
 }));
 
 const fetchMock = vi.fn();

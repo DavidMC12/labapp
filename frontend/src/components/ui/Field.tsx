@@ -5,6 +5,8 @@ type FieldProps = {
   label: string;
   errorId: string;
   error?: string;
+  /** Extra classes for the wrapper, for example a grid column width. */
+  className?: string;
   children: ReactNode;
 };
 
@@ -15,13 +17,29 @@ type FieldProps = {
  * set `aria-invalid="true"` and `aria-describedby={errorId}` when there is
  * an error.
  */
-export function Field({ id, label, errorId, error, children }: FieldProps) {
+export function Field({
+  id,
+  label,
+  errorId,
+  error,
+  className,
+  children,
+}: FieldProps) {
   return (
-    <div>
-      <label htmlFor={id}>{label}</label>
+    <div
+      className={["flex flex-col gap-1", className].filter(Boolean).join(" ")}
+    >
+      <label htmlFor={id} className="text-[13px] font-medium text-ink">
+        {label}
+      </label>
       {children}
       {error ? (
-        <p role="alert" id={errorId} data-testid={errorId}>
+        <p
+          role="alert"
+          id={errorId}
+          data-testid={errorId}
+          className="text-[13px] font-medium text-danger"
+        >
           {error}
         </p>
       ) : null}

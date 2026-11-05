@@ -268,7 +268,7 @@ export function CustomerForm(props: CustomerFormProps) {
     : `/customers/${customer?.id ?? 0}`;
 
   return (
-    <div className="mx-auto w-full max-w-[520px]">
+    <div className="w-full max-w-[520px]">
       <h1 data-testid="customers-form-heading">
         {mode === "create" ? "Nuevo cliente" : "Editar cliente"}
       </h1>

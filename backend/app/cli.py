@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import os
+from collections.abc import Mapping
 from pathlib import Path
 
 from alembic import command
@@ -27,7 +29,32 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("migrate", help="Apply the database migrations")
     subparsers.add_parser("seed", help="Load the demo data into an empty database")
+    deploy = subparsers.add_parser(
+        "deploy",
+        help="Migrate and seed an empty database (the platform build hook)",
+    )
+    deploy.add_argument(
+        "--production-only",
+        action="store_true",
+        help="Do nothing on a preview deployment (VERCEL_ENV is set and is not production)",
+    )
     return parser
+
+
+def skip_reason(production_only: bool, environment: Mapping[str, str]) -> str | None:
+    """Say why a deployment hook must not touch the database, or ``None`` to go ahead.
+
+    Preview deployments of a branch share the database unless the platform gives each one its
+    own branch of it, so a new or destructive migration of an unmerged branch would change the
+    schema that production uses. ``RUN_MIGRATIONS_ON_PREVIEW=1`` opts in once every preview
+    has its own database.
+    """
+    if not production_only or environment.get("RUN_MIGRATIONS_ON_PREVIEW") == "1":
+        return None
+    deployment = environment.get("VERCEL_ENV")
+    if deployment and deployment != "production":
+        return f"Skipping the database setup on a {deployment} deployment."
+    return None
 
 
 def _alembic_config(settings: Settings) -> Config:
@@ -63,6 +90,15 @@ def main(argv: list[str] | None = None) -> int:
     elif arguments.command == "seed":
         seed_database(Settings())
         print("Database seed complete.")
+    elif arguments.command == "deploy":
+        reason = skip_reason(arguments.production_only, os.environ)
+        if reason is not None:
+            print(reason)
+            return 0
+        settings = Settings()
+        command.upgrade(_alembic_config(settings), "head")
+        seed_database(settings)
+        print("Database migrated and seeded.")
     return 0
 
 

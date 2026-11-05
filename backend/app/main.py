@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 
 from app.config import Settings
+from app.domain.money import quantize_money
 from app.errors import register_error_handlers
 from app.infra.clock import OffsetClock, SystemClock
 from app.infra.db import create_db_engine
@@ -14,6 +15,10 @@ from app.modules.customers.adapters.postgres import PostgresCustomerRepository
 from app.modules.customers.routes import router as customers_router
 from app.modules.customers.seed import seed_customers
 from app.modules.customers.service import CustomerService
+from app.modules.orders.adapters.memory import InMemoryOrderStore
+from app.modules.orders.routes import router as orders_router
+from app.modules.orders.seed import seed_orders, seed_products
+from app.modules.orders.service import OrderService
 
 DEFAULT_SESSION_SECRET = "change-me"
 
@@ -45,6 +50,13 @@ def create_app(
     else:
         customer_repository = InMemoryCustomerRepository(seed_customers())
     customers = CustomerService(customer_repository, application_clock)
+    order_store = InMemoryOrderStore(customer_repository)
+    order_store.replace_all(
+        seed_products(),
+        seed_orders(),
+        quantize_money(settings.default_tax_rate),
+    )
+    orders = OrderService(order_store, application_clock, customer_repository)
 
     app = FastAPI(title="LabApp API")
     app.state.settings = settings
@@ -52,11 +64,14 @@ def create_app(
     app.state.container = container
     app.state.customer_repository = customer_repository
     app.state.customers = customers
+    app.state.order_store = order_store
+    app.state.orders = orders
     app.add_middleware(BodySizeLimitMiddleware)
     app.add_middleware(RequestIdMiddleware)
     register_error_handlers(app)
     app.include_router(auth_router)
     app.include_router(customers_router)
+    app.include_router(orders_router)
 
     @app.get("/api/health")
     async def health() -> dict[str, str]:

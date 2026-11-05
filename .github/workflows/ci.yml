@@ -61,6 +61,12 @@ jobs:
       - name: Type check
         run: pnpm typecheck
 
+      - name: Test id audit
+        working-directory: .
+        run: |
+          node --test tools/audit/testid-audit.test.mjs
+          node tools/audit/testid-audit.mjs
+
       - name: Tests
         run: pnpm test
 

@@ -18,6 +18,7 @@
   --rail-muted: #A9C2B6; /* links on the rail */
   --rail-hover: #1D4A3D; /* hovered link on the rail */
   --accent: #0F5B46; /* primary buttons, links, active badge text */
+  --accent-hover: #0B4A38; /* hovered primary button */
   --accent-ink: #FFFFFF; /* text on accent */
   --ok-bg: #DCEBE3; /* active badge background */
   --off-bg: #ECE9DF; /* inactive badge background */
@@ -38,63 +39,70 @@
   --color-rail-muted: var(--rail-muted);
   --color-rail-hover: var(--rail-hover);
   --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
   --color-accent-ink: var(--accent-ink);
   --color-ok-bg: var(--ok-bg);
   --color-off-bg: var(--off-bg);
   --color-danger: var(--danger);
   --color-danger-bg: var(--danger-bg);
   --color-focus: var(--focus);
-  --font-sans: var(--font-plex-sans, system-ui);
-  --font-serif: var(--font-plex-serif, Georgia);
-}
-
-body {
-  background-color: var(--paper);
-  color: var(--ink);
-  font-family: var(--font-plex-sans, system-ui), "Helvetica Neue", Arial,
-    sans-serif;
-  font-size: 15px;
-  line-height: 1.5;
-}
-
-/* Headings of every page: the serif voice of the theme ("Libro mayor"). */
-h1 {
-  font-family: var(--font-plex-serif, Georgia), serif;
-  font-size: 28px;
-  font-weight: 600;
-  line-height: 1.1;
+  --font-sans: var(--font-plex-sans);
+  --font-serif: var(--font-plex-serif);
 }
 
 /*
- * The one allowed animation: a 120ms color transition on buttons and
- * links, defined in the components with `transition-colors
- * duration-120`.
+ * Unlayered CSS would beat every Tailwind utility, so the element rules
+ * of the app live in the base layer and can be overridden by utilities.
  */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    transition-duration: 0.01ms !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
+@layer base {
+  body {
+    background-color: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-plex-sans, system-ui), "Helvetica Neue", Arial,
+      sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
   }
-}
 
-/*
- * Global focus style: never remove an outline without replacing it.
- */
-a:focus-visible,
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 2px;
-}
+  /* Headings of every page: the serif voice of the theme ("Libro mayor"). */
+  h1 {
+    font-family: var(--font-plex-serif, Georgia), serif;
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 1.1;
+  }
 
-/*
- * Hovered table rows of the ledger: a tint of ink at low opacity.
- */
-.ledger-row:hover {
-  background-color: color-mix(in srgb, var(--ink) 4%, transparent);
+  /*
+   * The one allowed animation: a 120ms color transition on buttons and
+   * links, defined in the components with `transition-colors
+   * duration-120`.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0.01ms !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+    }
+  }
+
+  /*
+   * Global focus style: never remove an outline without replacing it.
+   */
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  /*
+   * Hovered table rows of the ledger: a tint of ink at low opacity.
+   */
+  .ledger-row:hover {
+    background-color: color-mix(in srgb, var(--ink) 4%, transparent);
+  }
 }

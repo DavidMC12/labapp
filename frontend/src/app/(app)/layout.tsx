@@ -2,6 +2,7 @@
 
 import { Alert } from "@/components/ui";
 import { Button, Link } from "@/components/ui";
+import { LedgerMark } from "@/components/LedgerMark";
 import { useLogout, useMe } from "@/features/auth/hooks";
 import { roleLabel } from "@/features/auth/types";
 import { ApiRequestError, INTERNAL_ERROR_DETAIL } from "@/lib/api";
@@ -48,29 +49,6 @@ function PedidosIcon() {
 function FacturasIcon() {
   return (
     <StrokeIcon shapes={<><path d="M4.5 1.5h5l3 3v10a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-12a1 1 0 0 1 1-1Z" /><path d="M9.5 1.5v3h3" /><path d="M6 8h4" /><path d="M6 11h4" /></>} />
-  );
-}
-
-/** The ledger-page mark of the brand, drawn for this theme. */
-function BrandMark() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 16 16"
-      width="16"
-      height="16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="shrink-0"
-    >
-      <rect x="2" y="2" width="12" height="12" rx="1.5" />
-      <path d="M5.5 5.5H11" />
-      <path d="M5.5 8H11" />
-      <path d="M5.5 10.5H8.5" />
-    </svg>
   );
 }
 
@@ -201,7 +179,7 @@ export default function AppLayout({
             variant="rail"
             className="font-serif text-lg font-semibold text-rail-ink"
           >
-            <BrandMark />
+            <LedgerMark />
             LabApp
           </Link>
         </div>

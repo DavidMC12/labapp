@@ -44,6 +44,16 @@ def test_create_with_a_duplicate_email_is_rejected(clients: dict[str, TestClient
     assert body["detail"] == "Ya existe un cliente con ese email."
 
 
+def test_create_normalizes_address_line_breaks(clients: dict[str, TestClient]) -> None:
+    response = clients["sales"].post(
+        "/api/customers",
+        json=create_payload(address="Calle 1\r\nPiso 2"),
+    )
+
+    assert response.status_code == 201
+    assert response.json()["address"] == "Calle 1\nPiso 2"
+
+
 def test_create_reports_a_missing_name_and_a_bad_phone(
     clients: dict[str, TestClient],
 ) -> None:

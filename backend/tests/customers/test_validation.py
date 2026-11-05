@@ -157,6 +157,46 @@ def test_address_length_boundaries() -> None:
     ]
 
 
+def test_address_accepts_and_normalizes_line_breaks() -> None:
+    assert _new(address="Calle 1\nPiso 2").address == "Calle 1\nPiso 2"
+    assert _new(address="Calle 1\r\nPiso 2").address == "Calle 1\nPiso 2"
+    assert _new(address="Calle 1\n").address == "Calle 1"
+    assert _new(address="\n\r\n").address is None
+
+
+@pytest.mark.parametrize("address", ["a\rb", "a\u0000b", "a\tb"])
+def test_address_rejects_other_control_characters(address: str) -> None:
+    assert _errors({"address": address}) == [
+        {
+            "field": "address",
+            "code": "INVALID_FORMAT",
+            "message": "El formato no es válido.",
+        }
+    ]
+
+
+def test_address_maximum_counts_the_stored_normalized_text() -> None:
+    address = "a" * 199 + "\n" + "b" * 5
+
+    assert _errors({"address": address}) == [
+        {
+            "field": "address",
+            "code": "TOO_LONG",
+            "message": "Debe tener como máximo 200 caracteres.",
+        }
+    ]
+
+
+def test_name_still_rejects_line_breaks() -> None:
+    assert _errors({"name": "Ana\nLopez"}) == [
+        {
+            "field": "name",
+            "code": "INVALID_FORMAT",
+            "message": "El formato no es válido.",
+        }
+    ]
+
+
 @pytest.mark.parametrize("field", ["name", "email", "phone", "tax_id", "address"])
 def test_control_characters_are_invalid(field: str) -> None:
     value = "abc\u0000def"

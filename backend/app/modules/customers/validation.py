@@ -31,6 +31,13 @@ def has_control_character(text: str) -> bool:
     return any(unicodedata.category(character) == "Cc" for character in text)
 
 
+def _has_forbidden_control(text: str, *, allow_line_breaks: bool) -> bool:
+    return any(
+        unicodedata.category(character) == "Cc" and not (allow_line_breaks and character == "\n")
+        for character in text
+    )
+
+
 def _error(field: str, code: str, message: str) -> dict[str, str]:
     return {"field": field, "code": code, "message": message}
 
@@ -70,6 +77,7 @@ def _clean_text(
     maximum: int | None = None,
     characters: frozenset[str] | None = None,
     email: bool = False,
+    allow_line_breaks: bool = False,
 ) -> tuple[str | None, dict[str, str] | None]:
     if value is None:
         return None, _required(field) if required else None
@@ -79,7 +87,12 @@ def _clean_text(
     text = value.strip()
     if not text:
         return None, _required(field) if required else None
-    if has_control_character(value):
+
+    if allow_line_breaks:
+        text = text.replace("\r\n", "\n")
+        if _has_forbidden_control(text, allow_line_breaks=True):
+            return None, _invalid_format(field)
+    elif has_control_character(value):
         return None, _invalid_format(field)
 
     if email:
@@ -129,7 +142,13 @@ def _validate_field(field: str, value: object | None) -> tuple[str | None, dict[
             maximum=TAX_ID_MAX,
             characters=TAX_ID_CHARACTERS,
         )
-    return _clean_text(field, value, required=False, maximum=ADDRESS_MAX)
+    return _clean_text(
+        field,
+        value,
+        required=False,
+        maximum=ADDRESS_MAX,
+        allow_line_breaks=True,
+    )
 
 
 def validate_new(data: Mapping[str, object | None]) -> NewCustomer:

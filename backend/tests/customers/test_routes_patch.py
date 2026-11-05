@@ -43,6 +43,27 @@ def test_patch_null_clears_optional_fields(clients: dict[str, TestClient]) -> No
     assert body["version"] == 2
 
 
+def test_patch_stores_address_line_breaks(clients: dict[str, TestClient]) -> None:
+    response = clients["sales"].patch(
+        "/api/customers/1",
+        json={"address": "Calle 1\nPiso 2", "version": 1},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["address"] == "Calle 1\nPiso 2"
+    assert response.json()["version"] == 2
+
+
+def test_patch_normalizes_crlf_in_address(clients: dict[str, TestClient]) -> None:
+    response = clients["sales"].patch(
+        "/api/customers/1",
+        json={"address": "Calle 1\r\nPiso 2", "version": 1},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["address"] == "Calle 1\nPiso 2"
+
+
 @pytest.mark.parametrize("field", ["name", "email"])
 def test_patch_null_for_required_fields(
     clients: dict[str, TestClient],

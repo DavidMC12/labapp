@@ -114,11 +114,14 @@ export function useOrder(
   });
 }
 
-/** The whole product catalog, no paging. */
-export function useProducts(): UseQueryResult<
-  { items: Product[] },
-  ApiRequestError
-> {
+/**
+ * The whole product catalog, no paging. `enabled: false` skips the
+ * request for screens that cannot use it (the catalog is read-only and
+ * only the draft editor needs it).
+ */
+export function useProducts(
+  options: { enabled?: boolean } = {},
+): UseQueryResult<{ items: Product[] }, ApiRequestError> {
   const queryClient = useQueryClient();
 
   return useQuery<{ items: Product[] }, ApiRequestError>({
@@ -132,6 +135,7 @@ export function useProducts(): UseQueryResult<
       }
     },
     retry: false,
+    enabled: options.enabled ?? true,
   });
 }
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from hashlib import sha256
 from http.cookies import Morsel, SimpleCookie
 from typing import Any
 
@@ -36,6 +37,10 @@ def _cookie(response: Any) -> Morsel[str]:
     cookie: SimpleCookie[str] = SimpleCookie()
     cookie.load(response.headers["set-cookie"])
     return cookie[SESSION_COOKIE_NAME]
+
+
+def _hash_token(token: str) -> str:
+    return sha256(token.encode("utf-8")).hexdigest()
 
 
 def test_login_returns_the_user_and_a_session_cookie(client: TestClient) -> None:
@@ -147,6 +152,50 @@ def test_logout_with_an_unknown_cookie_is_still_204(client: TestClient) -> None:
 
     assert response.status_code == 204
     assert _cookie(response)["max-age"] == "0"
+
+
+def test_logout_deletes_every_duplicated_session_cookie(app: FastAPI) -> None:
+    _, token = app.state.container.auth.login("admin@labapp.test", DEMO_PASSWORD)
+    client = TestClient(app)
+
+    response = client.post(
+        LOGOUT,
+        headers={
+            "Cookie": (
+                f"{SESSION_COOKIE_NAME}={token}; "
+                f"{SESSION_COOKIE_NAME}=junk; "
+                f"{SESSION_COOKIE_NAME}={token}"
+            )
+        },
+    )
+
+    assert response.status_code == 204
+    assert app.state.container.sessions.get(_hash_token(token)) is None
+
+
+def test_login_revokes_every_duplicated_session_cookie(app: FastAPI) -> None:
+    auth = app.state.container.auth
+    _, first = auth.login("admin@labapp.test", DEMO_PASSWORD)
+    _, second = auth.login("admin@labapp.test", DEMO_PASSWORD)
+    client = TestClient(app)
+
+    response = client.post(
+        LOGIN,
+        json={"email": "admin@labapp.test", "password": DEMO_PASSWORD},
+        headers={
+            "Cookie": (
+                f"{SESSION_COOKIE_NAME}={first}; "
+                f"{SESSION_COOKIE_NAME}=junk; "
+                f"{SESSION_COOKIE_NAME}={second}"
+            )
+        },
+    )
+
+    assert response.status_code == 200
+    sessions = app.state.container.sessions
+    assert sessions.get(_hash_token(first)) is None
+    assert sessions.get(_hash_token(second)) is None
+    assert sessions.get(_hash_token(_cookie(response).value)) is not None
 
 
 def test_login_missing_password_is_required(client: TestClient) -> None:

@@ -18,6 +18,17 @@ def get_container(request: Request) -> Container:
     return request.app.state.container
 
 
+def session_cookie_values(request: Request) -> list[str]:
+    """Return every labapp_session value from the raw Cookie header(s)."""
+    values: list[str] = []
+    for header in request.headers.getlist("cookie"):
+        for part in header.split(";"):
+            name, separator, value = part.strip().partition("=")
+            if separator and name == SESSION_COOKIE_NAME and value:
+                values.append(value)
+    return values
+
+
 def get_current_user(
     request: Request,
     container: Annotated[Container, Depends(get_container)],

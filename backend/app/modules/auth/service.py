@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import secrets
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from datetime import timedelta
 
 from app.errors import ApiError
@@ -65,6 +65,8 @@ class AuthService:
         email: str,
         password: str,
         presented_token: str | None = None,
+        *,
+        presented_tokens: Iterable[str] = (),
     ) -> tuple[User, str]:
         """Verify credentials, rotate the presented session and create a new one."""
         user = self._users.get_by_email(email.strip().lower())
@@ -77,8 +79,12 @@ class AuthService:
             raise ApiError(401, "INVALID_CREDENTIALS", INVALID_CREDENTIALS_MESSAGE)
 
         now = self._clock.now()
+        tokens = set(presented_tokens)
         if presented_token:
-            self._sessions.delete(self._hash_token(presented_token))
+            tokens.add(presented_token)
+        for token in tokens:
+            if token:
+                self._sessions.delete(self._hash_token(token))
 
         self._sessions.purge_older_than(now - SESSION_PURGE_AGE)
 

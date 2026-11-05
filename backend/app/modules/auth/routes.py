@@ -10,7 +10,11 @@ from pydantic import BaseModel, Field
 from app.domain.permissions import Role
 from app.modules.auth.constants import SESSION_COOKIE_NAME
 from app.modules.auth.container import Container
-from app.modules.auth.dependencies import get_container, get_current_user
+from app.modules.auth.dependencies import (
+    get_container,
+    get_current_user,
+    session_cookie_values,
+)
 from app.modules.auth.models import User
 from app.security.origin import cookie_secure
 
@@ -65,7 +69,7 @@ def login(
     user, token = container.auth.login(
         payload.email,
         payload.password,
-        request.cookies.get(SESSION_COOKIE_NAME),
+        presented_tokens=session_cookie_values(request),
     )
     response.set_cookie(
         SESSION_COOKIE_NAME,
@@ -85,7 +89,8 @@ def logout(
     container: Annotated[Container, Depends(get_container)],
 ) -> Response:
     """End the current session, if any."""
-    container.auth.logout(request.cookies.get(SESSION_COOKIE_NAME))
+    for token in session_cookie_values(request):
+        container.auth.logout(token)
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
     response.delete_cookie(
         SESSION_COOKIE_NAME,

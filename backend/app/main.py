@@ -5,10 +5,12 @@ from fastapi import FastAPI
 from app.config import Settings
 from app.errors import register_error_handlers
 from app.infra.clock import OffsetClock, SystemClock
+from app.infra.db import create_db_engine
 from app.middleware import BodySizeLimitMiddleware, RequestIdMiddleware
 from app.modules.auth.container import build_container
 from app.modules.auth.routes import router as auth_router
 from app.modules.customers.adapters.memory import InMemoryCustomerRepository
+from app.modules.customers.adapters.postgres import PostgresCustomerRepository
 from app.modules.customers.routes import router as customers_router
 from app.modules.customers.seed import seed_customers
 from app.modules.customers.service import CustomerService
@@ -36,12 +38,17 @@ def create_app(
     _check_session_secret(settings)
 
     application_clock = clock if clock is not None else OffsetClock(SystemClock())
-    container = build_container(settings, application_clock)
-    customer_repository = InMemoryCustomerRepository(seed_customers())
+    database_engine = create_db_engine(settings) if settings.database_url is not None else None
+    container = build_container(settings, application_clock, engine=database_engine)
+    if database_engine is not None:
+        customer_repository = PostgresCustomerRepository(database_engine)
+    else:
+        customer_repository = InMemoryCustomerRepository(seed_customers())
     customers = CustomerService(customer_repository, application_clock)
 
     app = FastAPI(title="LabApp API")
     app.state.settings = settings
+    app.state.engine = database_engine
     app.state.container = container
     app.state.customer_repository = customer_repository
     app.state.customers = customers

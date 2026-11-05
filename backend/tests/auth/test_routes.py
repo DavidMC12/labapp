@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import inspect
 from datetime import timedelta
 from hashlib import sha256
 from http.cookies import Morsel, SimpleCookie
 from typing import Any
 
 from fastapi import FastAPI
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
+from app.domain.permissions import Action
+from app.modules.auth import dependencies as auth_dependencies
+from app.modules.auth import routes as auth_routes
 from app.modules.auth.constants import SESSION_COOKIE_NAME
 from app.modules.auth.routes import LoginRequest
 from app.modules.auth.seed import DEMO_PASSWORD
@@ -267,3 +272,47 @@ def test_container_repr_hides_the_settings(app: FastAPI) -> None:
 
     assert container.settings.session_secret not in rendered
     assert container.settings.database_url not in rendered
+
+
+def _api_routes(app: FastAPI) -> list[APIRoute]:
+    """Return every APIRoute, including those inside an included router."""
+    found: list[APIRoute] = []
+    pending = list(app.routes)
+    while pending:
+        route = pending.pop()
+        if isinstance(route, APIRoute):
+            found.append(route)
+            continue
+        nested = getattr(getattr(route, "original_router", None), "routes", None)
+        if nested:
+            pending.extend(nested)
+    return found
+
+
+def test_auth_routes_are_plain_def(app: FastAPI) -> None:
+    routes = {route.path: route for route in _api_routes(app) if route.path.startswith("/api/auth")}
+
+    assert set(routes) == {LOGIN, LOGOUT, ME}
+    assert routes[LOGIN].endpoint is auth_routes.login
+    assert routes[LOGOUT].endpoint is auth_routes.logout
+    assert routes[ME].endpoint is auth_routes.me
+    for route in routes.values():
+        assert not inspect.iscoroutinefunction(route.endpoint)
+
+
+def test_auth_dependencies_are_plain_def() -> None:
+    dependencies = [
+        auth_dependencies.get_container,
+        auth_dependencies.get_current_user,
+        auth_dependencies.session_cookie_values,
+        auth_dependencies.require_action(Action.VIEW),
+    ]
+
+    for dependency in dependencies:
+        assert not inspect.iscoroutinefunction(dependency)
+
+
+def test_health_route_is_async(app: FastAPI) -> None:
+    route = next(route for route in _api_routes(app) if route.path == "/api/health")
+
+    assert inspect.iscoroutinefunction(route.endpoint)

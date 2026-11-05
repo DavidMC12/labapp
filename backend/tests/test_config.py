@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -144,3 +145,24 @@ def test_validation_errors_do_not_echo_hidden_values() -> None:
     assert "secret-token" not in message
     assert "postgresql+psycopg://user:password@host/db" not in message
     assert "postgresql+psycopg://user:password@host/unpooled" not in message
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [("10", "10.00"), ("7.555", "7.56"), ("0", "0.00"), ("100", "100.00"), ("12.5", "12.50")],
+)
+def test_default_tax_rate_is_quantized_to_two_decimals(raw: str, expected: str) -> None:
+    assert str(Settings(default_tax_rate=Decimal(raw)).default_tax_rate) == expected
+
+
+@pytest.mark.parametrize("raw", ["-1", "100.01", "150"])
+def test_default_tax_rate_outside_the_range_is_rejected(raw: str) -> None:
+    with pytest.raises(ValidationError) as error:
+        Settings(default_tax_rate=Decimal(raw))
+    assert "Invalid default tax rate" in str(error.value)
+
+
+@pytest.mark.parametrize("raw", ["NaN", "Infinity", "-Infinity"])
+def test_default_tax_rate_that_is_not_a_number_is_rejected(raw: str) -> None:
+    with pytest.raises(ValidationError):
+        Settings(default_tax_rate=Decimal(raw))

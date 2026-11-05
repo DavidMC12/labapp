@@ -62,3 +62,39 @@ def test_downgrade_then_upgrade_works(
     command.upgrade(alembic_config, "head")
     with database_engine.connect() as connection:
         assert APP_TABLES <= table_names(connection, database_schema)
+
+
+def test_two_concurrent_migrations_wait_for_each_other(
+    database_engine: Engine, alembic_config: Config, database_schema: str
+) -> None:
+    """Two builds that migrate at once must both succeed: the second waits on the lock."""
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    command.downgrade(alembic_config, "base")
+    environment = {
+        **os.environ,
+        "DATABASE_URL_UNPOOLED": os.environ["TEST_DATABASE_URL"],
+        "DATABASE_SCHEMA": database_schema,
+        "SESSION_SECRET": "test-secret",
+    }
+    environment.pop("DATABASE_URL", None)
+    backend_dir = Path(__file__).resolve().parents[2]
+    processes = [
+        subprocess.Popen(
+            [sys.executable, "-m", "app.cli", "migrate"],
+            cwd=backend_dir,
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        for _ in range(2)
+    ]
+    outputs = [process.communicate(timeout=120)[0] for process in processes]
+
+    assert [process.returncode for process in processes] == [0, 0], outputs
+    with database_engine.connect() as connection:
+        assert APP_TABLES <= table_names(connection, database_schema)

@@ -27,8 +27,8 @@ Roles: Admin, Ventas, Finanzas y Solo lectura. La pantalla está en español. La
 | Backend | FastAPI (Python), SQLAlchemy 2, Alembic, PostgreSQL |
 | Frontend | Next.js, TypeScript, Tailwind, TanStack Query y Table |
 | Contrato | OpenAPI generado por el backend y cliente tipado generado para el frontend |
-| Local | Docker Compose, pasarela de pagos falsa, Mailpit para correo falso |
-| Demo en línea | Vercel (web), Render (API), Neon (Postgres), todo en capas gratuitas |
+| Local | Un script de arranque (`mise run dev`), datos en memoria o una base Neon de desarrollo, pasarela de pagos falsa; el correo falso solo se escribe en los logs |
+| Demo en línea | Vercel (web y API en un solo proyecto), Neon (Postgres), todo en capas gratuitas |
 
 ## Hoja de ruta
 
@@ -56,7 +56,7 @@ Desde M1, la pantalla de login de la demo en línea mostrará las credenciales d
 
 ## Cómo empezar
 
-Disponible desde M1. Las versiones de las herramientas (Node, uv, pnpm) están fijadas en `mise.toml`; todo arranca con un solo `docker compose up`.
+Disponible desde M1. Las versiones de las herramientas (Node, uv, pnpm) están fijadas en `mise.toml`; todo arranca con un solo script que ejecuta la API y la web contra una base de desarrollo.
 
 ## Licencia
 

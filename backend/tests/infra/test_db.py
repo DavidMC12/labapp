@@ -1,13 +1,23 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import psycopg
 import pytest
+from sqlalchemy import MetaData, Table
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.pool import NullPool
 
 from app.config import Settings
-from app.infra.db import as_utc, create_db_engine, normalize_database_url
+from app.infra.db import (
+    as_utc,
+    create_db_engine,
+    normalize_database_url,
+    qualified_table_name,
+    unique_violation_of,
+)
+from app.modules.auth.tables import users
 
 DATABASE_URL = "postgresql+psycopg://user:password@host/db"
 SCHEMA = "t_0123456789abcdef"
@@ -91,3 +101,44 @@ def test_as_utc_returns_an_aware_utc_datetime() -> None:
 
     assert converted == datetime(2026, 1, 2, 8, 4, 5, 123456, tzinfo=UTC)
     assert converted.tzinfo is UTC
+
+
+def test_qualified_table_name_without_a_schema() -> None:
+    engine = create_db_engine(Settings(database_url=DATABASE_URL))
+
+    assert qualified_table_name(engine, users) == "users"
+
+
+def test_qualified_table_name_with_a_schema() -> None:
+    engine = create_db_engine(Settings(database_url=DATABASE_URL, database_schema=SCHEMA))
+
+    assert qualified_table_name(engine, users) == f"{SCHEMA}.users"
+
+
+def test_qualified_table_name_quotes_unsafe_identifiers() -> None:
+    engine = create_db_engine(Settings(database_url=DATABASE_URL, database_schema=SCHEMA))
+    table = Table("Order", MetaData())
+
+    assert qualified_table_name(engine, table) == f'{SCHEMA}."Order"'
+
+
+class _FakeUniqueViolation(psycopg.errors.UniqueViolation):
+    diag = SimpleNamespace(constraint_name="users_email_lower_key")
+
+
+def _integrity_error(original: BaseException) -> IntegrityError:
+    return IntegrityError("INSERT INTO users ...", {"email": "leak@example.test"}, original)
+
+
+def test_unique_violation_of_matches_the_constraint_name() -> None:
+    error = _integrity_error(_FakeUniqueViolation("duplicate key"))
+
+    assert unique_violation_of(error, "users_email_lower_key") is True
+    assert unique_violation_of(error, "customers_email_lower_key") is False
+
+
+def test_unique_violation_of_rejects_other_database_errors() -> None:
+    error = _integrity_error(psycopg.errors.NotNullViolation("null value"))
+
+    assert unique_violation_of(error, "users_email_lower_key") is False
+    assert unique_violation_of(ValueError("not a database error"), "users_email_lower_key") is False

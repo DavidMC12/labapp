@@ -35,7 +35,7 @@ The server enforces every permission. A forbidden action returns HTTP 403 with c
 - `POST /api/auth/logout` ends the session and returns 204. `GET /api/auth/me` returns the current user.
 - A session expires after 8 hours without activity (sliding window), measured with the application clock, so `SESSION_EXPIRED` can be tested by moving the clock. Only `POST /api/auth/login`, `POST /api/auth/logout` (which is idempotent: it ends the session if there is one and answers 204 either way) and `GET /api/health` work without a session.
 - An unknown email and a wrong password return the same error, so accounts cannot be enumerated.
-- State-changing requests (POST, PUT, PATCH, DELETE) that carry an `Origin` header must match the application origin, otherwise the server answers 403 `CSRF_ORIGIN_MISMATCH`. The application origin is the `APP_ORIGIN` setting (for example `http://localhost:3000` locally and the Vercel URL online); the session cookie is `Secure` when `APP_ORIGIN` starts with `https://`. Requests without `Origin` (API clients and test suites) are allowed because the cookie is SameSite=Lax. An API suite authenticates by calling the login endpoint and reusing the cookie.
+- State-changing requests (POST, PUT, PATCH, DELETE) that carry an `Origin` header must match the application origin, otherwise the server answers 403 `CSRF_ORIGIN_MISMATCH`. The application origin is the `APP_ORIGIN` setting (online, the origin of each deployment, that is `https://` plus the platform variables `VERCEL_URL`, `VERCEL_BRANCH_URL` and `VERCEL_PROJECT_PRODUCTION_URL` when they are set, is allowed too, because preview URLs change with every deployment) (for example `http://localhost:3000` locally and the Vercel URL online); the session cookie is `Secure` when `APP_ORIGIN` starts with `https://`. Requests without `Origin` (API clients and test suites) are allowed because the cookie is SameSite=Lax. An API suite authenticates by calling the login endpoint and reusing the cookie.
 - Rate limits apply only when `TEST_MODE=0`: 120 requests per minute and 10 login attempts per minute per client IP. Exceeding a limit returns 429 `RATE_LIMITED` with a `Retry-After` header. A request with a valid test token is exempt even then. A valid test token is an `X-Test-Token` header equal to a non-empty `TEST_TOKEN`. The client IP is the `X-Forwarded-For` entry that is `TRUSTED_PROXY_COUNT` entries from the right (default 0: the socket address), so online visitors behind the proxies do not share one bucket.
 
 | Situation | HTTP | Code | Message (es) |
@@ -121,7 +121,7 @@ Totals (computed on the server):
 - `subtotal` = sum of quantity times unit price.
 - `tax` = `subtotal` × `rate` ÷ 100, rounded half-up to 2 decimals (a tie such as 5.025 becomes 5.03, where half-even would give 5.02).
 - `total` = `subtotal` + `tax`.
-- The tax rate is a percentage set by Admin (default 10.00, range 0.00 to 100.00, up to 2 decimals). A draft shows the current rate as a preview; the rate is frozen in the order when it is confirmed. A reset restores the rate to `DEFAULT_TAX_RATE` (10.00 unless the environment says otherwise); the seed totals assume 10.00.
+- The tax rate is a percentage set by Admin (default 10.00, range 0.00 to 100.00, up to 2 decimals). A draft shows the current rate as a preview; the rate is frozen in the order when it is confirmed or cancelled. A reset restores the rate to `DEFAULT_TAX_RATE` (10.00 unless the environment says otherwise); the seed totals assume 10.00.
 
 | Situation | HTTP | Code | Message (es) |
 |---|---|---|---|
@@ -148,7 +148,7 @@ Money in JSON is a string with exactly 2 decimals (`"19.90"`), never a number; t
 | Request | Purpose | Answer |
 |---|---|---|
 | `GET /api/products` | The whole catalog, ordered by `id`; no paging | 200 `{items: [Product]}` |
-| `GET /api/settings` | Current settings | 200 `{tax_rate}` |
+| `GET /api/settings` | Current settings (every role) | 200 `{tax_rate}` |
 | `PATCH /api/settings` | Change the tax rate (Admin) | 200 `{tax_rate}` |
 | `GET /api/orders` | List, with the query parameters below | 200 `{items: [OrderSummary], page, page_size, total}` |
 | `POST /api/orders` | Create a draft: `{customer_id}` | 201 `Order`, `Location: /api/orders/{id}` |
@@ -162,16 +162,36 @@ Money in JSON is a string with exactly 2 decimals (`"19.90"`), never a number; t
 Shapes:
 - `Product` is `{id, sku, name, price, stock}`; `stock` is live (it changes when orders are confirmed or cancelled).
 - `OrderSummary` is `{id, number, status, customer_id, customer_name, line_count, total, version, created_at, updated_at}`.
-- `Order` is `{id, number, status, customer: {id, name, status}, lines: [OrderLine], subtotal, tax_rate, tax, total, invoice_id, version, created_at, updated_at}`. `OrderLine` is `{id, product_id, sku, name, quantity, unit_price, line_total}` (`line_total` is quantity times unit price). Lines are ordered by `id`. `invoice_id` is `null` until the order has an invoice (section 6). While the order is a `draft`, `tax_rate` is the current rate and the totals are computed on every read; from the moment it is confirmed they are the frozen values. Every response that returns one order also carries `ETag: "<version>"`, and every change to the order, including each line change, increases its `version` by 1 and sets `updated_at`.
+- `Order` is `{id, number, status, customer: {id, name, status}, lines: [OrderLine], subtotal, tax_rate, tax, total, invoice_id, version, created_at, updated_at}`. `OrderLine` is `{id, product_id, sku, name, quantity, unit_price, line_total}` (`line_total` is quantity times unit price). Lines are ordered by `id`. `invoice_id` is `null` until the order has an invoice (section 6). While the order is a `draft`, `tax_rate` is the current rate and the totals are computed on every read; from the moment it is confirmed or cancelled they are the frozen values. Every response that returns one order also carries `ETag: "<version>"`, and every change to the order, including each line change, increases its `version` by 1 and sets `updated_at`.
 - A new draft has no lines, `subtotal`, `tax` and `total` of `"0.00"`, `version` 1 and `updated_at` equal to `created_at`. Its number is the next one of the `PED` sequence (`format_number("PED", n)`), taken inside the same transaction as the insert.
 
 Rules:
 - **Create.** `customer_id` is required (`REQUIRED`), an integer (`INVALID_FORMAT`), must exist (`REFERENCE_NOT_FOUND` on `customer_id`) and the customer must be active (422 `CUSTOMER_INACTIVE`). An unknown field in any body is a 422 `INVALID_FORMAT` on that field.
-- **Edit.** Only a `draft` can be edited (`ORDER_NOT_EDITABLE`). The customer of the draft must be active at the time of every edit (`CUSTOMER_INACTIVE`). `version` is required in the bodies that carry it (`REQUIRED`) and is an integer from 1 to 2147483647 (otherwise `OUT_OF_RANGE`). Adding a line: `product_id` is required and must exist (`REFERENCE_NOT_FOUND` on `product_id`), `quantity` is an integer from 1 to 999 (`INVALID_FORMAT`, `OUT_OF_RANGE`), the unit price is copied from the product at that moment, a product already in the order is `ORDER_DUPLICATE_PRODUCT` and an 11th line is `ORDER_TOO_MANY_LINES`. Changing a quantity keeps the unit price of the line. A `line_id` that does not belong to the order is 404 `NOT_FOUND`. Stock is not checked when editing, only when confirming.
-- **Transitions.** They follow the table above. A transition that the state does not allow is 409 `INVALID_TRANSITION` with `{from}` and `{to}` in Spanish labels (section 7 labels). Confirming runs, in this order, the version check, the transition check, `CUSTOMER_INACTIVE`, `ORDER_EMPTY` and `INSUFFICIENT_STOCK` (with `shortages[]`), and then in one atomic step decrements the stock of every line, freezes the tax rate and the totals and sets the status. Cancelling a `confirmed` order gives every line's stock back; cancelling a `draft` changes no stock. Cancelling also voids the order's `issued` invoice once invoices exist (section 6). Shipping needs `paid`. Section 5 (Concurrency) applies: `If-Match` is optional, a stale value is 409 `VERSION_CONFLICT`, and an absent value skips the check.
-- **Settings.** `tax_rate` is a string of up to 3 digits before the point and up to 2 after it (`INVALID_FORMAT` otherwise) between `"0.00"` and `"100.00"` (`OUT_OF_RANGE` with the message "El valor debe estar entre 0 y 100."). It is stored with 2 decimals (`"7"` becomes `"7.00"`). Changing it does not alter confirmed orders. `DEFAULT_TAX_RATE` is the initial value.
-- **List.** `page` follows the customers rule. `status` is one of the five order states (otherwise 422 `INVALID_FORMAT` on `status`). `customer_id` is an integer of 1 or more (otherwise 422 `INVALID_FORMAT`; an id that does not exist simply matches nothing). `q` has the customers rules (trimmed, ignored when empty, at most 100 characters, no control characters, literal, the same normalization) and matches the order number or the customer's name by "contains". The order is `created_at` descending, then `id` descending; `total` counts every match.
+- **Edit.** Only a `draft` can be edited (`ORDER_NOT_EDITABLE`). The customer of the draft must be active at the time of every edit (`CUSTOMER_INACTIVE`); the one exception is changing the customer, where only the **new** customer must be active and the status of the old one is irrelevant. A request that changes nothing (the same customer, the same quantity) answers 200 with the order untouched: no new `version`, no new `updated_at`; it is decided after the version, editability and customer-active checks, so a stale `version`, a non-draft order or an inactive customer still fails first. `version` is required in the bodies that carry it (`REQUIRED`) and is an integer from 1 to 2147483647 (otherwise `OUT_OF_RANGE`). The `field` of a body error is exactly one of `customer_id`, `product_id`, `quantity`, `version` and `tax_rate` (never a path such as `lines[0].quantity`); the only exceptions are an unknown field of the body, whose own name is the `field` (`INVALID_FORMAT`), and a body that is not a JSON object, whose `field` is `body`. Errors that can be found from the request alone (required, type, range) are reported together; an unknown `product_id` or `customer_id` (`REFERENCE_NOT_FOUND`) is looked up only when there are none of those. Integers are strict: `"5"`, `5.0` and `true` are `INVALID_FORMAT`. A `customer_id` or `product_id` in a body outside 1 to 2147483647 is `REFERENCE_NOT_FOUND`. Adding a line: `product_id` is required and must exist (`REFERENCE_NOT_FOUND` on `product_id`), `quantity` is an integer from 1 to 999 (`INVALID_FORMAT`, `OUT_OF_RANGE`), the unit price is copied from the product at that moment, a product already in the order is `ORDER_DUPLICATE_PRODUCT` and an 11th line is `ORDER_TOO_MANY_LINES`. Changing a quantity keeps the unit price of the line. A `line_id` that does not belong to the order is 404 `NOT_FOUND`. Stock is not checked when editing, only when confirming.
+- **Transitions.** They follow the table above. A transition that the state does not allow is 409 `INVALID_TRANSITION` with `{from}` and `{to}` in Spanish labels (section 7 labels). Confirming runs, in this order, the version check, the transition check, `CUSTOMER_INACTIVE`, `ORDER_EMPTY` and `INSUFFICIENT_STOCK` (with `shortages[]`), and then in one atomic step decrements the stock of every line, freezes the tax rate and the totals and sets the status. Cancelling a `confirmed` order gives every line's stock back; cancelling a `draft` changes no stock and freezes the current tax rate and the totals in the order, so a cancelled order never has an undefined rate (the seeded cancelled order has 10.00). Cancelling also voids the order's `issued` invoice once invoices exist (section 6). Shipping needs `paid`. Section 5 (Concurrency) applies: `If-Match` is optional, a stale value is 409 `VERSION_CONFLICT`, and an absent value skips the check.
+- **Settings.** `tax_rate` is a string that fully matches `^[0-9]{1,3}(\.[0-9]{1,2})?$` (so `""`, `"-1"`, `" 7"`, `"1e1"`, `"10.123"` and a JSON number are `INVALID_FORMAT`; it is not trimmed), between `"0.00"` and `"100.00"` (`OUT_OF_RANGE` with the message "El valor debe estar entre 0 y 100."). It is stored with 2 decimals (`"7"` becomes `"7.00"`). Changing it does not alter confirmed orders. `DEFAULT_TAX_RATE` is the initial value.
+- **List.** `page` follows the customers rule. `status` is one of the five order states (otherwise 422 `INVALID_FORMAT` on `status`). `customer_id` is an integer from 1 to 2147483647 (a non-integer is 422 `INVALID_FORMAT`, any other value is 422 `OUT_OF_RANGE`; an id that does not exist simply matches nothing). `q` has the customers rules (trimmed, ignored when empty, at most 100 characters, no control characters, literal, the same normalization) and matches the order number or the customer's name by "contains". The order is `created_at` descending, then `id` descending; `total` counts every match.
 - **Not found.** An unknown id and any integer outside 1 to 2147483647 is 404 `NOT_FOUND`; an id that is not an integer is a 422 `VALIDATION_ERROR` on `id` (and `line_id` likewise). For routes with ids the order of section 7 holds: permission, existence of the order (then of the line), body validation, version and business rules.
+- **Examples.** A draft with one line (the answer of `POST /api/orders/8/lines` with `{"product_id": 1, "quantity": 2, "version": 1}`, status 201, `ETag: "2"`):
+
+  ```json
+  {"id": 8, "number": "PED-0008", "status": "draft",
+   "customer": {"id": 1, "name": "Acme Industrial S.A.", "status": "active"},
+   "lines": [{"id": 10, "product_id": 1, "sku": "KB-100", "name": "Teclado USB",
+              "quantity": 2, "unit_price": "19.90", "line_total": "39.80"}],
+   "subtotal": "39.80", "tax_rate": "10.00", "tax": "3.98", "total": "43.78",
+   "invoice_id": null, "version": 2,
+   "created_at": "2026-11-05T15:00:00Z", "updated_at": "2026-11-05T15:01:00Z"}
+  ```
+
+  The same request with `{"product_id": 1, "quantity": 1000, "version": 2}` is a 422:
+
+  ```json
+  {"type": "about:blank", "title": "Unprocessable Content", "status": 422, "code": "VALIDATION_ERROR",
+   "detail": "Revisa los datos ingresados.",
+   "errors": [{"field": "quantity", "code": "OUT_OF_RANGE", "message": "El valor debe estar entre 1 y 999."}]}
+  ```
+
 - **Seed.** The 15 products and the 7 orders (with their lines, frozen totals and tax rate 10.00) of `docs/SEED.md` exist from the start, all with `version` 1 and `updated_at` equal to `created_at`; `invoice_id` is filled in by the invoices module and is `null` until it exists.
 
 ## 6. Invoices and payments (flow 3)
@@ -181,7 +201,7 @@ Invoices:
 - The customer must have a `tax_id` (`CUSTOMER_TAX_ID_REQUIRED`).
 - One invoice per order (`INVOICE_ALREADY_EXISTS`). Number `FAC-0001`, `FAC-0002`, ...
 - The invoice stores a snapshot of the order lines and totals and of the customer's name, `tax_id` and address at issue time. States: `issued`, `paid`, `void`. A `paid` or `void` invoice is final.
-- Issuing an invoice sends the email "Factura FAC-0001 emitida" to the customer's email through the email port (Mailpit locally, only logged online) after the transaction commits. If sending fails, the failure is logged and the invoice stays issued. No other email is sent.
+- Issuing an invoice sends the email "Factura FAC-0001 emitida" to the customer's email through the email port (only written to the log: no real email is sent anywhere) after the transaction commits. If sending fails, the failure is logged and the invoice stays issued. No other email is sent.
 - Cancelling a `confirmed` order voids its `issued` invoice.
 
 Payments:
@@ -227,6 +247,32 @@ Atomicity and retries:
 | Gateway unavailable | 503 | `PAYMENT_GATEWAY_UNAVAILABLE` | La pasarela de pago no está disponible. Inténtalo de nuevo. |
 | Missing idempotency key | 422 | `IDEMPOTENCY_KEY_REQUIRED` | Falta la cabecera Idempotency-Key. |
 | Key reused with other data | 422 | `IDEMPOTENCY_KEY_REUSED` | Esa clave de idempotencia ya se usó con otros datos. |
+
+### Invoices and payments API
+
+Every route needs a session. Reading is open to every role. Issuing an invoice and registering a payment need the permissions to create invoices and to register payments (Admin and Finance, section 2); anything else is 403 `FORBIDDEN`. Money is a string with 2 decimals, ids and quantities are integers, timestamps follow section 4.
+
+| Request | Purpose | Answer |
+|---|---|---|
+| `GET /api/invoices` | List, with the query parameters below | 200 `{items: [InvoiceSummary], page, page_size, total}` |
+| `GET /api/invoices/{id}` | Read one | 200 `Invoice` |
+| `POST /api/orders/{id}/invoice` | Issue the invoice of a `confirmed` order; no body; optional `If-Match` (the version of the **order**) | 201 `Invoice`, `Location: /api/invoices/{id}` |
+| `POST /api/invoices/{id}/payments` | Register a payment; `Idempotency-Key` required; optional `If-Match` (the version of the **invoice**) | 201 `PaymentResult`, or an error below |
+
+Shapes:
+- `InvoiceSummary` is `{id, number, status, order_id, order_number, customer_name, total, version, created_at, updated_at}`.
+- `Invoice` is `{id, number, status, order_id, order_number, customer, lines, subtotal, tax_rate, tax, total, payments, version, created_at, updated_at}`. `customer` is the snapshot taken at issue, `{id, name, tax_id, address}` (`address` may be `null`); `lines` are the snapshot of the order lines, `{id, product_id, sku, name, quantity, unit_price, line_total}`; `subtotal`, `tax_rate`, `tax` and `total` are the order's frozen values; `payments` is the list of every attempt, ordered by `id`. Every response with one invoice carries `ETag: "<version>"`.
+- `Payment` is `{id, method, status, amount, reference, card_last4, reason, created_at}`: `status` is `approved`, `declined` or `failed`; `reference` is set only for a transfer and `card_last4` only for a card (the only part of a card that is ever stored or returned); `reason` is `CARD_DECLINED` or `GATEWAY_UNAVAILABLE` for a declined or failed payment and `null` otherwise.
+- `PaymentResult` is `{payment, invoice}`: the payment just created and the invoice after the payment. When the payment is approved the order is `paid` too; the screens read it again from the orders API.
+- A declined payment answers 402 `PAYMENT_DECLINED` and a failed one 503 `PAYMENT_GATEWAY_UNAVAILABLE`, as problem documents with the extra members `payment_id` and `reason`; the attempt is stored and appears in `payments`.
+
+Rules:
+- **Issue.** The order must exist (404) and, under its lock and after the version check, the checks are `INVOICE_ALREADY_EXISTS`, `ORDER_NOT_INVOICEABLE` (the order is not `confirmed`) and `CUSTOMER_TAX_ID_REQUIRED` (the customer has no `tax_id`), in that order. The invoice takes the next number of the `FAC` sequence, status `issued`, `version` 1, and copies the snapshots; the order gets its `invoice_id` and its `version` increases by 1 (so a stale order version held by a screen conflicts, which is right: cancelling would now void an invoice). After the transaction commits the email "Factura FAC-0001 emitida" is sent through the email port, which only writes it to the log; a failure of the port is logged and never changes the answer.
+- **Cancel.** Cancelling a `confirmed` order voids its `issued` invoice in the same transaction (`status` `void`, `version` + 1). `paid` and `void` invoices are final.
+- **Register a payment.** `Idempotency-Key` is 1 to 64 characters of `[A-Za-z0-9._-]` (missing: `IDEMPOTENCY_KEY_REQUIRED`; malformed: `INVALID_FORMAT` on `Idempotency-Key`). The body is `{method, amount, card?, reference?}` with no other field. `method` is required and is `card`, `transfer` or `cash` (`REQUIRED`, `INVALID_FORMAT`). `amount` is required, a string that fully matches `^[0-9]{1,10}(\.[0-9]{1,2})?$` (`REQUIRED`, `INVALID_FORMAT`). For `card`, `card` is required and is `{number, expiry, cvc}` validated by the card rules of this section (the field paths are `card.number`, `card.expiry` and `card.cvc`); for `transfer`, `reference` is required (`REQUIRED`, then `TOO_SHORT` or `TOO_LONG`); a `card` object with another method, or a `reference` with another method, is `INVALID_FORMAT` on that field. The expiry is checked against the application clock. The checks run in the order of section 7: permission, existence of the invoice, idempotency (replay), body validation, and then under the locks the stale `version`, `INVOICE_NOT_PAYABLE` (the invoice is not `issued`), `PAYMENT_AMOUNT_MISMATCH` (422, a top-level code, when `amount` differs from the total) and the gateway. An approved payment, the invoice becoming `paid` and the order becoming `paid` (each with its `version` + 1) are one transaction.
+- **Idempotency.** As described above: scoped to the invoice, 24 hours, consumed only by `approved`, `declined` and `failed` outcomes; the same key with the same body replays the stored status and body (also the 402 and 503 ones) and adds the header `Idempotency-Replayed: true`; the same key with another body is 422 `IDEMPOTENCY_KEY_REUSED`. The body is compared through `app/security/idempotency.py` (keyed hash of the canonical JSON, with the card redacted); the card number and the CVC are never stored.
+- **List.** `page`, `q` and the ordering follow the orders rules. `q` matches the invoice number or the customer's name in the snapshot; `status` is `issued`, `paid` or `void` (otherwise 422 `INVALID_FORMAT`); `order_id` is an optional integer from 1 to 2147483647.
+- **Seed.** The 3 invoices and 4 payments of `docs/SEED.md` exist from the start (with the order `invoice_id` filled in), all with `version` 1 where the seed says nothing else; the next invoice is `FAC-0004` and the next payment id is 5.
 
 ## 7. Errors and validation order
 
@@ -276,13 +322,14 @@ Labels used in messages:
 Order of checks. A request is rejected by the first rule that fails:
 1. Rate limit (429) and body size (413).
 2. Malformed JSON (400 `MALFORMED_JSON`).
-3. Session (401) and origin (403 `CSRF_ORIGIN_MISMATCH`).
+3. Origin (403 `CSRF_ORIGIN_MISMATCH`), then session (401): the origin check is global and runs before the route's own dependencies.
 4. Permission (403 `FORBIDDEN`).
 5. Existence of the target resource (404 `NOT_FOUND`).
 6. Idempotency: a repeated `Idempotency-Key` with the same body replays the stored response and stops here; the same key with a different body is `IDEMPOTENCY_KEY_REUSED`.
 7. Body validation (422), including `IDEMPOTENCY_KEY_REQUIRED`, a malformed `Idempotency-Key` and unknown references (`REFERENCE_NOT_FOUND`).
 8. Under the locks: a stale `version` (409 `VERSION_CONFLICT`), then the business rules of the operation, in this order:
    - Create or edit a customer: `CUSTOMER_EMAIL_TAKEN`.
+   - Create an order: `CUSTOMER_INACTIVE`.
    - Edit a draft order: `ORDER_NOT_EDITABLE`, `CUSTOMER_INACTIVE`, `ORDER_DUPLICATE_PRODUCT`, `ORDER_TOO_MANY_LINES`.
    - Confirm, cancel or ship an order: `INVALID_TRANSITION`, then for confirm `CUSTOMER_INACTIVE`, `ORDER_EMPTY`, `INSUFFICIENT_STOCK`.
    - Create invoice: `INVOICE_ALREADY_EXISTS`, `ORDER_NOT_INVOICEABLE`, `CUSTOMER_TAX_ID_REQUIRED`.

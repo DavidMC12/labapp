@@ -250,7 +250,12 @@ class CustomerRepositoryContract:
             repository.set_status(99, CustomerStatus.INACTIVE, None, NOW)
 
     def test_replace_all_resets_the_next_id(self, repository: Any) -> None:
-        repository.replace_all([customer(5), customer(2)])
+        repository.replace_all(
+            [
+                customer(5, email="five@example.test"),
+                customer(2, email="two@example.test"),
+            ]
+        )
 
         created = repository.add(new_customer(email="new@example.test"), NOW)
 

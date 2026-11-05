@@ -7,6 +7,7 @@ from fastapi import Depends, FastAPI
 
 from app.config import Settings
 from app.errors import register_error_handlers
+from app.guards.controls import ControlsGuardMiddleware
 from app.guards.origin import origin_guard
 from app.guards.ratelimit_middleware import RateLimitMiddleware
 from app.infra.clock import OffsetClock, SystemClock
@@ -64,6 +65,7 @@ def create_app(
     app.state.customer_repository = customer_repository
     app.state.customers = customers
     app.add_middleware(BodySizeLimitMiddleware)
+    app.add_middleware(ControlsGuardMiddleware, settings=settings)
     app.add_middleware(RateLimitMiddleware, container=container)
     app.add_middleware(RequestIdMiddleware)
     register_error_handlers(app)

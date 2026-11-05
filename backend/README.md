@@ -37,6 +37,36 @@ curl -i localhost:8000/api/health
 Every response carries an `X-Request-Id` header. Send your own `X-Request-Id` to have it
 echoed; values must match `^[A-Za-z0-9._-]{1,64}$`, otherwise a new UUID4 is generated.
 
+## PostgreSQL
+
+The API still stores everything in memory. These variables prepare the PostgreSQL
+adapters; their absence keeps the in-memory defaults.
+
+- `DATABASE_URL` — the runtime connection string. It must point at the provider's
+  pooler. A blank value means "no database".
+- `DATABASE_URL_UNPOOLED` — a direct connection string, used only by the migrations.
+  It is required when `DATABASE_SCHEMA` is set, because a session-level
+  `SET search_path` cannot go through a transaction-mode pooler.
+- `DATABASE_SCHEMA` — run everything in an isolated schema instead of the default
+  `public`. Only lowercase letters, digits and underscores are allowed.
+
+The placeholder form is `postgresql+psycopg://user:password@host/db`; `postgres://` and
+`postgresql://` are accepted too and converted to the psycopg form.
+
+Apply the migrations:
+
+```bash
+uv run python -m app.cli migrate
+```
+
+The integration tests create a random schema, run the migrations there and drop the
+schema when they finish. They are skipped unless `TEST_DATABASE_URL` is set to a direct,
+unpooled URL:
+
+```bash
+TEST_DATABASE_URL='postgresql+psycopg://user:password@host/db' uv run pytest tests/integration
+```
+
 ## Limits
 
 The 100 KB request body limit only inspects the `Content-Length` header; chunked requests
@@ -63,9 +93,12 @@ uv run ruff format --check .
 backend/
   app/
     config.py      Settings read from environment variables
+    cli.py         the migrate command
     errors.py      ApiError, problem+json rendering and exception handlers
+    infra/db.py    engine, metadata and URL helpers
     main.py        create_app() and the application instance
     middleware.py  request id and request body size limit
+  migrations/      Alembic configuration and revisions
   tests/           pytest suite
   pyproject.toml   dependencies, ruff and pytest configuration
 ```

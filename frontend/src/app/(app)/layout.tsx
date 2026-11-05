@@ -187,13 +187,14 @@ export default function AppLayout({
     },
   ];
 
-  // The rail on 768px and up; a full-width top bar below, with the same
-  // DOM order (brand, nav, user, logout) for a stable focus order: the
-  // mobile placement is done with grid areas, not with the DOM.
+  // The rail on 768px and up; a full-width top bar below. The DOM order
+  // (brand, navigation, user block with the logout) is the tab order in
+  // both layouts; the mobile top bar is a row of the user block under the
+  // navigation, never on the brand row.
   return (
     <div className="min-h-screen md:grid md:grid-cols-[212px_minmax(0,1fr)]">
-      <aside className="grid grid-cols-[1fr_auto] bg-rail text-rail-ink md:flex md:flex-col">
-        <div className="col-start-1 row-start-1 px-4 py-3 md:px-3 md:pt-4">
+      <aside className="flex flex-col bg-rail text-rail-ink md:sticky md:top-0 md:h-screen">
+        <div className="px-4 py-3 md:px-3 md:pt-4">
           <Link
             href="/"
             testId="app-nav-home-link"
@@ -205,20 +206,9 @@ export default function AppLayout({
           </Link>
         </div>
 
-        <div className="col-start-2 row-start-1 flex items-center justify-self-end px-4 md:contents">
-          <Button
-            testId="app-logout-button"
-            variant="rail"
-            loading={logout.isPending}
-            onClick={() => void handleLogout()}
-          >
-            Salir
-          </Button>
-        </div>
-
         <nav
           aria-label="Principal"
-          className="col-span-2 row-start-2 flex gap-1 overflow-x-auto px-4 pb-2 md:mt-4 md:flex-col md:px-3 md:pb-0"
+          className="flex gap-1 overflow-x-auto p-1.5 md:mt-4 md:flex-col md:px-3"
         >
           {navItems.map((item) => {
             const current = isCurrentSection(pathname, item.href);
@@ -243,20 +233,32 @@ export default function AppLayout({
           })}
         </nav>
 
-        <div className="col-span-2 row-start-3 px-4 pb-3 pt-2 md:mt-auto md:border-t md:border-rail-muted/40 md:px-3 md:py-3">
+        <div className="flex items-center gap-3 px-4 pb-2 md:mt-auto md:flex-col md:items-stretch md:border-t md:border-rail-muted/40 md:px-3 md:py-3">
           <p
             data-testid="app-user-name-text"
             className="text-[15px] font-medium"
           >
             {user.name}
           </p>
-          <p data-testid="app-user-role-text" className="text-[13px] text-rail-muted">
+          <p
+            data-testid="app-user-role-text"
+            className="text-[13px] text-rail-muted"
+          >
             {roleLabel(user.role)}
           </p>
+          <Button
+            testId="app-logout-button"
+            variant="rail"
+            className="ml-auto md:ml-0 md:w-full"
+            loading={logout.isPending}
+            onClick={() => void handleLogout()}
+          >
+            Salir
+          </Button>
         </div>
       </aside>
 
-      <main className="flex-1 px-4 py-6 md:px-6">{children}</main>
+      <main className="min-w-0 flex-1 px-4 py-6 md:px-6">{children}</main>
     </div>
   );
 }

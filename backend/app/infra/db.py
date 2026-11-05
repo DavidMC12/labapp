@@ -5,7 +5,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import MetaData, create_engine
+import psycopg
+from sqlalchemy import MetaData, Table, create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import NullPool
 
@@ -67,3 +68,25 @@ def create_db_engine(settings: Settings, *, pin_search_path: bool = False) -> En
 def as_utc(value: datetime) -> datetime:
     """Return a driver timestamp as an aware UTC datetime."""
     return value.astimezone(UTC)
+
+
+def qualified_table_name(engine: Engine, table: Table) -> str:
+    """Return the table name for raw SQL, with the schema when one is configured.
+
+    ``schema_translate_map`` only rewrites ``Table`` constructs, so raw SQL that
+    names a table must receive the translated schema explicitly.
+    """
+    preparer = engine.dialect.identifier_preparer
+    translate_map = engine.get_execution_options().get("schema_translate_map") or {}
+    schema = translate_map.get(None)
+    if schema is None:
+        return preparer.quote(table.name)
+    return f"{preparer.quote_schema(schema)}.{preparer.quote(table.name)}"
+
+
+def unique_violation_of(error: BaseException, constraint_name: str) -> bool:
+    """Tell whether the error is a unique violation of exactly that constraint."""
+    original = getattr(error, "orig", None)
+    if not isinstance(original, psycopg.errors.UniqueViolation):
+        return False
+    return original.diag.constraint_name == constraint_name

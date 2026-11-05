@@ -252,6 +252,7 @@ function EditLineRow({ line, saving, removing, mutationsPending, pageFailureCoun
         <form
           noValidate
           onSubmit={handleSave}
+          data-testid={`orders-detail-line-form-${line.id}`}
           className="flex flex-wrap items-end gap-2"
         >
           <Input
@@ -260,6 +261,7 @@ function EditLineRow({ line, saving, removing, mutationsPending, pageFailureCoun
             testId={`orders-detail-line-quantity-input-${line.id}`}
             label="Cantidad"
             type="number"
+            hideLabel
             value={quantityInput}
             onChange={(event) => setQuantityInput(event.target.value)}
             error={lineError ?? undefined}
@@ -828,7 +830,9 @@ function OrderDetail({ id }: { id: number }) {
 
       {/* The lines of the order with the totals under them. */}
       <div className="mt-6 rounded-lg border border-line bg-surface p-5">
-        <h2 className="text-lg font-semibold">Líneas</h2>
+        <h2 data-testid="orders-detail-lines-heading" className="text-lg font-semibold">
+          Líneas
+        </h2>
         {lines.length === 0 ? (
           <p
             data-testid="orders-detail-nolines-text"
@@ -840,7 +844,7 @@ function OrderDetail({ id }: { id: number }) {
           <div className="mt-3 overflow-x-auto p-1.5">
             <table
               data-testid="orders-detail-lines-table"
-              className="min-w-[36rem]"
+              className="min-w-[36rem] w-full"
             >
               <thead>
                 <tr>
@@ -920,7 +924,12 @@ function OrderDetail({ id }: { id: number }) {
       {/* Add a line: only in a draft, for users who can edit. */}
       {editable ? (
         <section className="mt-6">
-          <h2 className="text-lg font-semibold">Agregar una línea</h2>
+          <h2
+            data-testid="orders-detail-addline-heading"
+            className="text-lg font-semibold"
+          >
+            Agregar una línea
+          </h2>
           {products.isError ? (
             <div className="mt-3">
               <Alert testId="orders-detail-products-error-alert">

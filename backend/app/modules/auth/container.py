@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from app.config import Settings
 from app.infra.clock import OffsetClock
@@ -16,7 +16,7 @@ from app.modules.auth.service import AuthService
 class Container:
     """The auth dependencies shared by one application instance."""
 
-    settings: Settings
+    settings: Settings = field(repr=False)
     clock: OffsetClock
     users: UserRepository
     sessions: SessionStore

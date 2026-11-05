@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.modules.auth.constants import SESSION_COOKIE_NAME
+from app.modules.auth.routes import LoginRequest
 from app.modules.auth.seed import DEMO_PASSWORD
 
 LOGIN = "/api/auth/login"
@@ -202,3 +203,18 @@ def test_openapi_documents_the_auth_contract(client: TestClient) -> None:
     assert "UserOut" in document["components"]["schemas"]
     assert "401" in document["paths"][LOGIN]["post"]["responses"]
     assert "401" in document["paths"][ME]["get"]["responses"]
+
+
+def test_login_request_repr_hides_the_email_and_password() -> None:
+    rendered = repr(LoginRequest(email="admin@labapp.test", password="super-secret"))
+
+    assert "admin@labapp.test" not in rendered
+    assert "super-secret" not in rendered
+
+
+def test_container_repr_hides_the_settings(app: FastAPI) -> None:
+    container = app.state.container
+    rendered = repr(container)
+
+    assert container.settings.session_secret not in rendered
+    assert container.settings.database_url not in rendered

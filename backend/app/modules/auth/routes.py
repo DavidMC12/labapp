@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Request, Response, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.domain.permissions import Role
 from app.modules.auth.constants import SESSION_COOKIE_NAME
@@ -37,8 +37,8 @@ _UNAUTHORIZED_RESPONSE: dict[str, Any] = {
 class LoginRequest(BaseModel):
     """The login payload."""
 
-    email: str
-    password: str
+    email: str = Field(repr=False)
+    password: str = Field(repr=False)
 
 
 class UserOut(BaseModel):

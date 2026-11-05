@@ -39,6 +39,12 @@ def test_a_page_beyond_the_last_is_empty(clients: dict[str, TestClient]) -> None
     assert body["total"] == 7
 
 
+def test_a_blank_query_is_ignored(clients: dict[str, TestClient]) -> None:
+    body = clients["sales"].get("/api/orders", params={"q": "   "}).json()
+
+    assert body["total"] == 7
+
+
 @pytest.mark.parametrize(
     ("query", "expected_ids", "expected_total"),
     [

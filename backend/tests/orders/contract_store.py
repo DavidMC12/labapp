@@ -34,10 +34,6 @@ def _deactivate(customers: CustomerRepository, customer_id: int) -> None:
     customers.set_status(customer_id, CustomerStatus.INACTIVE, None, NOW)
 
 
-def _line(product_id: int, quantity: int = 1) -> tuple[int, int]:
-    return product_id, quantity
-
-
 class OrderStoreContract:
     """The behavior every OrderStore adapter must share.
 
@@ -133,6 +129,17 @@ class OrderStoreContract:
         assert [order.id for order, _ in by_number] == [1]
         assert [order.id for order, _ in by_name] == [7]
         assert [order.id for order, _ in by_case] == [1]
+
+    def test_list_orders_uses_the_current_customer_name(self, store: Any) -> None:
+        store.set_customer(1, 2, None, NOW)
+
+        items, total = store.list_orders(
+            query="beta comercial", status=None, customer_id=None, page=1, page_size=20
+        )
+
+        assert total == 2
+        assert [order.id for order, _ in items] == [2, 1]
+        assert [name for _, name in items] == ["Beta Comercial Ltda."] * 2
 
     def test_list_orders_treats_pattern_characters_literally(
         self, store: Any, customer_repository: CustomerRepository

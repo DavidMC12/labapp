@@ -101,6 +101,12 @@ def test_ids_at_zero_and_above_the_limit_are_not_found(
             "NOT_FOUND",
         )
 
+    assert_problem(
+        clients["sales"].patch("/api/orders/1/lines/0", json=quantity_payload(2, 1)),
+        404,
+        "NOT_FOUND",
+    )
+
 
 def test_a_non_integer_line_id_is_a_validation_error(
     clients: dict[str, TestClient],

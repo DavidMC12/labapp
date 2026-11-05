@@ -209,6 +209,7 @@ Common errors not tied to one feature:
 | Order transition not allowed | 409 | `INVALID_TRANSITION` | No se puede pasar el pedido de {from} a {to}. |
 | Malformed JSON body | 400 | `MALFORMED_JSON` | El cuerpo de la solicitud no es un JSON válido. |
 | Lock wait above 5 seconds | 503 | `LOCK_TIMEOUT` | El recurso está ocupado. Inténtalo de nuevo. |
+| All password-check slots busy for 2 seconds | 503 | `SERVICE_BUSY` | El servicio está ocupado. Inténtalo de nuevo en unos segundos. |
 | Method not allowed | 405 | `METHOD_NOT_ALLOWED` | Método no permitido para este recurso. |
 
 Field-level errors: a 422 `VALIDATION_ERROR` lists one entry per field in `errors[]`, with `field` (a path such as `lines[0].quantity`), `code` and `message`:

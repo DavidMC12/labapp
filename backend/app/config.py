@@ -19,3 +19,5 @@ class Settings(BaseSettings):
     test_mode: bool = False
     test_token: str = ""
     default_tax_rate: Decimal = Decimal("10")
+    app_origin: str = "http://localhost:3000"
+    trusted_proxy_count: int = 0

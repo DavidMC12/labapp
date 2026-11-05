@@ -13,6 +13,8 @@ const REQUIRED_IDS: readonly TestId[] = [
   "auth-login-password-input",
   "auth-login-submit-button",
   "auth-login-form-alert",
+  "auth-login-tagline-text",
+  "auth-login-notice-text",
   "auth-login-demo-title-text",
   "auth-login-demo-list",
   "auth-login-demo-item-1",

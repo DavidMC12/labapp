@@ -22,6 +22,7 @@ METHOD_NOT_ALLOWED = "METHOD_NOT_ALLOWED"
 PAYLOAD_TOO_LARGE = "PAYLOAD_TOO_LARGE"
 VALIDATION_ERROR = "VALIDATION_ERROR"
 INTERNAL_ERROR = "INTERNAL_ERROR"
+MALFORMED_JSON = "MALFORMED_JSON"
 
 ERROR_MESSAGES: dict[str, str] = {
     NOT_FOUND: "No se encontró el recurso solicitado.",
@@ -29,6 +30,7 @@ ERROR_MESSAGES: dict[str, str] = {
     PAYLOAD_TOO_LARGE: "La solicitud es demasiado grande.",
     VALIDATION_ERROR: "Revisa los datos ingresados.",
     INTERNAL_ERROR: "Ocurrió un error inesperado. Inténtalo de nuevo.",
+    MALFORMED_JSON: "El cuerpo de la solicitud no es un JSON válido.",
 }
 
 DEFAULT_ERROR_DETAIL = "No se pudo completar la solicitud."
@@ -176,6 +178,13 @@ def _field_errors(exc: RequestValidationError) -> list[dict[str, str]]:
 
 
 async def _handle_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
+    if any(error.get("type") == "json_invalid" for error in exc.errors()):
+        return problem_response(
+            get_request_id(request),
+            status=400,
+            code=MALFORMED_JSON,
+            detail=ERROR_MESSAGES[MALFORMED_JSON],
+        )
     return problem_response(
         get_request_id(request),
         status=422,

@@ -103,6 +103,19 @@ def database_engine(database_settings: Settings, database_schema: str) -> Iterat
         bootstrap.dispose()
 
 
+@pytest.fixture(scope="session")
+def unpinned_database_engine(database_settings: Settings) -> Iterator[Engine]:
+    """An engine with the schema translate map but no pinned search path.
+
+    Raw SQL that forgets to qualify its table resolves in ``public`` and fails.
+    """
+    engine = create_db_engine(database_settings)
+    try:
+        yield engine
+    finally:
+        engine.dispose()
+
+
 @pytest.fixture
 def db(database_engine: Engine, database_schema: str) -> Iterator[Connection]:
     with database_engine.connect() as connection:

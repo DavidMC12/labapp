@@ -125,7 +125,8 @@ export function CustomerForm(props: CustomerFormProps) {
   });
 
   // "Recargar datos": one reset per increment of the signal, always from
-  // the latest server values. A background refetch bumps nothing.
+  // the latest server values; the errors of the failed submit are cleared
+  // with it. A background refetch bumps nothing.
   useEffect(() => {
     if (resetSignal === undefined || resetSignal < 1) {
       return;
@@ -136,6 +137,9 @@ export function CustomerForm(props: CustomerFormProps) {
     }
     setValues(initialValues(loaded));
     setVersion(loaded.version);
+    setFieldErrors({});
+    setFormError(null);
+    setVersionConflict(false);
   }, [resetSignal]);
 
   // Focus after a failure: the form-level alert when it is shown,

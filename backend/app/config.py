@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -37,6 +37,17 @@ class Settings(BaseSettings):
             stripped = value.strip()
             return stripped or None
         return value
+
+    @field_validator("default_tax_rate")
+    @classmethod
+    def _validate_default_tax_rate(cls, value: Decimal) -> Decimal:
+        """Keep the initial tax rate a percentage with two decimals, as the spec says."""
+        rate = (
+            value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP) if value.is_finite() else value
+        )
+        if not rate.is_finite() or not Decimal("0.00") <= rate <= Decimal("100.00"):
+            raise ValueError("Invalid default tax rate")
+        return rate
 
     @field_validator("database_schema")
     @classmethod

@@ -66,3 +66,17 @@ def test_driver_errors_log_only_class_sqlstate_and_request_id(
     assert response.json()["code"] == "INTERNAL_ERROR"
     logged = _assert_clean_logs(caplog)
     assert "UniqueViolation" in logged
+
+
+def test_other_errors_still_log_their_message(
+    app: FastAPI, caplog: pytest.LogCaptureFixture
+) -> None:
+    @app.get("/explode-plain")
+    def explode_plain() -> None:
+        raise RuntimeError("plain failure")
+
+    with caplog.at_level(logging.ERROR):
+        response = TestClient(app, raise_server_exceptions=False).get("/explode-plain")
+
+    assert response.status_code == 500
+    assert "plain failure" in caplog.text

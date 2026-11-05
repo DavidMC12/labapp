@@ -116,6 +116,41 @@ def test_malformed_if_match_is_a_validation_error(
     ]
 
 
+@pytest.mark.parametrize("action", ["deactivate", "reactivate"])
+@pytest.mark.parametrize("value", ["9" * 5000, "9" * 11])
+def test_a_long_if_match_is_a_validation_error_without_an_integer_conversion(
+    clients: dict[str, TestClient],
+    action: str,
+    value: str,
+) -> None:
+    response = clients["sales"].post(
+        f"/api/customers/1/{action}",
+        headers={"If-Match": value},
+    )
+
+    body = assert_problem(response, 422, "VALIDATION_ERROR")
+    assert body["errors"] == [
+        {
+            "field": "If-Match",
+            "code": "INVALID_FORMAT",
+            "message": "El formato no es válido.",
+        }
+    ]
+
+
+@pytest.mark.parametrize("action", ["deactivate", "reactivate"])
+def test_the_quoted_maximum_version_reaches_the_version_check(
+    clients: dict[str, TestClient],
+    action: str,
+) -> None:
+    response = clients["sales"].post(
+        f"/api/customers/1/{action}",
+        headers={"If-Match": '"2147483647"'},
+    )
+
+    assert_problem(response, 409, "VERSION_CONFLICT")
+
+
 @pytest.mark.parametrize("role", ["finance", "readonly"])
 @pytest.mark.parametrize("action", ["deactivate", "reactivate"])
 def test_roles_without_customer_management_cannot_change_status(

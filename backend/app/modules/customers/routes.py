@@ -105,7 +105,7 @@ def _parse_if_match(value: str | None) -> int | None:
     elif '"' in text:
         raise _invalid_if_match()
 
-    if _DIGITS.fullmatch(text) is None:
+    if _DIGITS.fullmatch(text) is None or len(text) > 10:
         raise _invalid_if_match()
     version = int(text)
     if not 1 <= version <= MAX_ID:

@@ -67,6 +67,28 @@ def test_blank_database_values_become_none() -> None:
     assert settings.database_schema is None
 
 
+def test_blank_database_values_in_the_env_file_become_none(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    backend_dir = tmp_path / "backend"
+    backend_dir.mkdir()
+    (backend_dir / ".env").write_text(
+        "DATABASE_URL=\nDATABASE_URL_UNPOOLED=   \nDATABASE_SCHEMA=\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setitem(Settings.model_config, "env_file", ("../.env", ".env"))
+    monkeypatch.chdir(backend_dir)
+    for name in ("DATABASE_URL", "DATABASE_URL_UNPOOLED", "DATABASE_SCHEMA"):
+        monkeypatch.delenv(name, raising=False)
+
+    settings = Settings()
+
+    assert settings.database_url is None
+    assert settings.database_url_unpooled is None
+    assert settings.database_schema is None
+
+
 def test_database_schema_accepts_a_safe_name() -> None:
     settings = Settings(database_schema="t_0123456789abcdef")
 

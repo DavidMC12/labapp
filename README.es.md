@@ -27,7 +27,7 @@ Roles: Admin, Ventas, Finanzas y Solo lectura. La pantalla está en español. La
 | Backend | FastAPI (Python), SQLAlchemy 2, Alembic, PostgreSQL |
 | Frontend | Next.js, TypeScript, Tailwind, TanStack Query y Table |
 | Contrato | OpenAPI generado por el backend y cliente tipado generado para el frontend |
-| Local | Un script de arranque, una base Neon de desarrollo, pasarela de pagos falsa; el correo falso solo se escribe en los logs |
+| Local | Un script de arranque (`mise run dev`), datos en memoria o una base Neon de desarrollo, pasarela de pagos falsa; el correo falso solo se escribe en los logs |
 | Demo en línea | Vercel (web y API en un solo proyecto), Neon (Postgres), todo en capas gratuitas |
 
 ## Hoja de ruta

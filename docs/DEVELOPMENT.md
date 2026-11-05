@@ -9,12 +9,12 @@ mise run dev          # or: scripts/dev.sh
 
 The script installs the dependencies if needed and starts the API on <http://127.0.0.1:8000> and the web app on <http://localhost:3000>. Open the web address and log in with one of the demo users shown on the login screen. The web dev server forwards `/api/*` and `/__test__/*` to the API, so the browser sees a single origin, as it does online. Press Ctrl+C to stop both.
 
-By default the data lives in memory and is lost on restart. The script turns `TEST_MODE` on, which switches the rate limits off and enables the test-only controls (see [ARCHITECTURE.md](ARCHITECTURE.md)).
+By default the data lives in memory and is lost on restart. The script turns `TEST_MODE` on; once the rate limits and the test-only controls exist (later tasks), it switches the limits off and enables the controls (see [ARCHITECTURE.md](ARCHITECTURE.md)). Both processes listen on `127.0.0.1` only, and the script sets `API_URL` for the web dev server, so no root `.env` entry is needed for it. It needs bash 4.3 or newer.
 
 | Variable | Default | Meaning |
 |---|---|---|
 | `API_PORT`, `WEB_PORT` | `8000`, `3000` | Ports of the two processes. |
-| `TEST_MODE` | `1` | Test-only controls on, rate limits off. |
+| `TEST_MODE` | `1` | Test mode (see above). |
 | `SESSION_SECRET` | a development value | Application secret; never reuse it online. |
 | `DATABASE_URL` | unset | Use a PostgreSQL database instead of memory (see below). |
 

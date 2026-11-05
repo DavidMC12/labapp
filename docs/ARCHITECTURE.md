@@ -43,7 +43,7 @@ They are always registered under `/__test__` at the root of the API (not under `
 | `0` | missing or different | 404, as if the route did not exist. |
 | `0` with an empty `TEST_TOKEN` | any | 404. |
 
-The local start script sets `TEST_MODE=1`; every public deployment keeps it at 0. Online, the project routes `/__test__/*` to the API as well, and the guard answers 404 to anything without the token, so the controls are reachable only with it. The token is compared in constant time. Rate limiting is off when `TEST_MODE=1` and, otherwise, skipped for a valid token (SPEC section 3). The clock offset and the fault rules are stored in the database (a later task), so they survive restarts and are shared by every instance. What a reset restores and keeps is defined in SPEC section 9 and [SEED.md](SEED.md).
+The local start script sets `TEST_MODE=1`; every public deployment keeps it at 0. Online, the project routes `/__test__/*` to the API as well, and the guard (planned) answers 404 to anything without the token, so the controls will be reachable only with it. The token is compared in constant time. Rate limiting is off when `TEST_MODE=1` and, otherwise, skipped for a valid token (SPEC section 3). The clock offset and the fault rules are stored in the database (a later task), so they survive restarts and are shared by every instance. What a reset restores and keeps is defined in SPEC section 9 and [SEED.md](SEED.md).
 
 ## Sessions and security
 
@@ -68,7 +68,7 @@ HTTP-only session cookie with SameSite=Lax, same origin (locally the web dev ser
 | Database | Neon development branch | Neon |
 | Fake email | logged only | logged only |
 
-The web app and the API are two services of one Vercel project (Vercel Services): `/api/*` and `/__test__/*` go to the API and everything else to the web app, so the browser sees a single origin and the session cookie works. Migrations run in the API build over a direct (unpooled) database connection. Nothing stateful may live in a process, because a function instance does not outlive a request. Users, sessions and customers are already stored in PostgreSQL when `DATABASE_URL` is set; the clock offset, fault rules, idempotency keys and a shared rate-limit state move there in later tasks, and until then the in-memory rate limits are best effort (each instance counts for itself, with the monotonic clock of the process). A scheduled GitHub Actions workflow resets the online data every night.
+The web app and the API are two services of one Vercel project (Vercel Services): `/api/*` and `/__test__/*` go to the API and everything else to the web app, so the browser sees a single origin and the session cookie works. Migrations run in the API build over a direct (unpooled) database connection. Nothing stateful may live in a process, because instances are started, frozen, replaced and run in parallel at the platform's will, so memory is neither shared nor durable. Users, sessions and customers are already stored in PostgreSQL when `DATABASE_URL` is set; the clock offset, fault rules, idempotency keys and a shared rate-limit state move there in later tasks, and until then the in-memory rate limits are best effort (each instance counts for itself, with the monotonic clock of the process). A scheduled GitHub Actions workflow resets the online data every night.
 
 ## Repository layout
 

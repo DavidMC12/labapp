@@ -7,14 +7,14 @@ The demo runs as one Vercel project made of two services (Vercel Services, a bet
 | `backend` | `backend/` | FastAPI, entrypoint `app.main:app` | `/api/*` and `/__test__/*` |
 | `frontend` | `frontend/` | Next.js | everything else |
 
-Both services answer on one domain, so the session cookie is first party and the browser sends no cross-origin request. FastAPI receives the original path (`/api/customers`), which is how its routes are declared. The `/__test__/*` routes are guarded by the test token and answer 404 to anything else (see [ARCHITECTURE.md](ARCHITECTURE.md)).
+Both services answer on one domain, so the session cookie is first party and the browser sends no cross-origin request. FastAPI receives the original path (`/api/customers`), which is how its routes are declared. The `/__test__/*` routes do not exist yet; when the test controls are built they will be guarded by the test token and answer 404 to anything else (see [ARCHITECTURE.md](ARCHITECTURE.md)).
 
 ## Create the project
 
-1. In Vercel, add a project from the GitHub repository and set the **Root Directory** to the repository root and the framework preset to **Services**.
+1. In Vercel, add a project from the GitHub repository and set the **Root Directory** to the repository root. If the dashboard offers a Services framework preset, choose it; otherwise the `services` key of `vercel.json` is what selects the mode (check this in the dashboard: it is the first thing the first deployment tests).
 2. Add the environment variables below **before** the first deployment, for Production and Preview.
-3. Enable "Automatically expose System Environment Variables": the API uses `VERCEL_URL` and its siblings to accept the origin of each preview deployment.
-4. Deploy. The backend build applies the database migrations (`python -m app.cli migrate`, through `[tool.vercel.scripts]` in `backend/pyproject.toml`) over the direct connection before the new version goes live.
+3. Enable "Automatically expose System Environment Variables": the origin check (task 017, not built yet) will use `VERCEL_URL` and its siblings to accept the origin of each preview deployment.
+4. Deploy. The backend build runs `python -m app.cli deploy --production-only` (through `[tool.vercel.scripts]` in `backend/pyproject.toml`): it applies the database migrations over the direct connection and loads the demo data into an empty database, **only on a Production deployment**. Preview deployments skip it, because they share the database unless the Neon integration gives each one its own branch, and a migration of an unmerged branch must not change the schema that production uses. Set `RUN_MIGRATIONS_ON_PREVIEW=1` once every preview has its own database. Concurrent builds wait for each other (an advisory lock).
 
 ## Environment variables
 
@@ -35,7 +35,7 @@ The Neon integration for Vercel can create `DATABASE_URL` and `DATABASE_URL_UNPO
 
 - `GET /api/health` answers 200.
 - Log in with a demo user from the login screen; reload the page and stay logged in.
-- `POST /__test__/reset` answers 404 without a token and 200 with `X-Test-Token: <TEST_TOKEN>`.
+- Once the test controls exist (a later task): `POST /__test__/reset` answers 404 without a token and 200 with `X-Test-Token: <TEST_TOKEN>`.
 - Rotate the database password and update the two connection strings if the string was ever pasted into a chat or a ticket.
 
 ## Known limits

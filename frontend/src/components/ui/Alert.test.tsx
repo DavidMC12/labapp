@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { Alert, ALERT_CLASSES } from "./Alert";
+import { Alert } from "./Alert";
 
 describe("Alert", () => {
   it("keeps the role and the test id", () => {

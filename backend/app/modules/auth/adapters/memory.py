@@ -60,7 +60,7 @@ class InMemorySessionStore:
     def touch(self, token_hash: str, when: datetime) -> None:
         with self._lock:
             session = self._sessions.get(token_hash)
-            if session is not None:
+            if session is not None and when > session.last_seen_at:
                 self._sessions[token_hash] = replace(session, last_seen_at=when)
 
     def delete(self, token_hash: str) -> None:

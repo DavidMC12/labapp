@@ -125,3 +125,50 @@ Everything beyond that answers 503 `SERVICE_BUSY` immediately instead of queuein
 thread pool; the per-IP login limit from task 008 is the other protection. The session cap can
 still be flooded by design because the demo password is public: at roughly 54 logins per
 second the oldest sessions are evicted, so the per-IP limit is what makes that impractical.
+
+## Customers
+
+`app/modules/customers/` implements the customer API under `/api/customers`.
+
+- `routes.py` — the six endpoints, all plain `def`. Reads need a session; writes need the
+  customer-management permission.
+- `service.py` — validation, paging, literal search parameters and the translation of the
+  repository exceptions to problem responses.
+- `validation.py` — trimming, normalization and the field limits of SPEC section 4.
+- `search.py` — `normalize_for_search`, the single definition of case- and accent-insensitive
+  matching.
+- `ports.py` — `CustomerRepository` with its three exceptions; `adapters/memory.py` is the
+  in-memory implementation.
+- `seed.py` — the ten documented customers.
+
+The port is written for a PostgreSQL adapter. `add` must be atomic and enforce the unique
+lowercase email with a unique index; `update` and `set_status` must lock the row with
+`SELECT ... FOR UPDATE` before checking existence, version and email, in that order. `list`
+orders by `created_at` then `id` descending, returns the total separately from the page, and
+treats `q` as literal text: escape `%`, `_` and `\`. Search must use the normalized forms of
+name and email stored at write time, never database collations or `unaccent`.
+`replace_all` replaces the content and restarts the next id at the highest existing id plus
+one.
+
+```bash
+# Log in as sales and keep the session cookie.
+curl -i -c /tmp/labapp-cookies \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"sales@labapp.test","password":"Demo-LabApp-2026!"}' \
+  localhost:8000/api/auth/login
+
+# List, optionally with a literal, accent-insensitive query.
+curl -i -b /tmp/labapp-cookies 'localhost:8000/api/customers?q=cafeteria'
+
+# Create a customer; the answer carries Location and ETag.
+curl -i -b /tmp/labapp-cookies \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Nuevo Cliente","email":"nuevo@example.test"}' \
+  localhost:8000/api/customers
+
+# Patch it with the version returned by the previous call.
+curl -i -b /tmp/labapp-cookies -X PATCH \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Nuevo Cliente S.A.","version":1}' \
+  localhost:8000/api/customers/11
+```

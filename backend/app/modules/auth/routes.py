@@ -72,7 +72,7 @@ def login(
         token,
         path="/",
         httponly=True,
-        samesite="lax",
+        samesite="Lax",
         secure=cookie_secure(container.settings.app_origin),
     )
     response.headers["Cache-Control"] = "no-store"
@@ -91,7 +91,7 @@ def logout(
         SESSION_COOKIE_NAME,
         path="/",
         httponly=True,
-        samesite="lax",
+        samesite="Lax",
         secure=cookie_secure(container.settings.app_origin),
     )
     return response

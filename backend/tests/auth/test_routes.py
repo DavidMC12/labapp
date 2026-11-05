@@ -50,7 +50,7 @@ def test_login_returns_the_user_and_a_session_cookie(client: TestClient) -> None
     assert morsel.value
     assert bool(morsel["httponly"]) is True
     assert morsel["path"] == "/"
-    assert morsel["samesite"].lower() == "lax"
+    assert morsel["samesite"] == "Lax"
     assert bool(morsel["secure"]) is False
     assert bool(morsel["max-age"]) is False
     assert bool(morsel["expires"]) is False
@@ -126,7 +126,7 @@ def test_logout_ends_the_session_and_expires_the_cookie(client: TestClient) -> N
     assert morsel["max-age"] == "0"
     assert morsel["path"] == "/"
     assert bool(morsel["httponly"]) is True
-    assert morsel["samesite"].lower() == "lax"
+    assert morsel["samesite"] == "Lax"
     assert bool(morsel["domain"]) is False
     assert bool(morsel["secure"]) is False
     assert client.get(ME).status_code == 401

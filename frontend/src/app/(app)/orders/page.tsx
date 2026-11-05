@@ -211,7 +211,10 @@ function OrdersListContent() {
            * scrollbar edges.
            */}
           <div className="mt-6 overflow-x-auto p-1.5">
-            <table data-testid="orders-list-table" className="min-w-[44rem]">
+            <table
+              data-testid="orders-list-table"
+              className="min-w-[44rem] w-full"
+            >
               <thead>
                 <tr>
                   <th scope="col" className={TABLE_HEAD_CLASSES}>Número</th>
@@ -280,10 +283,14 @@ function OrdersListContent() {
           </div>
 
           {/*
-           * The ledger footer: a 4px double rule of ink above it, the
-           * total on the left and the pagination on the right.
+           * The ledger footer, matching the customers list: a 4px double
+           * rule of ink above it, the total on the left and the
+           * pagination nav on the right.
            */}
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t-4 border-double border-ink pt-3">
+          <div
+            data-testid="orders-list-footer-item"
+            className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t-4 border-double border-ink pt-3"
+          >
             <p
               data-testid="orders-list-total-text"
               className="font-semibold tabular-nums"

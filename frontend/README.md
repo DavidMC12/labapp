@@ -7,6 +7,34 @@ The test id contract implemented here is defined in `docs/TESTABILITY.md`.
 
 - Node `24.22.2` and pnpm `12.16.1` (pinned in the repository's `mise.toml`).
 
+## Design
+
+- The visual design is the "Libro mayor" light theme: a warm paper
+  background, dark green ink, a fixed-width side rail for navigation and
+  tables in the style of an accounting ledger.
+- **Colors live once, in `src/app/globals.css`** as CSS custom properties
+  on `:root` (the tokens: `paper`, `surface`, `ink`, `muted`, `line`,
+  `control-border`, `rail`, `rail-ink`, `rail-muted`, `rail-hover`,
+  `accent`, `accent-hover`, `accent-ink`, `ok-bg`, `off-bg`, `danger`,
+  `danger-bg`, `focus`), mapped to Tailwind with `@theme inline`
+  (`--color-paper: var(--paper)`), so utilities such as `bg-paper` and
+  `text-ink` exist. Components and screens use only those utilities.
+- Typography: IBM Plex Sans (body) and IBM Plex Serif (headings, brand),
+  loaded in the root `layout.tsx` with `next/font/google` and exposed as
+  `--font-plex-sans` / `--font-plex-serif`.
+- **Adding a theme changes `src/app/globals.css` alone**: swap the values
+  of the CSS custom properties. No component needs editing; a test guards
+  it (next point).
+- Two guard tests, both under `src/app/`:
+  - `tokens.test.ts` reads the tokens back from `globals.css` and checks
+    the WCAG contrast ratios of the token pairs the theme relies on.
+  - `colors-guard.test.ts` scans every `.ts`/`.tsx`/`.css` file under
+    `src/` except `globals.css` and the tests themselves, and fails on a
+    hex color, on `rgb(`, `rgba(`, `hsl(`, `hsla(`, `oklch(`, `oklab(`,
+    `lab(`, `lch(`, `hwb(`, `color(` or `color-mix(` and on any Tailwind
+    palette class (`border-gray-200`, `bg-white`, `text-black`, …).
+    `transparent`, `currentColor` and `inherit` are allowed.
+
 ## Commands
 
 Run from this `frontend/` directory:
@@ -37,9 +65,13 @@ pnpm test
 ```
 src/
   app/        layout ( providers + hydration marker) and pages
+  app/globals.css     the design tokens of the theme (the only colored file)
   components/
-    ui/       Button, Input, Select, Textarea, Link — interactive elements
-              take a required testId; fields also share Field
+    ui/       Button (primary/secondary/rail), Input, Select, Textarea,
+              Link (text/primary/secondary/rail), Alert — interactive
+              elements take a required testId; fields also share Field
+    LedgerMark.tsx  the brand mark of the theme
+  features/   customers + auth (hooks, api, screens helpers)
   lib/        testid.ts — the test id grammar: pattern, type and helpers
   test/       Vitest setup
 ```

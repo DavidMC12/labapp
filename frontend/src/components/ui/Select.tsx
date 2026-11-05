@@ -10,12 +10,24 @@ type SelectProps = Omit<SelectHTMLAttributes<HTMLSelectElement>, "id"> & {
   children: ReactNode;
 };
 
+const CONTROL_CLASSES: string = [
+  "w-full rounded-md border bg-surface px-[10px]",
+  // Touch targets are 44px below 768px; the control is 38px from then up.
+  "h-[44px] md:h-[38px]",
+  // 16px below 768px: iOS Safari zooms the control on focus at smaller
+  // text.
+  "text-[16px] md:text-[15px]",
+  "text-ink",
+  // The only allowed transition: 120ms of color.
+  "transition-colors duration-120",
+].join(" ");
+
 /**
  * Real labeled `<select>`; the options are passed as children. Like
  * `Input`, the `label` is linked with `htmlFor` -> `id` and, when `error`
  * is set, the message is announced with `role="alert"`, carries the derived
  * error test id and is referenced by the select through
- * `aria-describedby`.
+ * `aria-describedby`; the control border becomes `danger`.
  */
 export function Select({
   id,
@@ -33,6 +45,12 @@ export function Select({
         {...rest}
         {...fieldControlProps(id, error, errorId)}
         data-testid={testId}
+        className={[
+          CONTROL_CLASSES,
+          error ? "border-danger" : "border-control-border",
+        ]
+          .filter(Boolean)
+          .join(" ")}
       >
         {children}
       </select>

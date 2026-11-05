@@ -1,3 +1,4 @@
+export { Alert, ALERT_CLASSES } from "./Alert";
 export { Button } from "./Button";
 export { Field, fieldControlProps } from "./Field";
 export { Input } from "./Input";

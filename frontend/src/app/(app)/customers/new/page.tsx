@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert } from "@/components/ui";
 import { useMe } from "@/features/auth/hooks";
 import { CustomerForm } from "@/features/customers/CustomerForm";
 import { canManageCustomers } from "@/features/customers/permissions";
@@ -18,6 +19,7 @@ export default function CustomerNewPage() {
         role="status"
         data-testid="customers-form-loading-status"
         aria-busy="true"
+        className="text-muted"
       >
         Cargando…
       </p>
@@ -27,12 +29,9 @@ export default function CustomerNewPage() {
   const user = me.data;
   if (user && !canManageCustomers(user.role)) {
     return (
-      <p
-        role="alert"
-        data-testid="customers-form-forbidden-alert"
-      >
+      <Alert testId="customers-form-forbidden-alert">
         No tienes permiso para realizar esta acción.
-      </p>
+      </Alert>
     );
   }
 

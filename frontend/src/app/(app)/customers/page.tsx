@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Input, Link, Select } from "@/components/ui";
+import { Alert, Button, Input, Link, Select } from "@/components/ui";
 import { useMe } from "@/features/auth/hooks";
 import { useCustomers } from "@/features/customers/hooks";
 import { parseCustomerListParams } from "@/features/customers/params";
@@ -25,6 +25,18 @@ function listUrl(page: number, q: string | null, status: string | null): string 
   }
   return `/customers?${search.toString()}`;
 }
+
+/** The classes of a ledger header cell and a ledger body cell. */
+const TABLE_HEAD_CLASSES = [
+  "border-b-2 border-ink px-[10px] py-[9px] text-left",
+  "text-xs font-medium uppercase tracking-[0.07em] text-muted",
+].join(" ");
+
+const TABLE_CELL_CLASSES =
+  "border-b border-line px-[10px] py-[9px] text-ink tabular-nums";
+
+/** The ID fiscal and Estado cells must not wrap in the middle of a code. */
+const TABLE_CELL_NOWRAP_CLASSES = `${TABLE_CELL_CLASSES} whitespace-nowrap`;
 
 function CustomersListContent() {
   const router = useRouter();
@@ -97,17 +109,20 @@ function CustomersListContent() {
 
   return (
     <div>
-      <h1 data-testid="customers-list-heading">Clientes</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 data-testid="customers-list-heading">Clientes</h1>
 
-      {canManage ? (
-        <Link href="/customers/new" testId="customers-list-new-link">
-          Nuevo cliente
-        </Link>
-      ) : null}
+        {canManage ? (
+          <Link href="/customers/new" testId="customers-list-new-link" variant="primary">
+            Nuevo cliente
+          </Link>
+        ) : null}
+      </div>
 
       <form
         data-testid="customers-list-search-form"
         onSubmit={handleSearch}
+        className="mt-4 grid items-end gap-3 md:grid-cols-[minmax(0,1fr)_minmax(140px,220px)_auto]"
       >
         <Input
           id="customers-list-search"
@@ -127,7 +142,11 @@ function CustomersListContent() {
           <option value="active">Activos</option>
           <option value="inactive">Inactivos</option>
         </Select>
-        <Button testId="customers-list-search-button" type="submit">
+        <Button
+          testId="customers-list-search-button"
+          type="submit"
+          variant="secondary"
+        >
           Buscar
         </Button>
       </form>
@@ -137,85 +156,147 @@ function CustomersListContent() {
           role="status"
           data-testid="customers-list-loading-status"
           aria-busy="true"
+          className="mt-6 text-muted"
         >
           Cargando…
         </p>
       ) : list.isError ? (
-        <div>
-          <p role="alert" data-testid="customers-list-error-alert">
+        <div className="mt-6">
+          <Alert testId="customers-list-error-alert">
             {problemDetail()}
-          </p>
-          <Button
-            testId="customers-list-retry-button"
-            onClick={() => void list.refetch()}
-          >
-            Reintentar
-          </Button>
+          </Alert>
+          <div className="mt-3">
+            <Button
+              testId="customers-list-retry-button"
+              onClick={() => void list.refetch()}
+            >
+              Reintentar
+            </Button>
+          </div>
         </div>
       ) : data !== null && data.items.length === 0 ? (
-        <p role="status" data-testid="customers-list-empty-status">
+        <p
+          role="status"
+          data-testid="customers-list-empty-status"
+          className="mt-6 text-muted"
+        >
           No hay clientes que coincidan.
         </p>
       ) : data !== null ? (
         <>
-          <table data-testid="customers-list-table">
-            <thead>
-              <tr>
-                <th scope="col">Nombre</th>
-                <th scope="col">Email</th>
-                <th scope="col">ID fiscal</th>
-                <th scope="col">Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.items.map((customer) => (
-                <tr
-                  key={customer.id}
-                  data-testid={`customers-list-row-${customer.id}`}
-                >
-                  <td data-testid={`customers-list-name-cell-${customer.id}`}>
-                    <Link
-                      href={`/customers/${customer.id}`}
-                      testId={`customers-list-view-link-${customer.id}`}
-                    >
-                      {customer.name}
-                    </Link>
-                  </td>
-                  <td data-testid={`customers-list-email-cell-${customer.id}`}>
-                    {customer.email}
-                  </td>
-                  <td data-testid={`customers-list-taxid-cell-${customer.id}`}>
-                    {customer.tax_id ?? "—"}
-                  </td>
-                  <td data-testid={`customers-list-state-cell-${customer.id}`}>
-                    {statusLabel(customer.status)}
-                  </td>
+          {/*
+           * The wide content scrolls inside this wrapper, never the page:
+           * the padding keeps the 3px focus ring visible around the
+           * scrollbar edges.
+           */}
+          <div className="mt-6 overflow-x-auto p-1.5">
+            <table
+              data-testid="customers-list-table"
+              className="min-w-[40rem]"
+            >
+              <thead>
+                <tr>
+                  <th scope="col" className={TABLE_HEAD_CLASSES}>Nombre</th>
+                  <th scope="col" className={TABLE_HEAD_CLASSES}>Email</th>
+                  <th scope="col" className={TABLE_HEAD_CLASSES}>ID fiscal</th>
+                  <th scope="col" className={TABLE_HEAD_CLASSES}>Estado</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <nav aria-label="Paginación de clientes">
-            <Button
-              testId="customers-list-prev-button"
-              disabled={params.page <= 1}
-              onClick={() => goToPage(params.page - 1)}
+              </thead>
+              <tbody>
+                {data.items.map((customer) => (
+                  <tr
+                    key={customer.id}
+                    data-testid={`customers-list-row-${customer.id}`}
+                    className="ledger-row"
+                  >
+                    <td
+                      data-testid={`customers-list-name-cell-${customer.id}`}
+                      className={TABLE_CELL_CLASSES}
+                    >
+                      <Link
+                        href={`/customers/${customer.id}`}
+                        testId={`customers-list-view-link-${customer.id}`}
+                        className="font-medium"
+                      >
+                        {customer.name}
+                      </Link>
+                    </td>
+                    <td
+                      data-testid={`customers-list-email-cell-${customer.id}`}
+                      className={TABLE_CELL_CLASSES}
+                    >
+                      {customer.email}
+                    </td>
+                    <td
+                      data-testid={`customers-list-taxid-cell-${customer.id}`}
+                      className={TABLE_CELL_NOWRAP_CLASSES}
+                    >
+                      {customer.tax_id ?? <span className="text-muted">—</span>}
+                    </td>
+                    <td
+                      data-testid={`customers-list-state-cell-${customer.id}`}
+                      className={TABLE_CELL_NOWRAP_CLASSES}
+                    >
+                      <span
+                        className={[
+                          "inline-flex rounded-sm px-2 py-0.5 text-xs font-semibold",
+                          customer.status === "active"
+                            ? "bg-ok-bg text-accent"
+                            : "bg-off-bg text-muted",
+                        ].join(" ")}
+                      >
+                        {statusLabel(customer.status)}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/*
+           * The ledger footer: a 4px double rule of ink above it, the
+           * total on the left and the pagination on the right. The total
+           * lives in this footer item, not inside the pagination nav.
+           */}
+          <div
+            data-testid="customers-list-footer-item"
+            className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t-4 border-double border-ink pt-3"
+          >
+            <p
+              data-testid="customers-list-total-text"
+              className="font-semibold tabular-nums"
             >
-              Anterior
-            </Button>
-            <Button
-              testId="customers-list-next-button"
-              disabled={params.page >= lastPage(data.total, data.page_size)}
-              onClick={() => goToPage(params.page + 1)}
-            >
-              Siguiente
-            </Button>
-            <p data-testid="customers-list-page-text">
-              {`Página ${params.page} de ${lastPage(data.total, data.page_size)}`}
-            </p>
-            <p data-testid="customers-list-total-text">
               {data.total === 1 ? "1 cliente" : `${data.total} clientes`}
             </p>
-          </nav>
+            <nav
+              aria-label="Paginación de clientes"
+              className="flex flex-wrap items-center gap-3"
+            >
+              <Button
+                testId="customers-list-prev-button"
+                variant="secondary"
+                disabled={params.page <= 1}
+                onClick={() => goToPage(params.page - 1)}
+              >
+                Anterior
+              </Button>
+              <p
+                data-testid="customers-list-page-text"
+                className="tabular-nums"
+              >
+                {`Página ${params.page} de ${lastPage(data.total, data.page_size)}`}
+              </p>
+              <Button
+                testId="customers-list-next-button"
+                variant="secondary"
+                disabled={params.page >= lastPage(data.total, data.page_size)}
+                onClick={() => goToPage(params.page + 1)}
+              >
+                Siguiente
+              </Button>
+            </nav>
+          </div>
         </>
       ) : null}
     </div>

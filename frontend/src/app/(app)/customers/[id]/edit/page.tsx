@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Link } from "@/components/ui";
+import { Alert, Button, Link } from "@/components/ui";
 import { useMe } from "@/features/auth/hooks";
 import { CustomerForm } from "@/features/customers/CustomerForm";
 import { useCustomer } from "@/features/customers/hooks";
@@ -18,16 +18,14 @@ export default function CustomerEditPage() {
     // calling the API.
     return (
       <div>
-        <p
-          role="alert"
-          data-testid="customers-form-error-alert"
-          tabIndex={-1}
-        >
+        <Alert testId="customers-form-error-alert" tabIndex={-1}>
           No se encontró el recurso solicitado.
-        </p>
-        <Link href="/customers" testId="customers-form-cancel-link">
-          Cancelar
-        </Link>
+        </Alert>
+        <div className="mt-3">
+          <Link href="/customers" testId="customers-form-cancel-link">
+            Cancelar
+          </Link>
+        </div>
       </div>
     );
   }
@@ -48,6 +46,7 @@ function CustomerEdit({ id }: { id: number }) {
         role="status"
         data-testid="customers-form-loading-status"
         aria-busy="true"
+        className="text-muted"
       >
         Cargando…
       </p>
@@ -57,12 +56,9 @@ function CustomerEdit({ id }: { id: number }) {
   const user = me.data;
   if (user && !canManageCustomers(user.role)) {
     return (
-      <p
-        role="alert"
-        data-testid="customers-form-forbidden-alert"
-      >
+      <Alert testId="customers-form-forbidden-alert">
         No tienes permiso para realizar esta acción.
-      </p>
+      </Alert>
     );
   }
 
@@ -72,6 +68,7 @@ function CustomerEdit({ id }: { id: number }) {
         role="status"
         data-testid="customers-form-loading-status"
         aria-busy="true"
+        className="text-muted"
       >
         Cargando…
       </p>
@@ -87,21 +84,19 @@ function CustomerEdit({ id }: { id: number }) {
 
     return (
       <div>
-        <p
-          role="alert"
-          data-testid="customers-form-error-alert"
-          tabIndex={-1}
-        >
+        <Alert testId="customers-form-error-alert" tabIndex={-1}>
           {detail}
-        </p>
-        {is404 ? null : (
-          <Button
-            testId="customers-form-retry-button"
-            onClick={() => void customer.refetch()}
-          >
-            Reintentar
-          </Button>
-        )}
+        </Alert>
+        <div className="mt-3">
+          {is404 ? null : (
+            <Button
+              testId="customers-form-retry-button"
+              onClick={() => void customer.refetch()}
+            >
+              Reintentar
+            </Button>
+          )}
+        </div>
       </div>
     );
   }

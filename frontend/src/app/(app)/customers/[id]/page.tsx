@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Link } from "@/components/ui";
+import { Alert, Button, Link } from "@/components/ui";
 import { useMe } from "@/features/auth/hooks";
 import {
   useCustomer,
@@ -13,6 +13,21 @@ import { ApiRequestError, INTERNAL_ERROR_DETAIL } from "@/lib/api";
 import { useParams } from "next/navigation";
 import { useRef, useState } from "react";
 
+const BADGE_CLASSES = "inline-flex rounded-sm px-2 py-0.5 text-xs font-semibold";
+
+/** The definition row of the detail card: label in muted, value in ink. */
+function DetailRow({ label, children }: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid items-baseline gap-1 sm:grid-cols-[160px_minmax(0,1fr)] sm:gap-4">
+      <dt className="text-[13px] font-medium text-muted">{label}</dt>
+      {children}
+    </div>
+  );
+}
+
 export default function CustomerDetailPage() {
   const id = parseCustomerIdParam(useParams().id);
 
@@ -21,12 +36,14 @@ export default function CustomerDetailPage() {
     // calling the API.
     return (
       <div>
-        <p role="alert" data-testid="customers-detail-error-alert">
+        <Alert testId="customers-detail-error-alert">
           No se encontró el recurso solicitado.
-        </p>
-        <Link href="/customers" testId="customers-detail-back-link">
-          Volver a clientes
-        </Link>
+        </Alert>
+        <div className="mt-3">
+          <Link href="/customers" testId="customers-detail-back-link">
+            Volver a clientes
+          </Link>
+        </div>
       </div>
     );
   }
@@ -51,6 +68,7 @@ function CustomerDetail({ id }: { id: number }) {
         role="status"
         data-testid="customers-detail-loading-status"
         aria-busy="true"
+        className="text-muted"
       >
         Cargando…
       </p>
@@ -65,21 +83,23 @@ function CustomerDetail({ id }: { id: number }) {
 
     return (
       <div>
-        <p role="alert" data-testid="customers-detail-error-alert">
+        <Alert testId="customers-detail-error-alert">
           {problem.detail}
-        </p>
-        {is404 ? (
-          <Link href="/customers" testId="customers-detail-back-link">
-            Volver a clientes
-          </Link>
-        ) : (
-          <Button
-            testId="customers-detail-retry-button"
-            onClick={() => void customer.refetch()}
-          >
-            Reintentar
-          </Button>
-        )}
+        </Alert>
+        <div className="mt-3">
+          {is404 ? (
+            <Link href="/customers" testId="customers-detail-back-link">
+              Volver a clientes
+            </Link>
+          ) : (
+            <Button
+              testId="customers-detail-retry-button"
+              onClick={() => void customer.refetch()}
+            >
+              Reintentar
+            </Button>
+          )}
+        </div>
       </div>
     );
   }
@@ -121,51 +141,63 @@ function CustomerDetail({ id }: { id: number }) {
       <h1 data-testid="customers-detail-heading">{data.name}</h1>
 
       {actionError ? (
-        <p role="alert" data-testid="customers-detail-alert">
-          {actionError}
-        </p>
+        <div className="mt-3">
+          <Alert testId="customers-detail-alert">
+            {actionError}
+          </Alert>
+        </div>
       ) : null}
 
-      <dl>
-        <div>
-          <dt>Nombre</dt>
-          <dd data-testid="customers-detail-name-text">{data.name}</dd>
-        </div>
-        <div>
-          <dt>Email</dt>
-          <dd data-testid="customers-detail-email-text">{data.email}</dd>
-        </div>
-        <div>
-          <dt>Teléfono</dt>
-          <dd data-testid="customers-detail-phone-text">
-            {data.phone ?? "—"}
-          </dd>
-        </div>
-        <div>
-          <dt>ID fiscal</dt>
-          <dd data-testid="customers-detail-taxid-text">
-            {data.tax_id ?? "—"}
-          </dd>
-        </div>
-        <div>
-          <dt>Dirección</dt>
-          <dd data-testid="customers-detail-address-text">
-            {data.address ?? "—"}
-          </dd>
-        </div>
-        <div>
-          <dt>Estado</dt>
-          <dd data-testid="customers-detail-state-status">
-            {statusLabel(data.status)}
-          </dd>
-        </div>
-      </dl>
+      <div className="mt-6 rounded-lg border border-line bg-surface p-5">
+        <dl className="flex flex-col gap-3">
+          <DetailRow label="Nombre">
+            <dd data-testid="customers-detail-name-text" className="break-words">
+              {data.name}
+            </dd>
+          </DetailRow>
+          <DetailRow label="Email">
+            <dd data-testid="customers-detail-email-text" className="break-words">
+              {data.email}
+            </dd>
+          </DetailRow>
+          <DetailRow label="Teléfono">
+            <dd data-testid="customers-detail-phone-text" className="break-words tabular-nums">
+              {data.phone ?? <span className="text-muted">—</span>}
+            </dd>
+          </DetailRow>
+          <DetailRow label="ID fiscal">
+            <dd data-testid="customers-detail-taxid-text" className="break-words tabular-nums">
+              {data.tax_id ?? <span className="text-muted">—</span>}
+            </dd>
+          </DetailRow>
+          <DetailRow label="Dirección">
+            <dd data-testid="customers-detail-address-text" className="break-words">
+              {data.address ?? <span className="text-muted">—</span>}
+            </dd>
+          </DetailRow>
+          <DetailRow label="Estado">
+            <dd data-testid="customers-detail-state-status">
+              <span
+                className={[
+                  BADGE_CLASSES,
+                  data.status === "active"
+                    ? "bg-ok-bg text-accent"
+                    : "bg-off-bg text-muted",
+                ].join(" ")}
+              >
+                {statusLabel(data.status)}
+              </span>
+            </dd>
+          </DetailRow>
+        </dl>
+      </div>
 
       {canManage ? (
-        <div>
+        <div className="mt-6 flex flex-wrap items-center gap-3">
           <Link
             href={`/customers/${data.id}/edit`}
             testId="customers-detail-edit-link"
+            variant="secondary"
           >
             Editar
           </Link>
@@ -175,6 +207,7 @@ function CustomerDetail({ id }: { id: number }) {
                 ? "customers-detail-deactivate-button"
                 : "customers-detail-reactivate-button"
             }
+            variant="secondary"
             loading={busy}
             onClick={() => void handleStatusChange()}
           >
@@ -183,9 +216,11 @@ function CustomerDetail({ id }: { id: number }) {
         </div>
       ) : null}
 
-      <Link href="/customers" testId="customers-detail-back-link">
-        Volver a clientes
-      </Link>
+      <div className="mt-6">
+        <Link href="/customers" testId="customers-detail-back-link">
+          Volver a clientes
+        </Link>
+      </div>
     </div>
   );
 }

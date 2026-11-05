@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Input, Link, Textarea } from "@/components/ui";
+import { Alert, Button, Input, Link, Textarea } from "@/components/ui";
 import { useCreateCustomer, useUpdateCustomer } from "@/features/customers/hooks";
 import { ApiRequestError, INTERNAL_ERROR_DETAIL } from "@/lib/api";
 import { useRouter } from "next/navigation";
@@ -268,29 +268,30 @@ export function CustomerForm(props: CustomerFormProps) {
     : `/customers/${customer?.id ?? 0}`;
 
   return (
-    <div>
+    <div className="w-full max-w-[520px]">
       <h1 data-testid="customers-form-heading">
         {mode === "create" ? "Nuevo cliente" : "Editar cliente"}
       </h1>
 
       {formError ? (
-        <div>
-          <p
+        <div className="mt-3">
+          <Alert
             ref={formAlertRef}
-            role="alert"
-            data-testid="customers-form-alert"
+            testId="customers-form-alert"
             tabIndex={-1}
           >
             {formError}
-          </p>
+          </Alert>
           {versionConflict && onReload ? (
-            <Button
-              testId="customers-form-reload-button"
-              loading={reloadPending}
-              onClick={() => void handleReload()}
-            >
-              Recargar datos
-            </Button>
+            <div className="mt-3">
+              <Button
+                testId="customers-form-reload-button"
+                loading={reloadPending}
+                onClick={() => void handleReload()}
+              >
+                Recargar datos
+              </Button>
+            </div>
           ) : null}
         </div>
       ) : null}
@@ -299,6 +300,7 @@ export function CustomerForm(props: CustomerFormProps) {
         data-testid="customers-customer-form"
         noValidate
         onSubmit={handleSubmit}
+        className="mt-6 flex flex-col gap-4"
       >
         <Input
           ref={nameRef}
@@ -352,20 +354,29 @@ export function CustomerForm(props: CustomerFormProps) {
           label="Dirección"
           value={values.address}
           onChange={(event) =>
-            setValues((current) => ({ ...current, address: event.target.value }))
+            setValues((current) =>
+              ({ ...current, address: event.target.value }),
+            )
           }
           error={fieldErrors.address}
         />
-        <Button
-          testId="customers-form-submit-button"
-          type="submit"
-          loading={isSubmitting}
-        >
-          {isSubmitting ? "Guardando…" : "Guardar"}
-        </Button>
-        <Link href={cancelHref} testId="customers-form-cancel-link">
-          Cancelar
-        </Link>
+        <div className="flex flex-col items-stretch gap-3 md:flex-row md:items-center">
+          <Button
+            testId="customers-form-submit-button"
+            type="submit"
+            loading={isSubmitting}
+            className="w-full md:w-auto"
+          >
+            {isSubmitting ? "Guardando…" : "Guardar"}
+          </Button>
+          <Link
+            href={cancelHref}
+            testId="customers-form-cancel-link"
+            className="text-center md:text-left"
+          >
+            Cancelar
+          </Link>
+        </div>
       </form>
     </div>
   );

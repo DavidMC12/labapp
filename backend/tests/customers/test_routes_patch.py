@@ -9,8 +9,12 @@ from fastapi.testclient import TestClient
 from tests.customers.helpers import assert_field_error, assert_problem
 
 
-def test_patch_a_single_field_bumps_the_version(clients: dict[str, TestClient]) -> None:
-    response = clients["sales"].patch(
+@pytest.mark.parametrize("role", ["admin", "sales"])
+def test_patch_a_single_field_bumps_the_version(
+    clients: dict[str, TestClient],
+    role: str,
+) -> None:
+    response = clients[role].patch(
         "/api/customers/1",
         json={"name": "Acme Updated", "version": 1},
     )

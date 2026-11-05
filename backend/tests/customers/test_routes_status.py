@@ -9,8 +9,9 @@ from fastapi.testclient import TestClient
 from tests.customers.helpers import assert_problem
 
 
-def test_deactivate_then_reactivate(clients: dict[str, TestClient]) -> None:
-    deactivated = clients["sales"].post(
+@pytest.mark.parametrize("role", ["admin", "sales"])
+def test_deactivate_then_reactivate(clients: dict[str, TestClient], role: str) -> None:
+    deactivated = clients[role].post(
         "/api/customers/1/deactivate",
         headers={"If-Match": '"1"'},
     )
@@ -19,7 +20,7 @@ def test_deactivate_then_reactivate(clients: dict[str, TestClient]) -> None:
     assert deactivated.json()["version"] == 2
     assert deactivated.headers["etag"] == '"2"'
 
-    reactivated = clients["sales"].post(
+    reactivated = clients[role].post(
         "/api/customers/1/reactivate",
         headers={"If-Match": "2"},
     )

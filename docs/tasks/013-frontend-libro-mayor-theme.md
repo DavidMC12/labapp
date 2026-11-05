@@ -92,3 +92,13 @@ pnpm build
 - Use paths relative to your working directory.
 - If the brief is ambiguous or two requirements collide, do not guess: write the question in your report.
 - When done, reply with: the branch, the commit range, the exact commands you ran with their exit codes, and any deviation or open question. You cannot see the result in a browser; say so, and list the choices you made that only a visual check can confirm.
+
+## Corrections after the review
+
+A second agent reviewed this brief while the work was under way. These corrections were sent to the implementer and are part of the task as delivered:
+
+- **Existing tests.** `src/app/(app)/layout.test.tsx` and `src/app/auth-flow.test.tsx` gained `usePathname` in their `next/navigation` mocks, and one assertion of `src/app/login/page.test.tsx` (the `"· "` separator of the demo-user rows) was relaxed to the email and the role label. No other test was changed.
+- **Tailwind and fonts.** Element rules live in `@layer base`; the font variables have their own names (`--font-plex-sans`, `--font-plex-serif`); IBM Plex Sans at weights 400, 500 and 600, IBM Plex Serif at 600, Latin subset; the font calls are only in the root layout.
+- **Tokens.** A new `accent-hover` token (`#0B4A38`); more contrast pairs are tested (`focus`/`rail`, `danger`/`paper`, `danger`/`surface`, `accent-ink`/`accent-hover`); the literal-color guard also rejects `rgba(`, `hsla(`, `oklch(`, `oklab(`, `lab(`, `lch(`, `hwb(`, `color(` and Tailwind palette classes.
+- **Layout.** The DOM order of the shell is brand, navigation, user block; below 768px the user block is a row under the links. Scrolling containers have 6px of padding so the focus ring is not clipped. The rail is 212px wide and sticky. Inputs use 16px text below 768px. The ledger footer is a wrapper with the test id `customers-list-footer-item`, holding the total text and the pagination `nav`.
+- **After the first visual check** (screenshots of the running app): the ID fiscal and Estado cells do not wrap, the list table has a minimum width so the wrapper scrolls on a phone, and the customer form column is left aligned.

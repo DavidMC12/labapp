@@ -252,6 +252,72 @@ describe("the customer form client checks", () => {
       "customers-form-name-input",
     );
   });
+
+  it("moves the focus again on a repeated client-side failure", async () => {
+    renderForm({ mode: "create" });
+    const user = userEvent.setup();
+    const submit = () => screen.getByTestId("customers-form-submit-button");
+
+    await user.click(submit());
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("customers-form-name-error"),
+      ).toBeInTheDocument();
+    });
+    expect(document.activeElement).toHaveAttribute(
+      "data-testid",
+      "customers-form-name-input",
+    );
+
+    // The click leaves the focus on the button (user-event focuses it
+    // before firing); submitting again with the same empty form must
+    // bring the focus back to the name field, not leave it on the button.
+    await user.click(submit());
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(document.activeElement).toHaveAttribute(
+      "data-testid",
+      "customers-form-name-input",
+    );
+  });
+
+  it("moves the focus again on a repeated server failure", async () => {
+    // A fresh 409 response per request, so the second failure is the same
+    // problem document as the first.
+    fetchMock.mockImplementation(async () =>
+      problem({
+        status: 409,
+        code: "CUSTOMER_EMAIL_TAKEN",
+        detail: "Ya existe un cliente con ese email.",
+      }),
+    );
+    renderForm({ mode: "create" });
+    const user = userEvent.setup();
+    const submit = () => screen.getByTestId("customers-form-submit-button");
+
+    await user.type(screen.getByTestId("customers-form-name-input"), "Otro");
+    await user.type(
+      screen.getByTestId("customers-form-email-input"),
+      "hotel@example.test",
+    );
+
+    await user.click(submit());
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("customers-form-email-error"),
+      ).toHaveTextContent("Ya existe un cliente con ese email.");
+    });
+    expect(document.activeElement).toHaveAttribute(
+      "data-testid",
+      "customers-form-email-input",
+    );
+
+    await user.click(submit());
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    expect(document.activeElement).toHaveAttribute(
+      "data-testid",
+      "customers-form-email-input",
+    );
+  });
 });
 
 describe("the customer form server errors", () => {

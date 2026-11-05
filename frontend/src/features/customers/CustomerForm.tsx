@@ -104,6 +104,8 @@ export function CustomerForm(props: CustomerFormProps) {
   const [formError, setFormError] = useState<string | null>(null);
   const [versionConflict, setVersionConflict] = useState(false);
   const [reloadPending, setReloadPending] = useState(false);
+  // One increment per failed submit; the focus effect below depends on it.
+  const [failureCount, setFailureCount] = useState(0);
 
   // The pending guard lives in the handler: a state update would not be
   // visible to a second submit processed in the same tick.
@@ -143,7 +145,10 @@ export function CustomerForm(props: CustomerFormProps) {
   }, [resetSignal]);
 
   // Focus after a failure: the form-level alert when it is shown,
-  // otherwise the first field with an error.
+  // otherwise the first field with an error. Each failed submit bumps
+  // `failureCount`, so a failure with the same error strings as before
+  // (an unchanged dependency set would skip the effect) still moves the
+  // focus.
   useEffect(() => {
     if (!formError && !fieldErrors.name && !fieldErrors.email
       && !fieldErrors.phone && !fieldErrors.taxId && !fieldErrors.address) {
@@ -163,6 +168,7 @@ export function CustomerForm(props: CustomerFormProps) {
       addressRef.current?.focus();
     }
   }, [
+    failureCount,
     formError,
     fieldErrors.name,
     fieldErrors.email,
@@ -204,6 +210,7 @@ export function CustomerForm(props: CustomerFormProps) {
     }
 
     if (nextFieldErrors.name || nextFieldErrors.email) {
+      setFailureCount((count) => count + 1);
       setFieldErrors(nextFieldErrors);
       setFormError(null);
       setVersionConflict(false);
@@ -232,6 +239,7 @@ export function CustomerForm(props: CustomerFormProps) {
           });
       router.replace(`/customers/${saved.id}`);
     } catch (error) {
+      setFailureCount((count) => count + 1);
       if (error instanceof ApiRequestError) {
         const problem = error.problem;
         if (problem.code === "VERSION_CONFLICT") {

@@ -50,12 +50,16 @@ const REQUIRED_CONTRAST: [foreground: string, background: string, minimum: numbe
   ["rail-muted", "rail", 4.5],
   ["rail-muted", "rail-hover", 4.5],
   ["accent-ink", "accent", 4.5],
+  ["accent-ink", "accent-hover", 4.5],
   ["accent", "ok-bg", 4.5],
   ["muted", "off-bg", 4.5],
   ["danger", "danger-bg", 4.5],
+  ["danger", "paper", 4.5],
+  ["danger", "surface", 4.5],
   ["accent", "paper", 4.5],
   ["control-border", "surface", 3],
   ["focus", "paper", 3],
+  ["focus", "rail", 3],
 ];
 
 const REQUIRED_TOKENS = [
@@ -70,6 +74,7 @@ const REQUIRED_TOKENS = [
   "rail-muted",
   "rail-hover",
   "accent",
+  "accent-hover",
   "accent-ink",
   "ok-bg",
   "off-bg",

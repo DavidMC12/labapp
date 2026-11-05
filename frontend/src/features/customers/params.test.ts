@@ -64,11 +64,26 @@ describe("parseCustomerListParams", () => {
     ).toEqual({ page: 1, q: null, status: null });
   });
 
-  it("accepts a page above 2147483647 only as far as the URL state goes", () => {
-    // The parser keeps numeric pages as they are; the page-beyond-the-last
-    // logic of the list corrects them against the real total.
+  it("keeps a page inside the API range", () => {
     expect(
-      parseCustomerListParams(new URLSearchParams("page=99")),
-    ).toMatchObject({ page: 99 });
+      parseCustomerListParams(new URLSearchParams("page=1000000")),
+    ).toMatchObject({ page: 1000000 });
+  });
+
+  it("falls back to page 1 above the API range", () => {
+    // The API answers 422 OUT_OF_RANGE to page > 1000000; the URL is page
+    // state, so the boundary value falls back like any other invalid one.
+    expect(
+      parseCustomerListParams(new URLSearchParams("page=1000001")),
+    ).toMatchObject({ page: 1 });
+    expect(
+      parseCustomerListParams(new URLSearchParams("page=999999999999999")),
+    ).toMatchObject({ page: 1 });
+  });
+
+  it("does not correct a page inside the range for the detail id", () => {
+    // The detail id keeps its own larger cap (docs/SPEC.md section 4 cap:
+    // 2147483647), unchanged by the page range.
+    expect(parseCustomerIdParam("2147483647")).toBe(2147483647);
   });
 });

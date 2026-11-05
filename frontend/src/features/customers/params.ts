@@ -4,6 +4,9 @@
 
 import type { CustomerStatus } from "./types";
 
+/** Largest page the list API recognizes (docs/SPEC.md section 4). */
+const MAX_PAGE = 1000000;
+
 /** Largest id the API recognizes (docs/SPEC.md section 4). */
 const MAX_ID = 2147483647;
 
@@ -39,7 +42,8 @@ export type CustomerListParams = {
 
 /**
  * Reads the list URL parameters, with every invalid value falling back:
- * a `page` that is not a positive integer becomes 1, and a `status` that is
+ * a `page` that is not a positive integer up to 1000000 becomes 1 (the
+ * API answers 422 `OUT_OF_RANGE` to anything else), and a `status` that is
  * not `active` or `inactive` becomes no status. `q` is trimmed; an
  * empty-after-trimming `q` is no value at all.
  */
@@ -47,7 +51,9 @@ export function parseCustomerListParams(
   searchParams: URLSearchParams,
 ): CustomerListParams {
   const pageRaw = searchParams.get("page") ?? "";
-  const page = ID_PATTERN.test(pageRaw) ? Number(pageRaw) : 1;
+  const page = ID_PATTERN.test(pageRaw) && Number(pageRaw) <= MAX_PAGE
+    ? Number(pageRaw)
+    : 1;
 
   const qRaw = (searchParams.get("q") ?? "").trim();
   const q = qRaw === "" ? null : qRaw;

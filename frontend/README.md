@@ -93,11 +93,12 @@ Spanish.
   detail (`/customers/{id}`) and the edit form (`/customers/{id}/edit`).
   Create and edit share `src/features/customers/CustomerForm.tsx`.
 - URL parameters of the list (the state lives in the URL so links can be
-  shared): `page` (integer, falls back to 1 when invalid), `q` (the search
-  text, trimmed, present only when it has a value) and `status`
-  (`active`/`inactive`, no filter when absent). Submitting the search goes
-  back to page 1; a page beyond the last one is replaced in the URL by the
-  last page (`max(1, ceil(total / 20))`).
+  shared): `page` (integer up to 1000000, falls back to 1 when invalid or
+  out of range — the API answers 422 `OUT_OF_RANGE` beyond that), `q`
+  (the search text, trimmed, present only when it has a value) and
+  `status` (`active`/`inactive`, no filter when absent). Submitting the
+  search goes back to page 1; a page beyond the last one is replaced in
+  the URL by the last page (`max(1, ceil(total / 20))`).
 - Data layer on TanStack Query, all with `retry: false`:
   `useCustomers({page, q, status})`, `useCustomer(id)`,
   `useCreateCustomer()`, `useUpdateCustomer()` and

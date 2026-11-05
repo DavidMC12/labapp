@@ -35,6 +35,9 @@ const TABLE_HEAD_CLASSES = [
 const TABLE_CELL_CLASSES =
   "border-b border-line px-[10px] py-[9px] text-ink tabular-nums";
 
+/** The ID fiscal and Estado cells must not wrap in the middle of a code. */
+const TABLE_CELL_NOWRAP_CLASSES = `${TABLE_CELL_CLASSES} whitespace-nowrap`;
+
 function CustomersListContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -187,7 +190,10 @@ function CustomersListContent() {
            * scrollbar edges.
            */}
           <div className="mt-6 overflow-x-auto p-1.5">
-            <table data-testid="customers-list-table">
+            <table
+              data-testid="customers-list-table"
+              className="min-w-[40rem]"
+            >
               <thead>
                 <tr>
                   <th scope="col" className={TABLE_HEAD_CLASSES}>Nombre</th>
@@ -223,13 +229,13 @@ function CustomersListContent() {
                     </td>
                     <td
                       data-testid={`customers-list-taxid-cell-${customer.id}`}
-                      className={TABLE_CELL_CLASSES}
+                      className={TABLE_CELL_NOWRAP_CLASSES}
                     >
                       {customer.tax_id ?? <span className="text-muted">—</span>}
                     </td>
                     <td
                       data-testid={`customers-list-state-cell-${customer.id}`}
-                      className={TABLE_CELL_CLASSES}
+                      className={TABLE_CELL_NOWRAP_CLASSES}
                     >
                       <span
                         className={[

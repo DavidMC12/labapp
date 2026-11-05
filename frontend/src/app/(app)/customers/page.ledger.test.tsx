@@ -109,6 +109,51 @@ afterEach(() => {
 });
 
 describe("the customers list ledger styling", () => {
+  it("keeps the tax id and the state cells on one line", async () => {
+    listBody = listPageOf([
+      seededCustomer(1, { tax_id: "JUPI-300210", status: "active" }),
+    ]);
+    renderAt("");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-list-table")).toBeInTheDocument();
+    });
+
+    const classNamesOf = (testId: string) =>
+      (screen.getByTestId(testId).getAttribute("class") ?? "").split(" ");
+
+    // The code may not be broken in the middle when the name squeezes the
+    // columns; the name still wraps.
+    expect(classNamesOf("customers-list-name-cell-1")).not.toContain(
+      "whitespace-nowrap",
+    );
+    expect(classNamesOf("customers-list-taxid-cell-1")).toContain(
+      "whitespace-nowrap",
+    );
+    expect(classNamesOf("customers-list-state-cell-1")).toContain(
+      "whitespace-nowrap",
+    );
+  });
+
+  it("scrolls inside the table wrapper, never the page, on a phone", async () => {
+    listBody = listPageOf([seededCustomer(1)]);
+    renderAt("page=1");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-list-table")).toBeInTheDocument();
+    });
+
+    // The table holds a minimum width; the wrapper (overflow-x-auto)
+    // scrolls, so the page itself does not move horizontally.
+    const table = screen.getByTestId("customers-list-table");
+    expect((table.getAttribute("class") ?? "").split(" ")).toContain(
+      "min-w-[40rem]",
+    );
+    expect(table.parentElement?.getAttribute("class")).toMatch(
+      /(^|\s)overflow-x-auto(\s|$)/,
+    );
+  });
+
   it("renders the active and inactive badges with their text", async () => {
     listBody = listPageOf([
       seededCustomer(1, { status: "active" }),

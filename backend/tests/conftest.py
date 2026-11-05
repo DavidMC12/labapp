@@ -2,13 +2,18 @@
 
 import os
 
+from app.config import Settings
+
+for _name in ("DATABASE_URL", "DATABASE_URL_UNPOOLED", "DATABASE_SCHEMA"):
+    os.environ.pop(_name, None)
+Settings.model_config["env_file"] = None
+
 os.environ.setdefault("SESSION_SECRET", "test-secret")
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.config import Settings
 from app.main import create_app
 
 

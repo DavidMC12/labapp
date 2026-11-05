@@ -12,7 +12,9 @@ from fastapi import FastAPI
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
+from app.config import Settings
 from app.domain.permissions import Action
+from app.main import create_app
 from app.modules.auth import dependencies as auth_dependencies
 from app.modules.auth import routes as auth_routes
 from app.modules.auth.constants import SESSION_COOKIE_NAME
@@ -266,12 +268,20 @@ def test_login_request_repr_hides_the_email_and_password() -> None:
     assert "super-secret" not in rendered
 
 
-def test_container_repr_hides_the_settings(app: FastAPI) -> None:
-    container = app.state.container
+def test_container_repr_hides_the_settings() -> None:
+    settings = Settings(
+        session_secret="test-secret",
+        database_url="postgresql+psycopg://user:password@host/db",
+        database_url_unpooled="postgresql+psycopg://user:password@host/unpooled",
+    )
+    container = create_app(settings).state.container
     rendered = repr(container)
 
-    assert container.settings.session_secret not in rendered
-    assert container.settings.database_url not in rendered
+    assert settings.session_secret not in rendered
+    assert settings.database_url is not None
+    assert settings.database_url not in rendered
+    assert settings.database_url_unpooled is not None
+    assert settings.database_url_unpooled not in rendered
 
 
 def _api_routes(app: FastAPI) -> list[APIRoute]:

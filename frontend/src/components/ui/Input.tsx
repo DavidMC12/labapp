@@ -7,6 +7,8 @@ type InputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "id"> & {
   testId: TestId;
   label: string;
   error?: string;
+  /** Visually hides the label; it stays linked for screen readers. */
+  hideLabel?: boolean;
   /** React 19 forwards `ref` as a prop. */
   ref?: Ref<HTMLInputElement>;
 };
@@ -35,6 +37,7 @@ export function Input({
   testId,
   label,
   error,
+  hideLabel = false,
   ref: controlRef,
   className,
   ...rest
@@ -42,7 +45,13 @@ export function Input({
   const errorId = errorTestId(testId);
 
   return (
-    <Field id={id} label={label} errorId={errorId} error={error}>
+    <Field
+      id={id}
+      label={label}
+      errorId={errorId}
+      error={error}
+      hideLabel={hideLabel}
+    >
       <input
         ref={controlRef}
         {...rest}

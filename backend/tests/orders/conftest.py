@@ -63,3 +63,8 @@ def draft_id(clients: dict[str, TestClient]) -> int:
     response = clients["sales"].post("/api/orders", json={"customer_id": 1})
     assert response.status_code == 201
     return response.json()["id"]
+
+
+@pytest.fixture(autouse=True)
+def reset_limiters(app: FastAPI) -> None:
+    app.state.container.reset_limiters()

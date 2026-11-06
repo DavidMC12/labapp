@@ -14,3 +14,21 @@ node --test tools/audit/testid-audit.test.mjs           # test the audit itself
 ```
 
 It needs the frontend dependencies installed (it uses the TypeScript compiler from `frontend/node_modules`). CI runs both commands in the frontend job.
+
+## Browser audit
+
+`browser-audit.mjs` opens every state of `states.json` in a headless Chrome (through the DevTools protocol, no extra package besides `axe-core`), logs in as the state's user, waits for the state to render and fails when:
+
+- an interactive element (`a[href]`, `button`, `input` other than `hidden`, `select`, `textarea`, `summary`, a `tabindex` of 0 or more, or one of the listed roles) is visible and has no `data-testid`;
+- a `data-testid` is used twice on the page, or does not match the grammar;
+- axe-core reports a **serious or critical** violation of WCAG 2.0 or 2.1 level A or AA (lesser ones are printed as warnings).
+
+It prints every state it covered: the 100% goal is measured over those states, so a screen that is not in `states.json` is a gap of the audit. **Add a state for every new screen and every notable state of it** (an empty list, an error, a detail page of a fixed seed record).
+
+```bash
+scripts/dev.sh                                  # or any running API and web app
+CHROME_BIN=/usr/bin/chromium node tools/audit/browser-audit.mjs
+node tools/audit/browser-audit.mjs --only orders-list,orders-new --base http://localhost:3000
+```
+
+It needs a running application (the states use the demo users and the fixed seed data, so run the API in memory mode: with `DATABASE_URL` empty, or against a freshly seeded database) and Chrome or Chromium (`CHROME_BIN` or the usual paths). CI builds the web app, starts both processes and runs it in the `browser-audit` job.

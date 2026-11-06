@@ -1,0 +1,153 @@
+#!/usr/bin/env node
+// Browser audit of the test id contract and of accessibility (docs/TESTABILITY.md).
+//
+// It opens every state of tools/audit/states.json in a headless Chromium, logs in as the
+// state's user, waits for the state to render, and reports:
+//   - an interactive element without a valid data-testid (grammar read from frontend/src/lib/testid.ts);
+//   - a data-testid used twice on one page;
+//   - every axe-core violation of impact serious or critical (WCAG 2.0/2.1 A and AA);
+//   - lesser axe violations, as warnings.
+// It prints the states it covered: the 100% goal is measured over those states. Exit code 1 when anything fails.
+//
+// Needs a running application (API and web) at "baseUrl" and the frontend dependencies installed.
+// Usage: node tools/audit/browser-audit.mjs [--base http://localhost:3000] [--only name,name] [--json]
+import { spawn } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(here, "..", "..");
+const frontend = join(repoRoot, "frontend");
+const config = JSON.parse(readFileSync(join(here, "states.json"), "utf8"));
+const args = process.argv.slice(2);
+const option = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
+const base = (option("--base") ?? process.env.AUDIT_BASE_URL ?? config.baseUrl).replace(/\/+$/, "");
+const only = option("--only")?.split(",");
+const asJson = args.includes("--json");
+
+const pattern = new RegExp(/export const TEST_ID_PATTERN =\s*\/(.+)\/;/.exec(readFileSync(join(frontend, "src/lib/testid.ts"), "utf8"))[1]);
+const axeSource = readFileSync(join(frontend, "node_modules/axe-core/axe.min.js"), "utf8");
+
+function findChrome() {
+  const candidates = [process.env.CHROME_BIN, "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/chromium", "/usr/bin/chromium-browser"];
+  const found = candidates.find((path) => path && existsSync(path));
+  if (!found) throw new Error("No Chrome or Chromium found: set CHROME_BIN");
+  return found;
+}
+
+const sleep = (ms) => new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
+
+async function login(email) {
+  const response = await fetch(`${base}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password: config.password }),
+  });
+  if (!response.ok) throw new Error(`login of ${email} failed with ${response.status}`);
+  const cookie = /labapp_session=([^;]+)/.exec(response.headers.get("set-cookie") ?? "");
+  if (!cookie) throw new Error(`login of ${email} set no session cookie`);
+  return cookie[1];
+}
+
+// Runs inside the page: interactive elements and test ids.
+const PAGE_CHECK = `(() => {
+  const roles = new Set(["button","link","checkbox","radio","switch","tab","menuitem","option","combobox","textbox","slider","spinbutton"]);
+  const visible = (el) => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+  const inDevTools = (el) => !!el.closest("nextjs-portal, [data-nextjs-dev-tools-button], [data-next-badge-root]");
+  const interactive = [...document.querySelectorAll("a[href], button, input:not([type=hidden]), select, textarea, summary, [tabindex], [role]")]
+    .filter((el) => visible(el) && !inDevTools(el))
+    .filter((el) => {
+      if (el.matches("a[href], button, input, select, textarea, summary")) return true;
+      const tabindex = el.getAttribute("tabindex");
+      if (tabindex !== null && Number(tabindex) >= 0) return true;
+      return roles.has(el.getAttribute("role") ?? "");
+    });
+  const all = [...document.querySelectorAll("[data-testid]")].map((el) => el.getAttribute("data-testid"));
+  const duplicates = [...new Set(all.filter((id, i) => all.indexOf(id) !== i))];
+  return {
+    missing: interactive.filter((el) => !el.getAttribute("data-testid")).map((el) => el.outerHTML.slice(0, 120)),
+    ids: all,
+    duplicates,
+  };
+})()`;
+
+async function main() {
+  const profile = mkdtempSync(join(tmpdir(), "browser-audit-"));
+  const port = 9400 + Math.floor(Math.random() * 400);
+  const chrome = spawn(findChrome(), ["--headless=new", "--no-sandbox", "--disable-gpu", "--hide-scrollbars", `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, "about:blank"], { stdio: "ignore" });
+  const cleanup = () => { chrome.kill(); try { rmSync(profile, { recursive: true, force: true }); } catch { /* ignore */ } };
+  try {
+    let page;
+    for (let i = 0; i < 60 && !page; i++) {
+      try { page = (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()).find((t) => t.type === "page"); } catch { await sleep(250); }
+    }
+    if (!page) throw new Error("Chrome did not start");
+    const ws = new WebSocket(page.webSocketDebuggerUrl);
+    await new Promise((r) => (ws.onopen = r));
+    let nextId = 0; const waiting = new Map();
+    ws.onmessage = (event) => { const m = JSON.parse(event.data); if (m.id && waiting.has(m.id)) { waiting.get(m.id)(m); waiting.delete(m.id); } };
+    const send = (method, params = {}) => new Promise((r) => { const id = ++nextId; waiting.set(id, r); ws.send(JSON.stringify({ id, method, params })); });
+    const evaluate = async (expression) => {
+      const result = await send("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true });
+      if (result.result.exceptionDetails) throw new Error(result.result.exceptionDetails.exception?.description ?? "evaluate failed");
+      return result.result.result.value;
+    };
+    await send("Page.enable"); await send("Network.enable"); await send("Runtime.enable");
+    await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
+
+    const cookies = new Map();
+    const report = [];
+    for (const state of config.states) {
+      if (only && !only.includes(state.name)) continue;
+      await send("Network.clearBrowserCookies");
+      if (state.user) {
+        if (!cookies.has(state.user)) cookies.set(state.user, await login(state.user));
+        await send("Network.setCookie", { name: "labapp_session", value: cookies.get(state.user), url: base, httpOnly: true });
+      }
+      await send("Page.navigate", { url: `${base}${state.path}` });
+      const entry = { name: state.name, path: state.path, failures: [], warnings: [], ids: 0 };
+      let rendered = false;
+      for (let i = 0; i < 80 && !rendered; i++) {
+        await sleep(250);
+        rendered = await evaluate(`!!document.querySelector('[data-testid="${state.waitFor}"]')`).catch(() => false);
+      }
+      if (!rendered) {
+        entry.failures.push(`the state never rendered the element "${state.waitFor}"`);
+        report.push(entry);
+        continue;
+      }
+      await sleep(300);
+      const check = await evaluate(PAGE_CHECK);
+      entry.ids = check.ids.length;
+      for (const html of check.missing) entry.failures.push(`interactive element without a test id: ${html}`);
+      for (const id of check.duplicates) entry.failures.push(`test id used more than once on the page: ${id}`);
+      for (const id of new Set(check.ids)) if (!pattern.test(id)) entry.failures.push(`test id does not match the grammar: ${id}`);
+      await evaluate(axeSource);
+      const axe = await evaluate(`axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] } }).then((r) => r.violations.map((v) => ({ id: v.id, impact: v.impact, help: v.help, nodes: v.nodes.slice(0, 4).map((n) => n.target.join(" ") + " :: " + (n.failureSummary || "").split("\\n").slice(0, 2).join(" ").slice(0, 160)) })))`);
+      for (const v of axe) {
+        const text = `axe ${v.id} (${v.impact}): ${v.help} -> ${v.nodes.join(" | ")}`;
+        (v.impact === "serious" || v.impact === "critical" ? entry.failures : entry.warnings).push(text);
+      }
+      report.push(entry);
+    }
+    ws.close();
+    return report;
+  } finally {
+    cleanup();
+  }
+}
+
+const report = await main();
+if (asJson) console.log(JSON.stringify(report, null, 2));
+let failed = 0;
+for (const entry of report) {
+  const status = entry.failures.length ? "FAIL" : "ok  ";
+  if (!asJson) console.log(`${status} ${entry.name.padEnd(28)} ${entry.path.padEnd(22)} ${entry.ids} test ids${entry.warnings.length ? `, ${entry.warnings.length} warning(s)` : ""}`);
+  if (!asJson) for (const f of entry.failures) console.log(`       - ${f}`);
+  if (!asJson) for (const w of entry.warnings) console.log(`       ~ ${w}`);
+  failed += entry.failures.length;
+}
+console.log(`Browser audit: ${report.length} state(s) covered, ${failed} failure(s).`);
+process.exit(failed === 0 ? 0 : 1);

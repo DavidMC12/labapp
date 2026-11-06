@@ -26,6 +26,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.1.2",
+    "axe-core": "^4.14.0",
     "eslint": "^9.39.2",
     "eslint-config-next": "^16.4.3",
     "jsdom": "^27.3.0",

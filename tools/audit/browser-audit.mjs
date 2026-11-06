@@ -76,14 +76,24 @@ const PAGE_CHECK = `(() => {
 async function main() {
   const profile = mkdtempSync(join(tmpdir(), "browser-audit-"));
   const port = 9400 + Math.floor(Math.random() * 400);
-  const chrome = spawn(findChrome(), ["--headless=new", "--no-sandbox", "--disable-gpu", "--hide-scrollbars", `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, "about:blank"], { stdio: "ignore" });
+  const chromeFlags = [
+    "--headless=new", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--no-first-run",
+    "--no-default-browser-check", "--disable-extensions", "--hide-scrollbars",
+    "--remote-debugging-address=127.0.0.1", `--remote-debugging-port=${port}`, "--remote-allow-origins=*",
+    `--user-data-dir=${profile}`, "about:blank",
+  ];
+  const chrome = spawn(findChrome(), chromeFlags, { stdio: ["ignore", "ignore", "pipe"] });
+  let chromeLog = "";
+  chrome.stderr.on("data", (chunk) => { chromeLog = (chromeLog + chunk).slice(-4000); });
+  let chromeExit = null;
+  chrome.on("exit", (code, signal) => { chromeExit = `exit code ${code}, signal ${signal}`; });
   const cleanup = () => { chrome.kill(); try { rmSync(profile, { recursive: true, force: true }); } catch { /* ignore */ } };
   try {
     let page;
-    for (let i = 0; i < 60 && !page; i++) {
+    for (let i = 0; i < 160 && !page && chromeExit === null; i++) {
       try { page = (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()).find((t) => t.type === "page"); } catch { await sleep(250); }
     }
-    if (!page) throw new Error("Chrome did not start");
+    if (!page) throw new Error(`Chrome did not start (${chromeExit ?? "no answer on the debugging port after 40 s"}). Chrome said:\n${chromeLog}`);
     const ws = new WebSocket(page.webSocketDebuggerUrl);
     await new Promise((r) => (ws.onopen = r));
     let nextId = 0; const waiting = new Map();

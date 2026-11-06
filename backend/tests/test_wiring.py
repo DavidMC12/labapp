@@ -13,6 +13,8 @@ from app.modules.auth.adapters.memory import InMemorySessionStore, InMemoryUserR
 from app.modules.auth.adapters.postgres import PostgresSessionStore, PostgresUserRepository
 from app.modules.customers.adapters.memory import InMemoryCustomerRepository
 from app.modules.customers.adapters.postgres import PostgresCustomerRepository
+from app.modules.orders.adapters.memory import InMemoryOrderStore
+from app.modules.orders.adapters.postgres import PostgresOrderStore
 
 DATABASE_URL = "postgresql+psycopg://user:password@host/db"
 
@@ -31,6 +33,7 @@ def test_database_url_selects_the_postgres_adapters(
     assert isinstance(app.state.container.users, PostgresUserRepository)
     assert isinstance(app.state.container.sessions, PostgresSessionStore)
     assert isinstance(app.state.customer_repository, PostgresCustomerRepository)
+    assert isinstance(app.state.order_store, PostgresOrderStore)
 
     response = TestClient(app).get("/api/health")
 
@@ -45,6 +48,7 @@ def test_without_database_url_the_in_memory_adapters_stay() -> None:
     assert isinstance(app.state.container.users, InMemoryUserRepository)
     assert isinstance(app.state.container.sessions, InMemorySessionStore)
     assert isinstance(app.state.customer_repository, InMemoryCustomerRepository)
+    assert isinstance(app.state.order_store, InMemoryOrderStore)
 
     response = TestClient(app).get("/api/health")
 

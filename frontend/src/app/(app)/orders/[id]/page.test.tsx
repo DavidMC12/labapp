@@ -59,6 +59,15 @@ let mutateAnswer:
   | ((url: string, method: string) => Response | null);
 
 /**
+ * What the invoice endpoint answers; `null` falls back to the happy 201
+ * of a brand new invoice (the exact tests seed it with the failure codes
+ * of the brief and with the deferred gate).
+ */
+let issueAnswer:
+  | null
+  | ((url: string, method: string) => Response | null);
+
+/**
  * The gate of the B1 tests: while it holds, the next order mutation stays
  * pending; every mutation control must be disabled and a click on another
  * one must send nothing.
@@ -307,6 +316,35 @@ function installRoutes() {
         }
         return jsonResponse(orderBody, orderStatus);
       }
+      if (url === "/api/orders/8/invoice" && method === "POST") {
+        const seededIssue = issueAnswer?.(url, method) ?? null;
+        if (seededIssue !== null) {
+          return seededIssue;
+        }
+        if (holdMutation !== null) {
+          return holdMutation.promise;
+        }
+        return jsonResponse(
+          {
+            id: 9,
+            number: "FAC-0004",
+            status: "issued",
+            order_id: 8,
+            order_number: "PED-0008",
+            customer: { id: 1, name: "Acme Industrial S.A.", tax_id: "ACME-900123", address: null },
+            lines: [],
+            subtotal: "0.00",
+            tax_rate: "10.00",
+            tax: "0.00",
+            total: "0.00",
+            payments: [],
+            version: 1,
+            created_at: "2026-11-05T16:00:00Z",
+            updated_at: "2026-11-05T16:00:00Z",
+          },
+          201,
+        );
+      }
       if (
         (url.startsWith("/api/orders/8/") || url === "/api/orders/8")
         && method !== "GET"
@@ -403,6 +441,7 @@ beforeEach(() => {
   customersStatus = 200;
   holdMutation = null;
   mutateAnswer = null;
+  issueAnswer = null;
   queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -416,6 +455,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   holdMutation = null;
   mutateAnswer = null;
+  issueAnswer = null;
 });
 
 describe("the order detail states", () => {
@@ -1621,5 +1661,161 @@ describe("the transitions of the detail", () => {
     await waitFor(() => {
       expect(queryClient.getQueryData(ME_QUERY_KEY)).toBeNull();
     });
+  });
+});
+
+describe("the Facturar action of the order detail", () => {
+  let viewForIssues: ReturnType<typeof renderDetail> | undefined;
+
+  afterEach(() => {
+    viewForIssues?.unmount();
+    viewForIssues = undefined;
+  });
+
+  async function renderConfirmedOrder() {
+    orderBody = {
+      ...draftOrder(),
+      status: "confirmed",
+    };
+    const view = renderDetail();
+    await waitFor(() => {
+      expect(screen.getByTestId("orders-detail-heading")).toBeInTheDocument();
+    });
+    return view;
+  }
+
+  it("shows Facturar for admin on a confirmed order without an invoice and navigates to the new one", async () => {
+    await renderConfirmedOrder();
+    const readsBefore = readCount();
+
+    await userEvent
+      .setup()
+      .click(screen.getByTestId("orders-detail-invoice-button"));
+
+    await waitFor(() => {
+      expect(routerMock.push).toHaveBeenCalledWith("/invoices/9");
+    });
+    const issued = mutationCalls().find(
+      (call) => call.url === "/api/orders/8/invoice",
+    );
+    expect(issued?.method).toBe("POST");
+    expect(issued?.ifMatch).toBe('"2"');
+    expect(issued?.body).toBeUndefined();
+    // The hook writes the invoice cache and invalidates the order: the
+    // refetch of the detail is the invalidation, not a manual reload.
+    expect(readCount()).toBe(readsBefore + 1);
+  });
+
+  it("shows Facturar for finance too, not for sales or readonly", async () => {
+    meUser = { ...meUser, id: 3, name: "Finanzas Demo", role: "finance" };
+    const financeView = await renderConfirmedOrder();
+    expect(screen.getByTestId("orders-detail-invoice-button")).toBeEnabled();
+    financeView.unmount();
+    queryClient.clear();
+
+    meUser = { ...meUser, id: 2, name: "Ventas Demo", role: "sales" };
+    const view = renderDetail();
+    await waitFor(() => {
+      expect(screen.getByTestId("orders-detail-heading")).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId("orders-detail-invoice-button"),
+    ).not.toBeInTheDocument();
+    view.unmount();
+    queryClient.clear();
+
+    meUser = { ...meUser, id: 4, name: "Solo Lectura Demo", role: "readonly" };
+    const secondView = renderDetail();
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("orders-detail-invoice-button"),
+      ).not.toBeInTheDocument();
+    });
+    secondView.unmount();
+    queryClient.clear();
+  });
+
+  it("hides Facturar for a draft and for an order that already has its invoice", async () => {
+    const firstView = renderDetail();
+    await waitFor(() => {
+      expect(screen.getByTestId("orders-detail-heading")).toBeInTheDocument();
+    });
+    // The default order of the mock is a draft.
+    expect(
+      screen.queryByTestId("orders-detail-invoice-button"),
+    ).not.toBeInTheDocument();
+    firstView.unmount();
+    queryClient.clear();
+
+    orderBody = { ...draftOrder(), status: "confirmed", invoice_id: 9 };
+    const secondView = renderDetail();
+    await waitFor(() => {
+      expect(screen.getByTestId("orders-detail-heading")).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId("orders-detail-invoice-button"),
+    ).not.toBeInTheDocument();
+    secondView.unmount();
+    queryClient.clear();
+  });
+
+  for (const [code, detail] of [
+    ["ORDER_NOT_INVOICEABLE", "Solo se puede facturar un pedido confirmado."],
+    ["CUSTOMER_TAX_ID_REQUIRED", "El cliente necesita un ID fiscal para poder facturar."],
+    ["INVOICE_ALREADY_EXISTS", "Este pedido ya tiene una factura."],
+    ["VERSION_CONFLICT", "El registro cambió mientras lo editabas. Recarga e inténtalo de nuevo."],
+  ] as const) {
+    it(`shows ${code} in the order alert and refetches`, async () => {
+      orderBody = { ...draftOrder(), status: "confirmed" };
+      issueAnswer = () => problemWith(409, code, detail);
+      viewForIssues = renderDetail();
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("orders-detail-heading"),
+        ).toBeInTheDocument();
+      });
+      const readsBefore = readCount();
+
+      await userEvent
+        .setup()
+        .click(screen.getByTestId("orders-detail-invoice-button"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("orders-detail-alert")).toHaveTextContent(
+          detail,
+        );
+      });
+      expect(readCount()).toBe(readsBefore + 1);
+      expect(routerMock.push).not.toHaveBeenCalled();
+
+      viewForIssues?.unmount();
+      queryClient.clear();
+      fetchMock.mockReset();
+    });
+  }
+
+  it("stays disabled while any other order mutation is pending (B1)", async () => {
+    orderBody = { ...draftOrder(), status: "confirmed" };
+    holdMutation = defer();
+    renderDetail();
+    await waitFor(() => {
+      expect(screen.getByTestId("orders-detail-heading")).toBeInTheDocument();
+    });
+
+    // The cancel transition is the pending mutation; Facturar share the
+    // version of the order and has to wait.
+    await userEvent.setup().click(screen.getByTestId("orders-detail-cancel-button"));
+    expect(screen.getByTestId("orders-detail-invoice-button")).toBeDisabled();
+    await userEvent
+      .setup()
+      .click(screen.getByTestId("orders-detail-invoice-button"));
+    expect(
+      mutationCalls().filter((call) => call.url === "/api/orders/8/invoice"),
+    ).toHaveLength(0);
+
+    holdMutation.release(
+      jsonResponse(applyMutation(orderBody, "/api/orders/8/cancel", "POST", undefined)),
+    );
+    holdMutation = null;
   });
 });

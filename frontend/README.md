@@ -115,6 +115,42 @@ src/
   throw `ApiRequestError` with the problem document, or a synthesized
   `INTERNAL_ERROR` problem for non-JSON bodies and network errors.
 
+## Invoices and payments
+
+- Pages: the invoices list (`/invoices`) and the invoice detail
+  (`/invoices/{id}`) with the payment history and the payment form;
+  invoices are issued from the order (the "Facturar" button of the order
+  detail for Admin and Finance on a confirmed order without an invoice).
+  Feature code in `src/features/invoices/` (`api.ts`, `hooks.ts`,
+  `params.ts`, `permissions.ts`, `types.ts`).
+- URL parameters of the list: `page` (integer up to 1000000, valid or
+  page 1), `q` (trimmed, matched against the invoice number or the
+  customer snapshot) and `status` (`issued`/`paid`/`void`, no filter when
+  absent). The list has no "new invoice" button.
+- Keys: `["invoices","list",{page,q,status}]`, `["invoices","detail",id]`
+  (numbers always). `useIssueInvoice` writes the new invoice into its
+  detail key and invalidates the order detail, the order and invoice
+  lists; `useRegisterPayment` writes the invoice of `PaymentResult`
+  on the 201, and the 402 `PAYMENT_DECLINED` and 503
+  `PAYMENT_GATEWAY_UNAVAILABLE` answers invalidate the invoice detail,
+  the orders detail and both lists (the attempt is stored despite the
+  error). A 401 writes `null` into `["auth","me"]`.
+- **The idempotency key** lives in the payment form:
+  `crypto.randomUUID()` (`^[A-Za-z0-9._-]{1,64}$`), sent as the
+  `Idempotency-Key` header next to `If-Match: "<invoice version>"`. The
+  form keeps the same key after a network error (no answer arrived, a
+  retry is safe and replays or continues), takes a **new** key after any
+  HTTP answer — a retry after a decline (402) or a gateway failure (503)
+  is a new attempt — and whenever the user changes a field.
+- Permissions (`canManageInvoices`): issuing and paying are Admin and
+  Finance only; the UI hides the controls for the other roles and the
+  server remains the authority. While a payment runs, the submit is
+  disabled (`aria-busy`); a second submit is ignored by the guard.
+- The card number travels as typed in the request body only: it is never
+  written to the DOM outside its own input (`autocomplete="off"` on the
+  field), to storage or to any log, and the form clears the card fields
+  after a success.
+
 ## Orders
 
 - Pages: the list (`/orders`), the create page (`/orders/new`) and the

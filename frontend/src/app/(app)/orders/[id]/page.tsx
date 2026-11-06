@@ -2,6 +2,8 @@
 
 import { Alert, Button, Input, Link, Select } from "@/components/ui";
 import { useMe } from "@/features/auth/hooks";
+import { canManageInvoices } from "@/features/invoices/permissions";
+import { useIssueInvoice } from "@/features/invoices/hooks";
 import {
   useAddLine,
   useOrder,
@@ -27,7 +29,7 @@ import type {
   Shortage,
 } from "@/features/orders/types";
 import { orderStatusLabel } from "@/features/orders/types";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 const DRAFT_NOTE_TEXT = "Vista previa: la tasa se fija al confirmar.";
@@ -501,10 +503,12 @@ function ChangeCustomerPanel({ mutationsPending, pageFailureCount, changeCustome
 function OrderDetail({ id }: { id: number }) {
   const me = useMe();
   const orderQuery = useOrder(id);
+  const router = useRouter();
 
   const setCustomer = useSetOrderCustomer();
   const addLine = useAddLine();
   const transition = useOrderTransition();
+  const invoiceIssue = useIssueInvoice();
   const setLineQuantity = useSetLineQuantity();
   const removeLine = useRemoveLine();
 
@@ -515,6 +519,7 @@ function OrderDetail({ id }: { id: number }) {
   const [pendingTransition, setPendingTransition] = useState<
     "confirm" | "cancel" | "ship" | null
   >(null);
+  const [pendingIssue, setPendingIssue] = useState(false);
 
   const [addProductId, setAddProductId] = useState("");
   const [addQuantity, setAddQuantity] = useState("1");
@@ -529,6 +534,7 @@ function OrderDetail({ id }: { id: number }) {
   const order = orderQuery.data ?? null;
   const canEdit = me.data ? canEditOrders(me.data.role) : false;
   const canTransition = me.data ? canTransitionOrders(me.data.role) : false;
+  const canInvoice = me.data ? canManageInvoices(me.data.role) : false;
   const editable = order?.status === "draft" && canEdit;
 
   // Only the editor of a draft needs the catalog, so a failing fetch
@@ -543,6 +549,7 @@ function OrderDetail({ id }: { id: number }) {
     setCustomer.isPending
     || addLine.isPending
     || transition.isPending
+    || invoiceIssue.isPending
     || setLineQuantity.isPending
     || removeLine.isPending;
 
@@ -687,6 +694,37 @@ function OrderDetail({ id }: { id: number }) {
       routePageError(error);
     } finally {
       setPendingTransition(null);
+    }
+  }
+
+  /**
+   * Issues the invoice of a confirmed order: POST /api/orders/{id}/invoice
+   * with the version of the order on screen; the navigation goes to the
+   * new invoice. The four failure codes of the brief (ORDER_NOT_INVOICEABLE,
+   * CUSTOMER_TAX_ID_REQUIRED, INVOICE_ALREADY_EXISTS and VERSION_CONFLICT)
+   * route to the existing order alert, which refetches the order.
+   */
+  async function handleIssueInvoice(): Promise<void> {
+    if (!order || !canInvoice) {
+      return;
+    }
+    if (order.status !== "confirmed" || order.invoice_id !== null) {
+      return;
+    }
+    if (mutationsPending || pendingIssue) {
+      return;
+    }
+    setPendingIssue(true);
+    try {
+      const invoice = await invoiceIssue.mutateAsync({
+        orderId: order.id,
+        version: order.version,
+      });
+      router.push(`/invoices/${invoice.id}`);
+    } catch (error) {
+      routePageError(error);
+    } finally {
+      setPendingIssue(false);
     }
   }
 
@@ -1053,6 +1091,22 @@ function OrderDetail({ id }: { id: number }) {
             </Button>
           ) : null}
         </div>
+      ) : null}
+
+      {/* Issue the invoice: Admin and Finance on a confirmed order with
+          no invoice; the navigation goes to the new invoice. */}
+      {canInvoice
+      && order
+      && order.status === "confirmed"
+      && order.invoice_id === null ? (
+        <Button
+          testId="orders-detail-invoice-button"
+          loading={pendingIssue}
+          disabled={mutationsPending}
+          onClick={() => void handleIssueInvoice()}
+        >
+          Facturar
+        </Button>
       ) : null}
 
       <div className="mt-6">

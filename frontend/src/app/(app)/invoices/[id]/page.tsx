@@ -2,6 +2,7 @@
 
 import { Alert, Button, Input, Link, Select } from "@/components/ui";
 import { useMe } from "@/features/auth/hooks";
+import { newIdempotencyKey } from "@/features/invoices/idempotency";
 import { useInvoice, useRegisterPayment } from "@/features/invoices/hooks";
 import { parseInvoiceIdParam } from "@/features/invoices/params";
 import { canManageInvoices } from "@/features/invoices/permissions";
@@ -153,14 +154,14 @@ function RegisterPaymentForm({ invoice, onApproved, refetchInvoice }: {
   const [failureCount, setFailureCount] = useState(0);
   const formAlertRef = useRef<HTMLParagraphElement>(null);
 
-  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
+  const [idempotencyKey, setIdempotencyKey] = useState(() => newIdempotencyKey());
   const submittingRef = useRef(false);
 
   /** Each field change takes a new key: the protected body changed. */
   function changeField(setter: (value: string) => void) {
     return (value: string) => {
       setter(value);
-      setIdempotencyKey(crypto.randomUUID());
+      setIdempotencyKey(newIdempotencyKey());
     };
   }
 
@@ -274,24 +275,42 @@ function RegisterPaymentForm({ invoice, onApproved, refetchInvoice }: {
       // The answer arrived: the attempt consumed the key, and the next
       // attempt is a new one.
       onApproved();
-      setIdempotencyKey(crypto.randomUUID());
+      setIdempotencyKey(newIdempotencyKey());
       // Privacy: the card fields never outlive a paid payment.
       setCardNumber("");
       setCardExpiry("");
       setCardCvc("");
     } catch (error) {
       setFailureCount((count) => count + 1);
-      // The network has no answer at all: it becomes an error of status 0
-      // under `apiFetch`, and it must keep the key (a retry is safe and
-      // replays or continues), while ANY real HTTP answer makes the next
-      // attempt a new one.
-      const isNetworkError = error instanceof ApiRequestError
-        ? error.problem.status === 0
-        : true;
-      if (!isNetworkError) {
-        setIdempotencyKey(crypto.randomUUID());
+      // What the key knows about the attempt (the review of 020): a key
+      // is only retired when the answer tells the user the attempt is
+      // over.
+      //  - No answer arrived (the network has none: status 0 under
+      //    `apiFetch`), or the answer is 429 `RATE_LIMITED` (nothing
+      //    happened): a retry is safe and replays or continues.
+      //  - The answer is 500 or above, except `PAYMENT_GATEWAY_UNAVAILABLE`:
+      //    a 500 `INTERNAL_ERROR`, a 502 or a 504 from the platform (a
+      //    function that timed out while the gateway was approving) says
+      //    nothing about whether the payment was recorded; a new key would
+      //    make the retry a brand new payment instead of a replay.
+      //  - Every other answer (201, the codes of section 7 like 402, 409,
+      //    422 and 403, and the 503 `PAYMENT_GATEWAY_UNAVAILABLE`) tells
+      //    the outcome: the next attempt is a new one.
+      const status = error instanceof ApiRequestError
+        ? error.problem.status
+        : 0;
+      const code = error instanceof ApiRequestError
+        ? error.problem.code
+        : undefined;
+      const outcomeUnknown =
+        status === 0
+        || status === 429
+        || (status >= 500 && code !== "PAYMENT_GATEWAY_UNAVAILABLE")
+        || !(error instanceof ApiRequestError);
+      if (!outcomeUnknown) {
+        setIdempotencyKey(newIdempotencyKey());
       }
-      if (error instanceof ApiRequestError && !isNetworkError) {
+      if (error instanceof ApiRequestError && status !== 0) {
         // Any field of `errors[]` maps to its own field; when none of the
         // entries is a known field, the detail goes to the form-level
         // alert.
@@ -379,7 +398,7 @@ function RegisterPaymentForm({ invoice, onApproved, refetchInvoice }: {
               setCardExpiryError(null);
               setCardCvcError(null);
               setReferenceError(null);
-              setIdempotencyKey(crypto.randomUUID());
+              setIdempotencyKey(newIdempotencyKey());
             }}
             error={methodError ?? undefined}
           >

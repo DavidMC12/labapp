@@ -851,6 +851,154 @@ describe("the outcomes of the gateway", () => {
   }
 });
 
+describe("the unknown outcomes keep the idempotency key", () => {
+  /**
+   * Every answer that says nothing about whether the payment was
+   * recorded keeps the key on the next submit: the platform statuses
+   * (502, 504 with a non-problem body), the 500 `INTERNAL_ERROR` and the
+   * 429 `RATE_LIMITED` (nothing happened).
+   */
+  const unknownCases = [
+    {
+      name: "502 with a non-problem body",
+      respond: () =>
+        new Response("<html>bad gateway</html>", { status: 502 }),
+    },
+    {
+      name: "504 with a non-problem body",
+      respond: () =>
+        new Response("gateway timeout", { status: 504, headers: { "content-type": "text/plain" } }),
+    },
+    {
+      name: "500 INTERNAL_ERROR",
+      respond: () =>
+        problemWith(
+          500,
+          "INTERNAL_ERROR",
+          "Ocurrió un error inesperado. Inténtalo de nuevo.",
+        ),
+    },
+    {
+      name: "429 RATE_LIMITED",
+      respond: () =>
+        problemWith(429, "RATE_LIMITED", "Se han superado el límite de peticiones."),
+    },
+  ];
+
+  for (const unknown of unknownCases) {
+    it(`keeps the key after ${unknown.name}`, async () => {
+      mutateAnswer = () => unknown.respond();
+      await renderIssuedDetail();
+      const user = userEvent.setup();
+      await user.type(
+        screen.getByTestId("payments-register-cardnumber-input"),
+        "4242 4242 4242 4242",
+      );
+      await user.type(
+        screen.getByTestId("payments-register-cardexpiry-input"),
+        "12/27",
+      );
+      await user.type(
+        screen.getByTestId("payments-register-cardcvc-input"),
+        "123",
+      );
+
+      // First attempt: the answer does not tell the outcome.
+      await user.click(screen.getByTestId("payments-register-submit-button"));
+      await waitFor(() => {
+        expect(screen.getByTestId("payments-register-alert"))
+          .toBeInTheDocument();
+      });
+
+      // Second attempt: SAME key, so the server can replay or continue.
+      await user.click(screen.getByTestId("payments-register-submit-button"));
+      await waitFor(() => {
+        expect(paymentCalls().length).toBeGreaterThanOrEqual(2);
+      });
+
+      const calls = paymentCalls();
+      expect(calls[0].idempotencyKey).toBe(calls[1].idempotencyKey);
+    });
+  }
+
+  /**
+   * Every answer that DOES tell the outcome retires the key: the next
+   * submit is a brand new attempt.
+   */
+  for (const outcome of [
+    {
+      name: "a 402 declined payment",
+      respond: () =>
+        declineProblem(
+          402,
+          "CARD_DECLINED",
+          "La pasarela rechazó el pago. Prueba con otra tarjeta.",
+          5,
+        ),
+    },
+    {
+      name: "a 503 PAYMENT_GATEWAY_UNAVAILABLE",
+      respond: () =>
+        declineProblem(
+          503,
+          "GATEWAY_UNAVAILABLE",
+          "La pasarela de pago no está disponible. Inténtalo de nuevo.",
+          6,
+        ),
+    },
+    {
+      name: "a 409 VERSION_CONFLICT",
+      respond: () =>
+        problemWith(
+          409,
+          "VERSION_CONFLICT",
+          "El registro cambió mientras lo editabas. Recarga e inténtalo de nuevo.",
+        ),
+    },
+    {
+      name: "a 422 PAYMENT_AMOUNT_MISMATCH",
+      respond: () =>
+        problemWith(
+          422,
+          "PAYMENT_AMOUNT_MISMATCH",
+          "El monto debe ser igual al total de la factura.",
+        ),
+    },
+  ] as const) {
+    it(`takes a new key after ${outcome.name}`, async () => {
+      mutateAnswer = () => outcome.respond();
+      await renderIssuedDetail();
+      const user = userEvent.setup();
+      await user.type(
+        screen.getByTestId("payments-register-cardnumber-input"),
+        "4242 4242 4242 4242",
+      );
+      await user.type(
+        screen.getByTestId("payments-register-cardexpiry-input"),
+        "12/27",
+      );
+      await user.type(
+        screen.getByTestId("payments-register-cardcvc-input"),
+        "123",
+      );
+
+      await user.click(screen.getByTestId("payments-register-submit-button"));
+      await waitFor(() => {
+        expect(screen.getByTestId("payments-register-alert"))
+          .toBeInTheDocument();
+      });
+
+      await user.click(screen.getByTestId("payments-register-submit-button"));
+      await waitFor(() => {
+        expect(paymentCalls().length).toBeGreaterThanOrEqual(2);
+      });
+
+      const calls = paymentCalls();
+      expect(calls[0].idempotencyKey).not.toBe(calls[1].idempotencyKey);
+    });
+  }
+});
+
 describe("the amount mismatch and the idempotency key rule", () => {
   it("shows the amount mismatch in the alert and refetches the invoice", async () => {
     mutateAnswer = () =>

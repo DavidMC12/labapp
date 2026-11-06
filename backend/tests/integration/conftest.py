@@ -21,6 +21,10 @@ from sqlalchemy.pool import NullPool
 
 from app.config import Settings
 from app.infra.db import create_db_engine, normalize_database_url
+from app.modules.customers.adapters.postgres import PostgresCustomerRepository
+from app.modules.customers.seed import seed_customers
+from app.modules.orders.adapters.postgres import PostgresOrderStore
+from app.modules.orders.seed import SEED_TAX_RATE, seed_orders, seed_products
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 ALEMBIC_INI = BACKEND_DIR / "migrations" / "alembic.ini"
@@ -117,12 +121,30 @@ def unpinned_database_engine(database_settings: Settings) -> Iterator[Engine]:
 
 
 @pytest.fixture
+def order_customers(db: Connection, unpinned_database_engine: Engine) -> PostgresCustomerRepository:
+    repository = PostgresCustomerRepository(unpinned_database_engine)
+    repository.replace_all(seed_customers())
+    return repository
+
+
+@pytest.fixture
+def order_store(
+    order_customers: PostgresCustomerRepository,
+    unpinned_database_engine: Engine,
+) -> PostgresOrderStore:
+    store = PostgresOrderStore(unpinned_database_engine)
+    store.replace_all(seed_products(), seed_orders(), SEED_TAX_RATE)
+    return store
+
+
+@pytest.fixture
 def db(database_engine: Engine, database_schema: str) -> Iterator[Connection]:
     with database_engine.connect() as connection:
         current = connection.exec_driver_sql("select current_schema()").scalar_one()
         assert current == database_schema
         connection.exec_driver_sql(
-            "TRUNCATE TABLE users, sessions, customers RESTART IDENTITY CASCADE"
+            "TRUNCATE TABLE users, sessions, customers, products, orders, "
+            "order_lines, settings RESTART IDENTITY CASCADE"
         )
         connection.commit()
         try:

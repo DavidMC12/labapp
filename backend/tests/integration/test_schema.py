@@ -8,14 +8,36 @@ from sqlalchemy import Connection, Engine, text
 
 from tests.integration.helpers import table_names
 
-APP_TABLES = {"users", "sessions", "customers"}
+APP_TABLES = {
+    "users",
+    "sessions",
+    "customers",
+    "products",
+    "orders",
+    "order_lines",
+    "settings",
+}
 APP_INDEXES = {
     "users_email_lower_key",
     "sessions_last_seen_at_idx",
     "customers_email_lower_key",
     "customers_created_at_id_idx",
+    "products_sku_key",
+    "orders_number_key",
+    "orders_created_at_id_idx",
+    "ix_orders_customer_id",
+    "order_lines_order_product_key",
+    "ix_order_lines_order_id",
 }
-APP_CHECKS = {"ck_users_role", "ck_customers_status"}
+APP_CHECKS = {
+    "ck_users_role",
+    "ck_customers_status",
+    "ck_products_price",
+    "ck_products_stock",
+    "ck_orders_status",
+    "ck_orders_tax_rate",
+    "ck_order_lines_quantity",
+}
 
 
 def _index_names(connection: Connection, schema: str) -> set[str]:

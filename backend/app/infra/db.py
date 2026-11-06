@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import psycopg
-from sqlalchemy import MetaData, Table, create_engine
+from sqlalchemy import MetaData, Sequence, Table, create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import NullPool
 
@@ -82,6 +82,17 @@ def qualified_table_name(engine: Engine, table: Table) -> str:
     if schema is None:
         return preparer.quote(table.name)
     return f"{preparer.quote_schema(schema)}.{preparer.quote(table.name)}"
+
+
+def qualified_sequence_name(engine: Engine, sequence: Sequence) -> str:
+    """Return the sequence name for raw SQL, with the schema when one is configured."""
+    preparer = engine.dialect.identifier_preparer
+    translate_map = engine.get_execution_options().get("schema_translate_map") or {}
+    schema = translate_map.get(None)
+    name = preparer.quote(sequence.name)
+    if schema is None:
+        return name
+    return f"{preparer.quote_schema(schema)}.{name}"
 
 
 def unique_violation_of(error: BaseException, constraint_name: str) -> bool:

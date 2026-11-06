@@ -12,6 +12,7 @@ from alembic.config import Config
 from sqlalchemy import func, select
 
 from app.config import Settings
+from app.domain.money import quantize_money
 from app.infra.db import create_db_engine
 from app.modules.auth.adapters.postgres import PostgresUserRepository
 from app.modules.auth.seed import demo_password_hash, seed_users
@@ -19,6 +20,10 @@ from app.modules.auth.tables import users
 from app.modules.customers.adapters.postgres import PostgresCustomerRepository
 from app.modules.customers.seed import seed_customers
 from app.modules.customers.tables import customers
+from app.modules.orders.adapters.postgres import PostgresOrderStore
+from app.modules.orders.seed import seed_orders, seed_products
+from app.modules.orders.tables import orders as orders_table
+from app.modules.orders.tables import products as products_table
 
 ALEMBIC_INI = Path(__file__).resolve().parent.parent / "migrations" / "alembic.ini"
 
@@ -64,7 +69,7 @@ def _alembic_config(settings: Settings) -> Config:
 
 
 def seed_database(settings: Settings) -> None:
-    """Fill empty users and customers tables, leaving existing data untouched."""
+    """Fill empty tables, leaving existing data untouched."""
     engine = create_db_engine(settings)
     try:
         with engine.begin() as connection:
@@ -74,10 +79,23 @@ def seed_database(settings: Settings) -> None:
             customers_empty = (
                 connection.execute(select(func.count()).select_from(customers)).scalar_one() == 0
             )
+            products_empty = (
+                connection.execute(select(func.count()).select_from(products_table)).scalar_one()
+                == 0
+            )
+            orders_empty = (
+                connection.execute(select(func.count()).select_from(orders_table)).scalar_one() == 0
+            )
         if users_empty:
             PostgresUserRepository(engine).replace_all(seed_users(demo_password_hash()))
         if customers_empty:
             PostgresCustomerRepository(engine).replace_all(seed_customers())
+        if products_empty and orders_empty:
+            PostgresOrderStore(engine).replace_all(
+                seed_products(),
+                seed_orders(),
+                quantize_money(settings.default_tax_rate),
+            )
     finally:
         engine.dispose()
 

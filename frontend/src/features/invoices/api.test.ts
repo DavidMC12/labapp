@@ -137,7 +137,7 @@ describe("the payment request", () => {
   });
 
   it("sends only the reference for a transfer and nothing extra for cash", async () => {
-    fetchMock.mockResolvedValue(
+    fetchMock.mockImplementation(async () =>
       new Response(JSON.stringify({ payment: {}, invoice: invoiceFixture }), {
         status: 201,
       }),

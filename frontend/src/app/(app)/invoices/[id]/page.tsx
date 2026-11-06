@@ -125,8 +125,10 @@ const PAYMENT_FIELDS: readonly string[] = [
  * new key after any HTTP answer (a retry after a decline or a failure is
  * a new attempt, per the spec) and whenever the user changes a field.
  */
-function RegisterPaymentForm({ invoice, refetchInvoice }: {
+function RegisterPaymentForm({ invoice, onApproved, refetchInvoice }: {
   invoice: Invoice;
+  /** The approved payment moved the invoice to paid on success. */
+  onApproved: () => void;
   /** Refetches after any failed submit, as the brief asks. */
   refetchInvoice: () => void;
 }) {
@@ -146,7 +148,6 @@ function RegisterPaymentForm({ invoice, refetchInvoice }: {
   const [cardCvcError, setCardCvcError] = useState<string | null>(null);
   const [referenceError, setReferenceError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-  const [submitted, setSubmitted] = useState(false);
 
   // One increment per failed submit; the focus effect below depends on it.
   const [failureCount, setFailureCount] = useState(0);
@@ -272,7 +273,7 @@ function RegisterPaymentForm({ invoice, refetchInvoice }: {
       });
       // The answer arrived: the attempt consumed the key, and the next
       // attempt is a new one.
-      setSubmitted(true);
+      onApproved();
       setIdempotencyKey(crypto.randomUUID());
       // Privacy: the card fields never outlive a paid payment.
       setCardNumber("");
@@ -280,26 +281,39 @@ function RegisterPaymentForm({ invoice, refetchInvoice }: {
       setCardCvc("");
     } catch (error) {
       setFailureCount((count) => count + 1);
-      if (error instanceof ApiRequestError) {
-        // Any HTTP answer means the key was served: the next attempt is a
-        // new one (a decline or a gateway failure is a new attempt, per
-        // the spec).
+      // The network has no answer at all: it becomes an error of status 0
+      // under `apiFetch`, and it must keep the key (a retry is safe and
+      // replays or continues), while ANY real HTTP answer makes the next
+      // attempt a new one.
+      const isNetworkError = error instanceof ApiRequestError
+        ? error.problem.status === 0
+        : true;
+      if (!isNetworkError) {
         setIdempotencyKey(crypto.randomUUID());
-        const mapped = fieldErrorsOf(error).find((entry) =>
+      }
+      if (error instanceof ApiRequestError && !isNetworkError) {
+        // Any field of `errors[]` maps to its own field; when none of the
+        // entries is a known field, the detail goes to the form-level
+        // alert.
+        const entries = fieldErrorsOf(error).filter((entry) =>
           PAYMENT_FIELDS.includes(entry.field),
         );
-        if (mapped?.field === "method") {
-          setMethodError(mapped.message);
-        } else if (mapped?.field === "amount") {
-          setAmountError(mapped.message);
-        } else if (mapped?.field === "card.number") {
-          setCardNumberError(mapped.message);
-        } else if (mapped?.field === "card.expiry") {
-          setCardExpiryError(mapped.message);
-        } else if (mapped?.field === "card.cvc") {
-          setCardCvcError(mapped.message);
-        } else if (mapped?.field === "reference") {
-          setReferenceError(mapped.message);
+        if (entries.length > 0) {
+          for (const mapped of entries) {
+            if (mapped.field === "method") {
+              setMethodError(mapped.message);
+            } else if (mapped.field === "amount") {
+              setAmountError(mapped.message);
+            } else if (mapped.field === "card.number") {
+              setCardNumberError(mapped.message);
+            } else if (mapped.field === "card.expiry") {
+              setCardExpiryError(mapped.message);
+            } else if (mapped.field === "card.cvc") {
+              setCardCvcError(mapped.message);
+            } else if (mapped.field === "reference") {
+              setReferenceError(mapped.message);
+            }
+          }
         } else {
           setFormError(error.problem.detail);
         }
@@ -326,16 +340,6 @@ function RegisterPaymentForm({ invoice, refetchInvoice }: {
       >
         Registrar un pago
       </h2>
-
-      {submitted ? (
-        <p
-          role="status"
-          data-testid="payments-register-success-status"
-          className="mt-3 text-[13px] font-medium text-accent"
-        >
-          Pago aprobado.
-        </p>
-      ) : null}
 
       {formError ? (
         <div className="mt-3">
@@ -454,6 +458,10 @@ function Detail({ id }: { id: number }) {
   const me = useMe();
   const invoiceQuery = useInvoice(id);
 
+  // The success message of the payment lives in the detail: once the
+  // invoice is paid the form unmounts in the same render that shows it.
+  const [paymentApproved, setPaymentApproved] = useState(false);
+
   if (invoiceQuery.isPending) {
     return (
       <p
@@ -512,6 +520,16 @@ function Detail({ id }: { id: number }) {
           {invoiceStatusLabel(invoice.status)}
         </span>
       </div>
+
+      {paymentApproved ? (
+        <p
+          role="status"
+          data-testid="payments-register-success-status"
+          className="mt-3 text-[13px] font-medium text-accent"
+        >
+          Pago aprobado.
+        </p>
+      ) : null}
 
       {invoice.status === "paid" || invoice.status === "void" ? (
         <p
@@ -710,6 +728,7 @@ function Detail({ id }: { id: number }) {
       {canManage && invoice.status === "issued" ? (
         <RegisterPaymentForm
           invoice={invoice}
+          onApproved={() => setPaymentApproved(true)}
           refetchInvoice={() => void invoiceQuery.refetch()}
         />
       ) : null}

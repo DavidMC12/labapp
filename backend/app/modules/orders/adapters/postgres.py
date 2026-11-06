@@ -305,7 +305,7 @@ class PostgresOrderStore:
                 raise CustomerInactive
 
             number = connection.execute(
-                text("select nextval(:sequence_name)"),
+                text("select nextval(CAST(:sequence_name AS regclass))"),
                 {"sequence_name": qualified_sequence_name(self._engine, order_number_seq)},
             ).scalar_one()
             row = (
@@ -607,7 +607,8 @@ class PostgresOrderStore:
             next_number = max((_number_value(order.number) for order in order_list), default=0) + 1
             connection.execute(
                 text(
-                    "select setval(pg_get_serial_sequence(:table_name, 'id'), :next_value, false)"
+                    "select setval(CAST(pg_get_serial_sequence(:table_name, 'id') AS regclass), "
+                    ":next_value, false)"
                 ),
                 {
                     "table_name": qualified_table_name(self._engine, orders),
@@ -616,7 +617,8 @@ class PostgresOrderStore:
             )
             connection.execute(
                 text(
-                    "select setval(pg_get_serial_sequence(:table_name, 'id'), :next_value, false)"
+                    "select setval(CAST(pg_get_serial_sequence(:table_name, 'id') AS regclass), "
+                    ":next_value, false)"
                 ),
                 {
                     "table_name": qualified_table_name(self._engine, order_lines),
@@ -624,7 +626,7 @@ class PostgresOrderStore:
                 },
             )
             connection.execute(
-                text("select setval(:sequence_name, :next_value, false)"),
+                text("select setval(CAST(:sequence_name AS regclass), :next_value, false)"),
                 {
                     "sequence_name": qualified_sequence_name(self._engine, order_number_seq),
                     "next_value": next_number,

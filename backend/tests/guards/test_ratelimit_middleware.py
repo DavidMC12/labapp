@@ -23,6 +23,7 @@ def test_the_general_limit_allows_120_and_rejects_the_121st() -> None:
 
     assert response.status_code == 429
     assert response.headers["retry-after"] == "60"
+    assert response.headers["x-request-id"]
     body = response.json()
     assert body["code"] == "RATE_LIMITED"
     assert body["retry_after"] == 60
@@ -195,7 +196,11 @@ def test_reset_limiters_clears_both_limiters() -> None:
     client = TestClient(app)
     assert _get(client, 120) == [401] * 120
     assert client.get(PROTECTED).status_code == 429
-
     app.state.container.reset_limiters()
-
     assert client.get(PROTECTED).status_code == 401
+
+    for _ in range(10):
+        assert client.post("/api/auth/login", json={}).status_code == 422
+    assert client.post("/api/auth/login", json={}).status_code == 429
+    app.state.container.reset_limiters()
+    assert client.post("/api/auth/login", json={}).status_code == 422

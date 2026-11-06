@@ -74,6 +74,21 @@ def test_a_declared_body_over_the_limit_is_413_when_not_rate_limited() -> None:
     assert response.status_code == 413
 
 
+def test_the_body_size_wins_over_a_wrong_origin() -> None:
+    client = TestClient(make_app(make_settings(), FakeMonotonic()))
+
+    response = client.post(
+        "/api/auth/login",
+        content=b"x" * (MAX_BODY_BYTES + 1),
+        headers={
+            "Content-Type": "application/json",
+            "Origin": "http://evil.test",
+        },
+    )
+
+    assert response.status_code == 413
+
+
 def test_a_streamed_body_over_the_limit_is_413_when_not_rate_limited() -> None:
     client = TestClient(make_app(make_settings(), FakeMonotonic()))
 

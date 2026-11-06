@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -13,7 +15,7 @@ def client() -> TestClient:
     return TestClient(make_app(make_settings(test_mode=True), FakeMonotonic()))
 
 
-def _assert_malformed(response: object) -> None:
+def _assert_malformed(response: Any) -> None:
     assert response.status_code == 400
     assert response.headers["content-type"] == "application/problem+json"
     assert response.json() == {

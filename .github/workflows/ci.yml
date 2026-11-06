@@ -72,3 +72,49 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  browser-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+
+      - name: Install Python 3.14
+        run: uv python install 3.14
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --frozen
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the web app (the dev proxy to the API is compiled in)
+        working-directory: frontend
+        env:
+          API_URL: http://127.0.0.1:8000
+        run: pnpm build
+
+      - name: Start the API and the web app, then audit the browser states
+        env:
+          API_URL: http://127.0.0.1:8000
+          SESSION_SECRET: ci-session-secret-not-used-anywhere-else
+          CHROME_BIN: /usr/bin/google-chrome
+        run: |
+          (cd backend && nohup uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 > ../api.log 2>&1 &)
+          (cd frontend && nohup ./node_modules/.bin/next start --hostname 127.0.0.1 --port 3000 > ../web.log 2>&1 &)
+          for i in $(seq 1 90); do
+            if curl -sf http://127.0.0.1:8000/api/health > /dev/null && curl -sf http://127.0.0.1:3000/login > /dev/null; then break; fi
+            sleep 1
+          done
+          node tools/audit/browser-audit.mjs --base http://127.0.0.1:3000
+
+      - name: Show the logs when the audit fails
+        if: failure()
+        run: |
+          echo "--- api.log"; tail -n 50 api.log || true
+          echo "--- web.log"; tail -n 50 web.log || true

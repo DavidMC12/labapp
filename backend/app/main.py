@@ -16,6 +16,7 @@ from app.modules.customers.routes import router as customers_router
 from app.modules.customers.seed import seed_customers
 from app.modules.customers.service import CustomerService
 from app.modules.orders.adapters.memory import InMemoryOrderStore
+from app.modules.orders.adapters.postgres import PostgresOrderStore
 from app.modules.orders.routes import router as orders_router
 from app.modules.orders.seed import seed_orders, seed_products
 from app.modules.orders.service import OrderService
@@ -47,15 +48,17 @@ def create_app(
     container = build_container(settings, application_clock, engine=database_engine)
     if database_engine is not None:
         customer_repository = PostgresCustomerRepository(database_engine)
+        order_store: InMemoryOrderStore | PostgresOrderStore = PostgresOrderStore(database_engine)
     else:
         customer_repository = InMemoryCustomerRepository(seed_customers())
+        memory_order_store = InMemoryOrderStore(customer_repository)
+        memory_order_store.replace_all(
+            seed_products(),
+            seed_orders(),
+            quantize_money(settings.default_tax_rate),
+        )
+        order_store = memory_order_store
     customers = CustomerService(customer_repository, application_clock)
-    order_store = InMemoryOrderStore(customer_repository)
-    order_store.replace_all(
-        seed_products(),
-        seed_orders(),
-        quantize_money(settings.default_tax_rate),
-    )
     orders = OrderService(order_store, application_clock, customer_repository)
 
     app = FastAPI(title="LabApp API")

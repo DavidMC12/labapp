@@ -88,8 +88,48 @@ TEST_DATABASE_URL='postgresql+psycopg://user:password@host/db' uv run pytest tes
 
 ## Limits
 
-The 100 KB request body limit only inspects the `Content-Length` header; chunked requests
-without that header are not limited yet.
+Request bodies are limited to 100 KB. A declared `Content-Length` above the limit is
+rejected before reading the body; a chunked body without that header is rejected as soon
+as the bytes received exceed the limit.
+
+## Request guards
+
+The outer middleware chain is, from outside to inside: `RequestIdMiddleware`,
+`RateLimitMiddleware`, `ControlsGuardMiddleware`, `BodySizeLimitMiddleware`, then the
+application. The order matters: the rate limit and the test-controls guard answer before
+the body is read or parsed, and the size limit answers before the application validates
+the body.
+
+Rate limits are best effort per instance: 120 requests per minute and 10 login attempts
+per minute for each client IP. They are off with `TEST_MODE=1` and for a request with a
+valid `X-Test-Token`; `GET /api/health` is never limited. A rejected request gets 429
+`RATE_LIMITED` with `Retry-After`. The client IP is the `X-Forwarded-For` entry
+`TRUSTED_PROXY_COUNT` from the right (all header lines are joined first), or the socket
+peer at 0. A serverless deployment keeps one set of counters per instance; the shared,
+stateful alternative comes later.
+
+State-changing requests with an `Origin` header must match `APP_ORIGIN` or one of the
+`https://` origins built from `VERCEL_URL`, `VERCEL_BRANCH_URL` and
+`VERCEL_PROJECT_PRODUCTION_URL`; otherwise the answer is 403 `CSRF_ORIGIN_MISMATCH`.
+Requests without `Origin` are allowed. Malformed JSON is 400 `MALFORMED_JSON`.
+
+`/__test__` and every path under it are guarded before routing and body handling:
+
+| `TEST_MODE` | `X-Test-Token` header | Result |
+|---|---|---|
+| `1` | any | Allowed. |
+| `0` | equals a non-empty `TEST_TOKEN` | Allowed. |
+| `0` | missing or different | 404, as if the route did not exist. |
+| `0` with an empty `TEST_TOKEN` | any | 404. |
+
+```bash
+# 400 for a malformed JSON body.
+curl -i -H 'Content-Type: application/json' -d '{bad' localhost:8000/api/auth/login
+
+# 429 after the per-IP general limit is full.
+for _ in $(seq 1 120); do curl -s -o /dev/null localhost:8000/api/settings; done
+curl -i localhost:8000/api/settings
+```
 
 ## Test
 

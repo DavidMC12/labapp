@@ -4,6 +4,7 @@ import re
 from uuid import uuid4
 
 from starlette.datastructures import Headers, MutableHeaders
+from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -46,9 +47,11 @@ class RequestIdMiddleware:
 
 
 class BodySizeLimitMiddleware:
-    """Reject requests whose declared Content-Length exceeds the limit.
+    """Reject requests whose declared or streamed body exceeds the limit.
 
-    Chunked requests that carry no Content-Length header are not limited yet.
+    A declared ``Content-Length`` above the limit is rejected before reading the
+    body. A chunked body is rejected from the wrapped ``receive`` as soon as the
+    bytes received exceed the limit.
     """
 
     def __init__(self, app: ASGIApp) -> None:
@@ -75,4 +78,15 @@ class BodySizeLimitMiddleware:
                 await response(scope, receive, send)
                 return
 
-        await self.app(scope, receive, send)
+        received = 0
+
+        async def limited_receive() -> Message:
+            nonlocal received
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > MAX_BODY_BYTES:
+                    raise HTTPException(status_code=413)
+            return message
+
+        await self.app(scope, limited_receive, send)

@@ -1,10 +1,16 @@
 from __future__ import annotations
 
-from fastapi import FastAPI
+import time
+from collections.abc import Callable
+
+from fastapi import Depends, FastAPI
 
 from app.config import Settings
 from app.domain.money import quantize_money
 from app.errors import register_error_handlers
+from app.guards.controls import ControlsGuardMiddleware
+from app.guards.origin import origin_guard
+from app.guards.ratelimit_middleware import RateLimitMiddleware
 from app.infra.clock import OffsetClock, SystemClock
 from app.infra.db import create_db_engine
 from app.middleware import BodySizeLimitMiddleware, RequestIdMiddleware
@@ -37,6 +43,7 @@ def create_app(
     settings: Settings | None = None,
     *,
     clock: OffsetClock | None = None,
+    monotonic: Callable[[], float] = time.monotonic,
 ) -> FastAPI:
     """Build the FastAPI application."""
     settings = settings if settings is not None else Settings()
@@ -44,7 +51,12 @@ def create_app(
 
     application_clock = clock if clock is not None else OffsetClock(SystemClock())
     database_engine = create_db_engine(settings) if settings.database_url is not None else None
-    container = build_container(settings, application_clock, engine=database_engine)
+    container = build_container(
+        settings,
+        application_clock,
+        engine=database_engine,
+        monotonic=monotonic,
+    )
     if database_engine is not None:
         customer_repository = PostgresCustomerRepository(database_engine)
     else:
@@ -58,7 +70,7 @@ def create_app(
     )
     orders = OrderService(order_store, application_clock, customer_repository)
 
-    app = FastAPI(title="LabApp API")
+    app = FastAPI(title="LabApp API", dependencies=[Depends(origin_guard)])
     app.state.settings = settings
     app.state.engine = database_engine
     app.state.container = container
@@ -67,6 +79,8 @@ def create_app(
     app.state.order_store = order_store
     app.state.orders = orders
     app.add_middleware(BodySizeLimitMiddleware)
+    app.add_middleware(ControlsGuardMiddleware, settings=settings)
+    app.add_middleware(RateLimitMiddleware, container=container)
     app.add_middleware(RequestIdMiddleware)
     register_error_handlers(app)
     app.include_router(auth_router)

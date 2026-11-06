@@ -49,3 +49,8 @@ def clients(app: FastAPI) -> dict[str, TestClient]:
 @pytest.fixture(autouse=True)
 def reset_customers(app: FastAPI) -> None:
     app.state.customer_repository.replace_all(seed_customers())
+
+
+@pytest.fixture(autouse=True)
+def reset_limiters(app: FastAPI) -> None:
+    app.state.container.reset_limiters()

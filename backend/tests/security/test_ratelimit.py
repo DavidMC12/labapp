@@ -191,6 +191,52 @@ def test_sweep_runs_at_most_once_per_window() -> None:
     assert "b" in limiter._hits
 
 
+def test_max_keys_drops_the_key_with_the_oldest_last_hit() -> None:
+    clock = FakeClock()
+    limiter = SlidingWindowLimiter(5, 60, clock, max_keys=2)
+    limiter.hit("a")
+    clock.advance(1)
+    limiter.hit("b")
+
+    clock.advance(1)
+    assert limiter.hit("c").allowed is True
+
+    assert "a" not in limiter._hits
+    assert "b" in limiter._hits
+    assert "c" in limiter._hits
+
+
+def test_max_keys_keeps_the_count_of_an_existing_key() -> None:
+    clock = FakeClock()
+    limiter = SlidingWindowLimiter(2, 60, clock, max_keys=2)
+    limiter.hit("a")
+    clock.advance(1)
+    limiter.hit("b")
+    clock.advance(1)
+    limiter.hit("c")
+
+    clock.advance(1)
+    assert limiter.hit("b").allowed is True
+    assert limiter.hit("b").allowed is False
+
+
+def test_clear_forgets_every_key() -> None:
+    clock = FakeClock()
+    limiter = SlidingWindowLimiter(1, 60, clock)
+    limiter.hit("k")
+    assert limiter.hit("k").allowed is False
+
+    limiter.clear()
+
+    assert limiter.hit("k").allowed is True
+
+
+@pytest.mark.parametrize("max_keys", [0, -1])
+def test_max_keys_must_be_at_least_one(max_keys: int) -> None:
+    with pytest.raises(ValueError):
+        SlidingWindowLimiter(1, 60, lambda: 0.0, max_keys=max_keys)
+
+
 @pytest.mark.parametrize("limit", [0, -1])
 def test_limit_must_be_at_least_one(limit: int) -> None:
     with pytest.raises(ValueError):

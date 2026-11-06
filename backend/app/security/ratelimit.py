@@ -31,15 +31,19 @@ class SlidingWindowLimiter:
         limit: int,
         window_seconds: float,
         clock: Callable[[], float],
+        max_keys: int = 10_000,
     ) -> None:
         if limit < 1:
             raise ValueError("limit must be at least 1")
         if window_seconds <= 0:
             raise ValueError("window_seconds must be greater than 0")
+        if max_keys < 1:
+            raise ValueError("max_keys must be at least 1")
 
         self._limit = limit
         self._window_seconds = window_seconds
         self._clock = clock
+        self._max_keys = max_keys
         self._hits: dict[str, deque[float]] = {}
         self._last_sweep: float | None = None
         self._lock = Lock()
@@ -64,10 +68,19 @@ class SlidingWindowLimiter:
                 )
 
             if hits is None:
+                if len(self._hits) >= self._max_keys:
+                    oldest = min(self._hits, key=lambda key: self._hits[key][-1])
+                    del self._hits[oldest]
                 hits = deque()
                 self._hits[key] = hits
             hits.append(now)
             return RateDecision(allowed=True, retry_after=0)
+
+    def clear(self) -> None:
+        """Forget every tracked key and its hits."""
+        with self._lock:
+            self._hits.clear()
+            self._last_sweep = None
 
     def _sweep_expired(self, now: float) -> None:
         if self._last_sweep is not None and now - self._last_sweep < self._window_seconds:

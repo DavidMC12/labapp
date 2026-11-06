@@ -12,6 +12,14 @@ _RESERVED_SCHEMAS = frozenset({"public", "information_schema"})
 _ORIGIN_SCHEMES = frozenset({"http", "https"})
 
 
+def _origin_key(value: str) -> tuple[str, str, int]:
+    parts = urlsplit(value)
+    port = parts.port
+    if port is None:
+        port = 443 if parts.scheme == "https" else 80
+    return (parts.scheme.lower(), (parts.hostname or "").lower(), port)
+
+
 def _is_valid_origin(value: str) -> bool:
     """Return whether the value is exactly scheme://host[:port] with no path."""
     if any(character.isspace() for character in value):
@@ -84,7 +92,15 @@ class Settings(BaseSettings):
             if host:
                 candidates.append(f"https://{host}")
         origins = [candidate for candidate in candidates if _is_valid_origin(candidate)]
-        return tuple(dict.fromkeys(origins))
+        unique: list[str] = []
+        seen: set[tuple[str, str, int]] = set()
+        for origin in origins:
+            key = _origin_key(origin)
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(origin)
+        return tuple(unique)
 
     @field_validator("default_tax_rate")
     @classmethod

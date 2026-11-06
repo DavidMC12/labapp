@@ -92,6 +92,16 @@ def test_duplicates_are_removed() -> None:
     assert settings.allowed_origins == ("https://same.test",)
 
 
+def test_duplicates_differing_only_in_case_or_default_port_are_removed() -> None:
+    settings = Settings(
+        app_origin="https://Same.test",
+        vercel_url="same.test",
+        vercel_branch_url="same.test:443",
+    )
+
+    assert settings.allowed_origins == ("https://Same.test",)
+
+
 def test_the_platform_variables_are_read_from_the_environment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

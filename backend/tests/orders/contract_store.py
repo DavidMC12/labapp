@@ -542,7 +542,8 @@ class OrderStoreContract:
             return "confirmed"
 
         with ThreadPoolExecutor(max_workers=2) as executor:
-            outcomes = list(executor.map(lambda _: confirm(), range(2)))
+            futures = [executor.submit(confirm) for _ in range(2)]
+            outcomes = [future.result(timeout=10) for future in futures]
 
         assert sorted(outcomes) == ["confirmed", "conflict"]
         assert store.get_order(1).version == 2
@@ -566,7 +567,11 @@ class OrderStoreContract:
             return "confirmed"
 
         with ThreadPoolExecutor(max_workers=2) as executor:
-            outcomes = list(executor.map(confirm, [first.id, second.id]))
+            futures = [
+                executor.submit(confirm, first.id),
+                executor.submit(confirm, second.id),
+            ]
+            outcomes = [future.result(timeout=10) for future in futures]
 
         assert sorted(outcomes) == ["confirmed", "shortage"]
         assert store.get_product(7).stock == 1

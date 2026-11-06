@@ -41,8 +41,8 @@ echoed; values must match `^[A-Za-z0-9._-]{1,64}$`, otherwise a new UUID4 is gen
 
 Without `DATABASE_URL` the API stores everything in memory, which is the default for
 tests. When it is set, the app builds one engine and uses the PostgreSQL adapters for
-users, sessions and customers; the in-memory adapters remain the test doubles. Creating
-the app and serving `GET /api/health` never opens a connection.
+users, sessions, customers and orders; the in-memory adapters remain the test doubles.
+Creating the app and serving `GET /api/health` never opens a connection.
 
 - `DATABASE_URL` — the runtime connection string. It must point at the provider's
   pooler. A blank value means "no database".
@@ -62,9 +62,10 @@ uv run python -m app.cli migrate
 uv run python -m app.cli seed
 ```
 
-`seed` adds the four users only when the `users` table is empty and the ten customers
-only when the `customers` table is empty; running it twice changes nothing. Startup
-never seeds.
+`seed` adds the four users only when the `users` table is empty, the ten customers only
+when the `customers` table is empty, and the 15 products, 7 orders and the tax rate when
+both `products` and `orders` are empty; running it twice changes nothing. Startup never
+seeds.
 
 The adapters follow two rules:
 
@@ -74,6 +75,16 @@ The adapters follow two rules:
 - Unique violations are mapped by index name with `unique_violation_of`. Only
   `customers_email_lower_key` becomes `EmailTaken`; every other database error
   propagates and answers 500 `INTERNAL_ERROR`.
+
+Products, orders, order lines and the tax rate use the `products`, `orders`,
+`order_lines` and `settings` tables. Order numbers come from `order_number_seq`
+(`nextval` inside the insert transaction: gaps are allowed, repeats are not). Every order
+mutation is one transaction and locks the order row `FOR UPDATE`, then the customer row
+`FOR SHARE`, then the product rows `FOR UPDATE` in ascending product id. Confirming locks
+the customer and every product, checks stock against the locked rows, decrements it,
+freezes the tax rate and sets the status atomically; cancelling a confirmed order returns
+the stock; both cancels store the current rate. `replace_all` moves the identity sequences
+and `order_number_seq` after the highest ids and numbers.
 
 For database errors the unexpected-error handler logs only the exception class, the
 SQLSTATE and the request id: never the message, the statement or the bound parameters.

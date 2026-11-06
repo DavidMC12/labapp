@@ -58,7 +58,7 @@ function paymentCalls(): Array<{
     .filter(([input, init]) =>
       String(input).startsWith("/api/invoices/1/payments")
         && String((init as RequestInit | undefined)?.method) === "POST")
-    .map(([input, init]) => {
+    .map(([, init]) => {
       const initRequest = init as RequestInit;
       const headers = initRequest.headers as Record<string, string>;
       return {
@@ -670,21 +670,6 @@ describe("the outcomes of the gateway", () => {
     view?.unmount();
     view = undefined;
   });
-  async function fillCardAndPay(typeOfNumber: string) {
-    const user = userEvent.setup();
-    await renderIssuedDetail();
-    await user.type(
-      screen.getByTestId("payments-register-cardnumber-input"),
-      typeOfNumber,
-    );
-    await user.type(
-      screen.getByTestId("payments-register-cardexpiry-input"),
-      "12/27",
-    );
-    await user.type(screen.getByTestId("payments-register-cardcvc-input"), "123");
-    await user.click(screen.getByTestId("payments-register-submit-button"));
-    return user;
-  }
 
   it("sends only the card fields, as typed, with a valid idempotency key", async () => {
     await renderIssuedDetail();

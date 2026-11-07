@@ -105,4 +105,55 @@ describe("Select", () => {
       "orders-line-product-error-3",
     );
   });
+
+  it("forwards labelClassName to the label instead of the default ink color", () => {
+    render(
+      <Select
+        id="rail-theme"
+        testId="app-theme-select"
+        label="Tema"
+        labelClassName="text-rail-ink"
+      >
+        <option value="system">Sistema</option>
+      </Select>,
+    );
+
+    const label = screen.getByText("Tema");
+
+    expect(label).toHaveClass("text-rail-ink");
+    expect(label).not.toHaveClass("text-ink");
+    expect(label).toHaveClass("text-[13px]", "font-medium");
+  });
+
+  it("keeps the default ink label when no labelClassName is given", () => {
+    render(
+      <Select
+        id="list-status"
+        testId="customers-list-status-select"
+        label="Estado"
+      >
+        <option value="">Todos</option>
+      </Select>,
+    );
+
+    expect(screen.getByText("Estado")).toHaveClass("text-ink");
+  });
+
+  it("forwards hideLabel to the field so the label stays linked but hidden", () => {
+    render(
+      <Select
+        id="rail-theme"
+        testId="app-theme-select"
+        label="Tema"
+        hideLabel
+      >
+        <option value="system">Sistema</option>
+      </Select>,
+    );
+
+    const label = screen.getByText("Tema");
+
+    expect(label).toHaveClass("sr-only");
+    expect(screen.getByRole("combobox", { name: "Tema" })).toBeInTheDocument();
+  });
 });

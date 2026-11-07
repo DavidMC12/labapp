@@ -8,6 +8,11 @@ type FieldProps = {
   /** Extra classes for the wrapper, for example a grid column width. */
   className?: string;
   /**
+   * Extra classes for the label, for example a rail color. When set, the
+   * label color is not the default `text-ink`: the caller owns the color.
+   */
+  labelClassName?: string;
+  /**
    * Keeps the `<label>` linked to the control but visually hidden
    * (`sr-only`): for repeated controls whose column is already labeled,
    * like the quantity inputs of the order lines.
@@ -29,19 +34,25 @@ export function Field({
   errorId,
   error,
   className,
+  labelClassName,
   hideLabel = false,
   children,
 }: FieldProps) {
+  const labelClasses = [
+    hideLabel ? "sr-only" : "",
+    "text-[13px] font-medium",
+    // The caller owns the label color when it passes a custom class; the
+    // default is the main text color of the theme.
+    labelClassName ?? "text-ink",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <div
       className={["flex flex-col gap-1", className].filter(Boolean).join(" ")}
     >
-      <label
-        htmlFor={id}
-        className={hideLabel
-          ? "sr-only text-[13px] font-medium text-ink"
-          : "text-[13px] font-medium text-ink"}
-      >
+      <label htmlFor={id} className={labelClasses}>
         {label}
       </label>
       {children}

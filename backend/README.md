@@ -349,3 +349,92 @@ curl -i -b /tmp/labapp-cookies -X POST \
   -H 'If-Match: "3"' \
   localhost:8000/api/orders/8/cancel
 ```
+
+## Invoices and payments
+
+`app/modules/invoices/` implements the invoice and payment API under
+`/api/invoices` and `POST /api/orders/{id}/invoice`.
+
+- `routes.py` — the four endpoints, all plain `def`. Reads need a session; issuing
+  an invoice and registering a payment need the create-invoices and
+  register-payments permissions (Admin and Finance).
+- `service.py` — list and body validation, the early idempotency replay, the
+  translation of the port exceptions and the rendering of the stored responses.
+  Money is a string with two decimals; `PaymentOutcome` carries the rendered
+  `StoredResponse` and whether it was replayed.
+- `ports.py` — `InvoiceStore` with its exceptions. Every method states the rules a
+  PostgreSQL adapter must honour.
+- `adapters/memory.py` — the thread-safe in-memory store used as a test double and
+  development aid.
+- `rules.py` — every invoice and payment business error (status, code and Spanish
+  message) in one place; the in-memory adapter and the future SQL adapter call it.
+- `gateway.py`, `mail.py` — the fake gateway and the mailer that only writes the
+  invoice number to the log.
+- `models.py`, `schemas.py`, `seed.py` — the records, the JSON shapes and the three
+  invoices plus four payments of `docs/SEED.md`.
+
+The in-memory order store and invoice store share one `RLock`. The gateway is
+called while that lock is held, so a gateway with injected latency also stalls
+unrelated reads and writes for the same process. The seed links the three seeded
+invoices with `link_invoices`, not `attach_invoice`, so the seeded orders keep
+`version` 1 and `updated_at == created_at`.
+
+A PostgreSQL adapter must guarantee the same behaviour as the in-memory one:
+
+- Every invoice mutation locks the order row first (`SELECT ... FOR UPDATE`), then
+  the invoice row, then the customer row (`FOR SHARE`) when it is needed. The
+  version and the state are checked after locking.
+- `issue_invoice` checks the version, `INVOICE_ALREADY_EXISTS`,
+  `ORDER_NOT_INVOICEABLE` and `CUSTOMER_TAX_ID_REQUIRED`, takes the next `FAC`
+  number and links the order in one transaction.
+- The idempotency key is claimed with a unique `(invoice_id, key)` row before the
+  locks and looked up again after them, so two concurrent requests with one key
+  make one payment and the second replays the first response. Keys live 24 hours
+  and only an approved, declined or failed payment consumes one.
+- An approved payment, the invoice becoming `paid` and the order becoming `paid`
+  are one transaction. A declined or failed attempt is stored and answered with a
+  402 or 503 problem that carries `payment_id` and `reason`.
+- Only the last four digits of a card are ever stored; the number and the CVC
+  never reach the store or a response.
+
+This module is in memory in task 019; task 021 wires the PostgreSQL adapter.
+
+```bash
+# Log in as finance and keep the session cookie.
+curl -i -c /tmp/labapp-cookies \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"finance@labapp.test","password":"Demo-LabApp-2026!"}' \
+  localhost:8000/api/auth/login
+
+# Issue the invoice of order 2 (PED-0002). The answer carries Location and ETag: "1".
+curl -i -b /tmp/labapp-cookies -X POST \
+  localhost:8000/api/orders/2/invoice
+
+# Read it and the list.
+curl -i -b /tmp/labapp-cookies localhost:8000/api/invoices/4
+curl -b /tmp/labapp-cookies 'localhost:8000/api/invoices?status=issued'
+
+# Pay it with the approved test card. The answer carries ETag: "2".
+curl -i -b /tmp/labapp-cookies \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: pay-0001' \
+  -d '{"method":"card","amount":"121.00","card":{"number":"4242 4242 4242 4242","expiry":"12/30","cvc":"123"}}' \
+  localhost:8000/api/invoices/4/payments
+
+# Repeat the same request: same status and body, Idempotency-Replayed: true.
+curl -i -b /tmp/labapp-cookies \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: pay-0001' \
+  -d '{"method":"card","amount":"121.00","card":{"number":"4242 4242 4242 4242","expiry":"12/30","cvc":"123"}}' \
+  localhost:8000/api/invoices/4/payments
+
+# The order is now paid.
+curl -b /tmp/labapp-cookies localhost:8000/api/orders/2
+
+# FAC-0001 is declined by the test card ending in 0002: 402 with payment_id and reason.
+curl -i -b /tmp/labapp-cookies \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: pay-0002' \
+  -d '{"method":"card","amount":"327.80","card":{"number":"4000 0000 0000 0002","expiry":"12/30","cvc":"123"}}' \
+  localhost:8000/api/invoices/1/payments
+```

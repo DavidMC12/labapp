@@ -44,7 +44,10 @@ describe("the root layout theme", () => {
     // The script runs before hydration and may add data-theme, so React
     // must not warn about the client-side attribute of <html>. Rendering
     // drops internal flags, so call the function component directly.
-    const tree = RootLayout({ children: <p>página</p> }) as ReactElement;
+    const tree = RootLayout({ children: <p>página</p> }) as ReactElement<{
+      suppressHydrationWarning?: boolean;
+      [key: string]: unknown;
+    }>;
 
     expect(tree.type).toBe("html");
     expect(tree.props.suppressHydrationWarning).toBe(true);

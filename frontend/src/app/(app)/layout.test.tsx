@@ -27,6 +27,8 @@ let queryClient: QueryClient;
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  window.localStorage.clear();
+  document.documentElement.removeAttribute("data-theme");
 });
 
 function jsonResponse(
@@ -271,5 +273,46 @@ describe("app shell logout", () => {
         .getAll()
         .every((query) => query.state.data === undefined),
     ).toBe(true);
+  });
+});
+
+describe("app shell theme", () => {
+  it("offers the Tema control in the rail user block", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(userPayload("admin", "admin@labapp.test"), 200,
+        "application/json"),
+    );
+
+    renderShell();
+
+    const select = await screen.findByTestId(
+      "app-theme-select",
+    ) as HTMLSelectElement;
+    expect(select.value).toBe("system");
+
+    const options = [...select.options].map((option) => option.textContent);
+    expect(options).toEqual(["Sistema", "Claro", "Oscuro"]);
+
+    // One DOM instance only: responsive CSS moves it between the rail
+    // block and the phone layout, and the browser audit counts ids.
+    expect(screen.getAllByTestId("app-theme-select")).toHaveLength(1);
+    expect(screen.getByText("Tema")).toHaveClass("text-rail-ink");
+  });
+
+  it("applies and stays with the stored choice after hydration", async () => {
+    window.localStorage.setItem("labapp-theme", "dark");
+    fetchMock.mockResolvedValue(
+      jsonResponse(userPayload("admin", "admin@labapp.test"), 200,
+        "application/json"),
+    );
+
+    renderShell();
+
+    await waitFor(() => {
+      expect(
+        (screen.getByTestId("app-theme-select") as HTMLSelectElement).value,
+      ).toBe("dark");
+    });
+    expect(document.documentElement.getAttribute("data-theme")).toBe(null);
   });
 });

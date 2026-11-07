@@ -7,6 +7,10 @@ type SelectProps = Omit<SelectHTMLAttributes<HTMLSelectElement>, "id"> & {
   testId: TestId;
   label: string;
   error?: string;
+  /** Extra classes for the label, for example a rail color. */
+  labelClassName?: string;
+  /** Visually hides the label; it stays linked for screen readers. */
+  hideLabel?: boolean;
   children: ReactNode;
 };
 
@@ -34,13 +38,22 @@ export function Select({
   testId,
   label,
   error,
+  labelClassName,
+  hideLabel,
   children,
   ...rest
 }: SelectProps) {
   const errorId = errorTestId(testId);
 
   return (
-    <Field id={id} label={label} errorId={errorId} error={error}>
+    <Field
+      id={id}
+      label={label}
+      errorId={errorId}
+      error={error}
+      labelClassName={labelClassName}
+      hideLabel={hideLabel}
+    >
       <select
         {...rest}
         {...fieldControlProps(id, error, errorId)}

@@ -9,9 +9,11 @@ The test id contract implemented here is defined in `docs/TESTABILITY.md`.
 
 ## Design
 
-- The visual design is the "Libro mayor" light theme: a warm paper
-  background, dark green ink, a fixed-width side rail for navigation and
-  tables in the style of an accounting ledger.
+- The visual design is the "Libro mayor" theme in two voices: a warm
+  paper background with dark green ink (light) and the same design on a
+  dark ground with a light green accent (dark). Both share a
+  fixed-width side rail for navigation and tables in the style of an
+  accounting ledger.
 - **Colors live once, in `src/app/globals.css`** as CSS custom properties
   on `:root` (the tokens: `paper`, `surface`, `ink`, `muted`, `line`,
   `control-border`, `rail`, `rail-ink`, `rail-muted`, `rail-hover`,
@@ -19,15 +21,51 @@ The test id contract implemented here is defined in `docs/TESTABILITY.md`.
   `danger-bg`, `focus`), mapped to Tailwind with `@theme inline`
   (`--color-paper: var(--paper)`), so utilities such as `bg-paper` and
   `text-ink` exist. Components and screens use only those utilities.
+- **The tokens have three places.** The light values sit on bare `:root`
+  with `color-scheme: light`. The dark values redefine **every** token in
+  exactly two further places, both carrying the same values and
+  `color-scheme: dark`: inside
+  `@media (prefers-color-scheme: dark) { :root:not([data-theme="light"])
+  { … } }` (the default: the app follows the system preference, and the
+  `:not([data-theme="light"])` guard respects a pinned light choice) and
+  in `:root[data-theme="dark"] { … }` (the explicit choice, which wins
+  over a light system preference). Nothing is defined only inside a media
+  query or an attribute selector: every token has its first definition on
+  bare `:root`, so a theme change is a value change, never a shape
+  change.
+- **The theme selector** (`src/components/ui/ThemeSelect.tsx`, a `Select`
+  labeled "Tema" with the options "Sistema", "Claro" and "Oscuro")
+  writes `data-theme` on `<html>` for an explicit choice and removes the
+  attribute for "Sistema". It appears in the user block of the shell rail
+  (`app-theme-select`, which is the same DOM slot under the links on the
+  phone layout) and at the top right of the form column of the login
+  (`auth-login-theme-select`), above the heading.
+- **The choice is remembered** in `localStorage` under the key
+  `labapp-theme` with the values `light` and `dark` (no key means
+  system). Every read and write goes through `src/lib/theme.ts`, sits
+  inside try/catch and degrades to the system theme when storage is
+  blocked or empty (private windows, permissions policy), so the page
+  never breaks.
+- **There is no flash of the wrong theme:** the root layout carries an
+  inline script (`THEME_INIT_SCRIPT` in `src/lib/theme.ts`) in the
+  `<head>` that applies the stored choice before the first paint, again
+  inside try/catch, and `<html>` is marked with
+  `suppressHydrationWarning` because the script may add the attribute
+  before hydration. The selector reads the real choice only after
+  hydration, so the server and the client markup match.
 - Typography: IBM Plex Sans (body) and IBM Plex Serif (headings, brand),
   loaded in the root `layout.tsx` with `next/font/google` and exposed as
   `--font-plex-sans` / `--font-plex-serif`.
-- **Adding a theme changes `src/app/globals.css` alone**: swap the values
-  of the CSS custom properties. No component needs editing; a test guards
-  it (next point).
-- Two guard tests, both under `src/app/`:
-  - `tokens.test.ts` reads the tokens back from `globals.css` and checks
-    the WCAG contrast ratios of the token pairs the theme relies on.
+- **Adding another theme** is still a change of `src/app/globals.css`
+  alone, plus the new values under the same token names in all three
+  places: bare `:root`, the media query place and the explicit
+  `data-theme` place, with their `color-scheme` set. Two guard tests
+  keep it honest:
+  - `tokens.test.ts` parses the three places and checks that every token
+    is defined on `:root` and redefined in both dark places with the
+    fixed values, that the `color-scheme` declarations are in place, and
+    that the WCAG contrast of every checked token pair holds for the
+    light and the dark values.
   - `colors-guard.test.ts` scans every `.ts`/`.tsx`/`.css` file under
     `src/` except `globals.css` and the tests themselves, and fails on a
     hex color, on `rgb(`, `rgba(`, `hsl(`, `hsla(`, `oklch(`, `oklab(`,
@@ -68,11 +106,14 @@ src/
   app/globals.css     the design tokens of the theme (the only colored file)
   components/
     ui/       Button (primary/secondary/rail), Input, Select, Textarea,
-              Link (text/primary/secondary/rail), Alert — interactive
-              elements take a required testId; fields also share Field
+              Link (text/primary/secondary/rail), Alert, ThemeSelect —
+              interactive elements take a required testId; fields also
+              share Field
     LedgerMark.tsx  the brand mark of the theme
   features/   customers + auth (hooks, api, screens helpers)
   lib/        testid.ts — the test id grammar: pattern, type and helpers
+              theme.ts — the storage key, the setting and the no-flash
+              script of the theme (see Design above)
   test/       Vitest setup
 ```
 

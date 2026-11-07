@@ -5,3 +5,4 @@ export { Input } from "./Input";
 export { Link } from "./Link";
 export { Select } from "./Select";
 export { Textarea } from "./Textarea";
+export { ThemeSelect } from "./ThemeSelect";

@@ -40,6 +40,13 @@ describe("isValidTestId", () => {
     expect(isValidTestId("todos-list-item")).toBe(false);
   });
 
+  it("accepts the home module of the summary screen", () => {
+    expect(isValidTestId("home-customers-heading")).toBe(true);
+    expect(isValidTestId("home-orders-shipped-count-text")).toBe(true);
+    expect(isValidTestId("home-invoices-void-link")).toBe(true);
+    expect(isValidTestId("home-customers-active-loading-status")).toBe(true);
+  });
+
   it("rejects an unknown kind", () => {
     expect(isValidTestId("app-list-thing")).toBe(false);
   });

@@ -231,7 +231,7 @@ class InMemoryInvoiceStore:
             self._next_payment_id += 1
             self._payments[payment.id] = payment
             self._invoices[invoice.id] = updated_invoice
-            invoice_after = self._with_payments(updated_invoice)
+            invoice_after = self._with_payments(self._invoices[invoice.id])
             response = respond(payment, invoice_after)
             self._keys[(invoice_id, key)] = (fingerprint, response, now)
             return PaymentOutcome(response, False)

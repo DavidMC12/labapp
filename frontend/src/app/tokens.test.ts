@@ -7,29 +7,45 @@ import { describe, expect, it } from "vitest";
  * so the test verifies the file the app really ships and fails if a value
  * is edited without checking its contrast again.
  *
- * The light values live on bare `:root`; the dark theme redefines every
- * token in exactly two places, the system default inside the
- * `prefers-color-scheme` media query (pinned back to light only by
- * `data-theme="light"` on `<html>`) and the explicit `data-theme="dark"`
- * choice. Nothing may be defined only inside a media query or an
- * attribute selector, so the tests parse the three places separately.
+ * The file is parsed block by block with a brace counter: the media place
+ * nests the `:root:not([data-theme="light"])` rule inside the
+ * `@media (prefers-color-scheme: dark)` block, so a plain global regex
+ * would keep only the last declaration of each name and silently test the
+ * dark values for everyone.
  */
 
 type ColorName = string;
 type TokenBlock = Map<ColorName, string>;
 
-/** The body of the first rule matching the selector, or null. */
-function ruleBody(css: string, selector: RegExp): string | null {
+const CSS_PATH = join(process.cwd(), "src/app/globals.css");
+
+/**
+ * The body of the rule that starts at the given selector match, counted
+ * with a brace depth from the opening `{`: nested blocks (the @media
+ * block) are handled and the body ends at the matching `}`.
+ */
+function extractRuleBody(css: string, selector: RegExp): string | null {
   const match = selector.exec(css);
   if (!match) {
     return null;
   }
   const open = css.indexOf("{", match.index);
-  const close = css.indexOf("}", open);
-  if (open === -1 || close === -1) {
+  if (open === -1) {
     return null;
   }
-  return css.slice(open + 1, close);
+  let depth = 0;
+  for (let index = open; index < css.length; index++) {
+    const character = css[index];
+    if (character === "{") {
+      depth++;
+    } else if (character === "}") {
+      depth--;
+      if (depth === 0) {
+        return css.slice(open + 1, index);
+      }
+    }
+  }
+  return null;
 }
 
 /** The hex color declarations of a rule body, keyed by token name. */
@@ -42,22 +58,24 @@ function parseTokens(body: string): TokenBlock {
   return tokens;
 }
 
-/**
- * `import.meta.url` is not `file:` inside the jsdom environment; the test
- * always runs from `frontend/` (`pnpm test`), so cwd is the anchor.
- */
+/** Whether the rule body declares the given `color-scheme` value. */
+function matchingScheme(body: string, scheme: string): boolean {
+  return new RegExp(`color-scheme:\\s*${scheme}\\s*;`).test(body);
+}
+
+const ROOT_SELECTOR = /^:root \{/m;
+const SYSTEM_DARK_SELECTOR = /:root:not\(\[data-theme="light"\]\) \{/;
+const EXPLICIT_DARK_SELECTOR = /^:root\[data-theme="dark"\] \{/m;
+
 function readPlaces(): {
   light: TokenBlock;
   systemDark: TokenBlock;
   explicitDark: TokenBlock;
 } {
-  const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
-  const light = ruleBody(css, /^:root \{/m);
-  const systemDark = ruleBody(
-    css,
-    /:root:not\(\[data-theme="light"\]\) \{/,
-  );
-  const explicitDark = ruleBody(css, /^:root\[data-theme="dark"\] \{/m);
+  const css = readFileSync(CSS_PATH, "utf8");
+  const light = extractRuleBody(css, ROOT_SELECTOR);
+  const systemDark = extractRuleBody(css, SYSTEM_DARK_SELECTOR);
+  const explicitDark = extractRuleBody(css, EXPLICIT_DARK_SELECTOR);
 
   expect(light, "the bare :root block").not.toBeNull();
   expect(systemDark, "the dark media query block").not.toBeNull();
@@ -68,14 +86,6 @@ function readPlaces(): {
     systemDark: parseTokens(systemDark as string),
     explicitDark: parseTokens(explicitDark as string),
   };
-}
-
-/** Whether the rule body declares the given `color-scheme` value. */
-function matchingScheme(body: string, scheme: string): boolean {
-  const declaration = new RegExp(
-    `color-scheme:\\s*${scheme}\\s*;`,
-  );
-  return declaration.test(body);
 }
 
 /** WCAG relative luminance of a hex color. */
@@ -97,52 +107,6 @@ function contrastRatio(foregroundHex: string, backgroundHex: string): number {
   ].sort((a, b) => b - a);
   return (first + 0.05) / (second + 0.05);
 }
-
-const REQUIRED_CONTRAST: [foreground: string, background: string, minimum: number][] = [
-  ["ink", "paper", 4.5],
-  ["muted", "paper", 4.5],
-  ["muted", "surface", 4.5],
-  ["rail-ink", "rail", 4.5],
-  ["rail-muted", "rail", 4.5],
-  ["rail-muted", "rail-hover", 4.5],
-  ["rail-active-ink", "rail-active", 4.5],
-  ["accent-ink", "accent", 4.5],
-  ["accent-ink", "accent-hover", 4.5],
-  ["accent", "ok-bg", 4.5],
-  ["muted", "off-bg", 4.5],
-  ["danger", "danger-bg", 4.5],
-  ["danger", "paper", 4.5],
-  ["danger", "surface", 4.5],
-  ["accent", "paper", 4.5],
-  ["control-border", "surface", 3],
-  ["focus", "paper", 3],
-  ["focus", "rail", 3],
-];
-
-/** The contrast pairs of the dark theme, with the same minimums. */
-const REQUIRED_DARK_CONTRAST: [foreground: string, background: string, minimum: number][] = [
-  ["ink", "paper", 4.5],
-  ["ink", "surface", 4.5],
-  ["muted", "paper", 4.5],
-  ["muted", "surface", 4.5],
-  ["rail-ink", "rail", 4.5],
-  ["rail-muted", "rail", 4.5],
-  ["rail-muted", "rail-hover", 4.5],
-  ["rail-active-ink", "rail-active", 4.5],
-  ["accent-ink", "accent", 4.5],
-  ["accent-ink", "accent-hover", 4.5],
-  ["accent", "ok-bg", 4.5],
-  ["muted", "off-bg", 4.5],
-  ["danger", "danger-bg", 4.5],
-  ["accent", "paper", 4.5],
-  ["accent", "surface", 4.5],
-  ["danger", "paper", 4.5],
-  ["danger", "surface", 4.5],
-  ["control-border", "surface", 3],
-  ["control-border", "paper", 3],
-  ["focus", "paper", 3],
-  ["focus", "rail", 3],
-];
 
 const REQUIRED_TOKENS = [
   "paper",
@@ -167,7 +131,31 @@ const REQUIRED_TOKENS = [
   "focus",
 ];
 
-/** The dark values of the theme, exactly as the brief fixes them. */
+/** The light values, pinned exactly as they ship today. */
+const LIGHT_TOKENS: Record<ColorName, string> = {
+  paper: "#FBFAF6",
+  surface: "#FFFFFF",
+  ink: "#18241F",
+  muted: "#5B6B63",
+  line: "#D9D4C5",
+  "control-border": "#8A8470",
+  rail: "#14342B",
+  "rail-ink": "#E8F0EA",
+  "rail-muted": "#A9C2B6",
+  "rail-hover": "#1D4A3D",
+  "rail-active": "#FBFAF6",
+  "rail-active-ink": "#18241F",
+  accent: "#0F5B46",
+  "accent-hover": "#0B4A38",
+  "accent-ink": "#FFFFFF",
+  "ok-bg": "#DCEBE3",
+  "off-bg": "#ECE9DF",
+  danger: "#A3261B",
+  "danger-bg": "#F9E1DE",
+  focus: "#1F8A6C",
+};
+
+/** The dark values, exactly as the brief fixes them. */
 const DARK_TOKENS: Record<ColorName, string> = {
   paper: "#111513",
   surface: "#1A1F1C",
@@ -191,24 +179,53 @@ const DARK_TOKENS: Record<ColorName, string> = {
   focus: "#7AD9BC",
 };
 
+/** Every checked pair, minimums included, run for both themes. */
+const REQUIRED_CONTRAST: [foreground: string, background: string, minimum: number][] = [
+  ["ink", "paper", 4.5],
+  ["ink", "surface", 4.5],
+  ["muted", "paper", 4.5],
+  ["muted", "surface", 4.5],
+  ["rail-ink", "rail", 4.5],
+  ["rail-ink", "rail-hover", 4.5],
+  ["rail-muted", "rail", 4.5],
+  ["rail-muted", "rail-hover", 4.5],
+  ["rail-active-ink", "rail-active", 4.5],
+  ["accent-ink", "accent", 4.5],
+  ["accent-ink", "accent-hover", 4.5],
+  ["accent", "ok-bg", 4.5],
+  ["muted", "off-bg", 4.5],
+  ["danger", "danger-bg", 4.5],
+  ["danger", "paper", 4.5],
+  ["danger", "surface", 4.5],
+  ["accent", "paper", 4.5],
+  ["accent", "surface", 4.5],
+  ["control-border", "surface", 3],
+  ["control-border", "paper", 3],
+  ["focus", "paper", 3],
+  ["focus", "surface", 3],
+  ["focus", "rail", 3],
+];
+
 describe("the Libro mayor design tokens", () => {
-  it("defines every token of the theme on bare :root", () => {
+  it("defines every token of the theme on bare :root with the pinned light values", () => {
     const { light } = readPlaces();
 
     for (const name of REQUIRED_TOKENS) {
-      expect(light.get(name), name).toMatch(/^#[0-9a-fA-F]{6}$/);
+      expect(light.get(name), name).toBe(LIGHT_TOKENS[name]);
     }
     expect(light.size).toBe(REQUIRED_TOKENS.length);
   });
 
   it("declares the light color-scheme on :root", () => {
-    const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
-    const body = ruleBody(css, /^:root \{/m) as string;
+    const rootBody = extractRuleBody(
+      readFileSync(CSS_PATH, "utf8"),
+      ROOT_SELECTOR,
+    ) as string;
 
-    expect(matchingScheme(body, "light")).toBe(true);
+    expect(matchingScheme(rootBody, "light")).toBe(true);
   });
 
-  it("keeps the WCAG contrast of every checked light pair", () => {
+  it("keeps the WCAG contrast of every checked pair in the light theme", () => {
     const { light } = readPlaces();
 
     for (const [foreground, background, minimum] of REQUIRED_CONTRAST) {
@@ -217,7 +234,7 @@ describe("the Libro mayor design tokens", () => {
       expect(fg, `token ${foreground}`).toBeDefined();
       expect(bg, `token ${background}`).toBeDefined();
       const ratio = contrastRatio(fg as string, bg as string);
-      expect(ratio, `${foreground}/${background}: ${ratio.toFixed(2)}`)
+      expect(ratio, `light ${foreground}/${background}: ${ratio.toFixed(2)}`)
         .toBeGreaterThanOrEqual(minimum);
     }
   });
@@ -225,19 +242,16 @@ describe("the Libro mayor design tokens", () => {
 
 describe("the dark places of the theme", () => {
   it("declares the dark color-scheme in both places", () => {
-    const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
-    const system = ruleBody(
-      css,
-      /:root:not\(\[data-theme="light"\]\) \{/,
-    ) as string;
-    const explicit = ruleBody(css, /^:root\[data-theme="dark"\] \{/m) as string;
+    const css = readFileSync(CSS_PATH, "utf8");
+    const system = extractRuleBody(css, SYSTEM_DARK_SELECTOR) as string;
+    const explicit = extractRuleBody(css, EXPLICIT_DARK_SELECTOR) as string;
 
     expect(matchingScheme(system, "dark")).toBe(true);
     expect(matchingScheme(explicit, "dark")).toBe(true);
   });
 
-  it("redefines every :root token in both dark places with the same value", () => {
-    const { systemDark, explicitDark } = readPlaces();
+  it("carries exactly every :root token in both dark places with the same value", () => {
+    const { light, systemDark, explicitDark } = readPlaces();
 
     for (const name of REQUIRED_TOKENS) {
       expect(systemDark.get(name), `${name} in the media block`).toBeDefined();
@@ -248,30 +262,46 @@ describe("the dark places of the theme", () => {
         `${name} differs between the dark places`,
       ).toBe(true);
     }
+    // No dark-only token may exist: the shape of the theme is the token
+    // list, always defined first on bare :root.
+    for (const name of systemDark.keys()) {
+      expect(light.has(name), `${name} exists only in the media block`).toBe(
+        true,
+      );
+    }
+    for (const name of explicitDark.keys()) {
+      expect(
+        light.has(name),
+        `${name} exists only in the attribute block`,
+      ).toBe(true);
+    }
   });
 
   it("uses the fixed dark values in both places", () => {
     const { systemDark, explicitDark } = readPlaces();
 
-    for (const [name, value] of Object.entries(DARK_TOKENS)) {
-      expect(systemDark.get(name), `${name} in the media block`).toBe(value);
-      expect(explicitDark.get(name), `${name} in the attribute block`)
-        .toBe(value);
+    for (const dark of [systemDark, explicitDark]) {
+      for (const [name, value] of Object.entries(DARK_TOKENS)) {
+        expect(dark.get(name), `${name}`).toBe(value);
+      }
+      expect(dark.size).toBe(REQUIRED_TOKENS.length);
     }
   });
 
-  it("keeps the WCAG contrast of every checked dark pair", () => {
+  it("keeps the WCAG contrast of every checked pair in the dark theme", () => {
     const { systemDark, explicitDark } = readPlaces();
 
     for (const dark of [systemDark, explicitDark]) {
-      for (const [foreground, background, minimum] of REQUIRED_DARK_CONTRAST) {
+      for (const [foreground, background, minimum] of REQUIRED_CONTRAST) {
         const fg = dark.get(foreground);
         const bg = dark.get(background);
         expect(fg, `token ${foreground}`).toBeDefined();
         expect(bg, `token ${background}`).toBeDefined();
         const ratio = contrastRatio(fg as string, bg as string);
-        expect(ratio, `${foreground}/${background}: ${ratio.toFixed(2)}`)
-          .toBeGreaterThanOrEqual(minimum);
+        expect(
+          ratio,
+          `dark ${foreground}/${background}: ${ratio.toFixed(2)}`,
+        ).toBeGreaterThanOrEqual(minimum);
       }
     }
   });

@@ -334,6 +334,7 @@ Common errors not tied to one feature:
 | Lock wait above 5 seconds | 503 | `LOCK_TIMEOUT` | El recurso está ocupado. Inténtalo de nuevo. |
 | All password-check slots busy for 2 seconds | 503 | `SERVICE_BUSY` | El servicio está ocupado. Inténtalo de nuevo en unos segundos. |
 | Method not allowed | 405 | `METHOD_NOT_ALLOWED` | Método no permitido para este recurso. |
+| Injected fault (test controls only) | 400 to 599 as configured | `INJECTED_FAULT` | Falla inyectada para pruebas. |
 
 Field-level errors: a 422 `VALIDATION_ERROR` lists one entry per field in `errors[]`, with `field` (a path such as `lines[0].quantity`), `code` and `message`:
 
@@ -397,7 +398,7 @@ Numbers continue after the seed (`PED-0008`, `FAC-0004`).
 
 `POST /__test__/seed` takes `{"dataset": "default" | "empty"}`: `default` is the data in SEED.md and `empty` keeps only the four users and the settings.
 
-A reset restores the data, the number sequences, the tax rate (to `DEFAULT_TAX_RATE`) and the clock offset, and clears every fault rule, the stored idempotency keys and the rate-limit counters. Sessions are kept: the four users keep their ids, so a stored authentication state keeps working after a reset.
+A reset restores the data, the number sequences, the tax rate (to `DEFAULT_TAX_RATE`) and the clock offset, and clears every fault rule, the stored idempotency keys and the rate-limit counters of the instance that serves the reset (counters are per instance until they move to the database). Sessions are kept: the four users keep their ids, so a stored authentication state keeps working after a reset.
 
 ## 10. Out of scope
 

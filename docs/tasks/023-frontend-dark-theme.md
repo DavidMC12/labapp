@@ -60,3 +60,14 @@ From `frontend/`: `pnpm install --frozen-lockfile`, `pnpm lint`, `pnpm typecheck
 - Use paths relative to your working directory. Your copies of the project documents are in `.context/` (ignored by git; never stage them).
 - If the brief is ambiguous or two requirements collide, do not guess: write the question in your report.
 - When done, reply with: the branch, the commit range, the exact commands you ran with their exit codes, and any deviation or open question.
+
+## Corrections after the review
+
+The brief was reviewed by a second agent before the work started. Its findings were sent to the worker as corrections and are part of the delivered work:
+
+- Two more tokens, `rail-active` and `rail-active-ink` (light: `#FBFAF6` and `#18241F`, the old look; dark: `#24573F` and `#E8F0EA`), because the current link of the rail used `paper`, which is 1.08 to 1 against the dark rail.
+- `Field` and `Select` take an optional `labelClassName`, so the "Tema" label can use `text-rail-ink` on the rail (`ink` on the light rail is 1.2 to 1).
+- The shell holds one single `app-theme-select` (responsive CSS), never a second copy.
+- `tokens.test.ts` parses the file block by block with a brace counter, pins the light values, asserts that no token exists in a dark block that is not on `:root`, and runs every pair in both themes, with `focus`/`surface` at least 3 and `rail-ink`/`rail-hover` at least 4.5.
+- The no-flash script is a static string built in the server `layout.tsx` from the exported storage key, with the whole `window.localStorage` access inside the `try`.
+- The browser audit got a `--theme` option and CI runs it in both themes (a supervisor task, outside `frontend/`).

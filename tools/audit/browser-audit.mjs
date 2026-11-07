@@ -10,7 +10,9 @@
 // It prints the states it covered: the 100% goal is measured over those states. Exit code 1 when anything fails.
 //
 // Needs a running application (API and web) at "baseUrl" and the frontend dependencies installed.
-// Usage: node tools/audit/browser-audit.mjs [--base http://localhost:3000] [--only name,name] [--json]
+// Usage: node tools/audit/browser-audit.mjs [--base http://localhost:3000] [--only name,name] [--theme light|dark] [--json]
+//   --theme pins the explicit choice of the theme selector (localStorage "labapp-theme") before every page loads, so
+//   the same states can be audited in both voices of the design; without it the page follows the browser default.
 import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -26,6 +28,11 @@ const option = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i 
 const base = (option("--base") ?? process.env.AUDIT_BASE_URL ?? config.baseUrl).replace(/\/+$/, "");
 const only = option("--only")?.split(",");
 const asJson = args.includes("--json");
+const theme = option("--theme");
+if (theme !== undefined && theme !== "light" && theme !== "dark") {
+  console.error(`--theme must be "light" or "dark", got "${theme}"`);
+  process.exit(2);
+}
 
 const pattern = new RegExp(/export const TEST_ID_PATTERN =\s*\/(.+)\/;/.exec(readFileSync(join(frontend, "src/lib/testid.ts"), "utf8"))[1]);
 const axeSource = readFileSync(join(frontend, "node_modules/axe-core/axe.min.js"), "utf8");
@@ -105,6 +112,9 @@ async function main() {
       return result.result.result.value;
     };
     await send("Page.enable"); await send("Network.enable"); await send("Runtime.enable");
+    if (theme) {
+      await send("Page.addScriptToEvaluateOnNewDocument", { source: `try { window.localStorage.setItem("labapp-theme", ${JSON.stringify(theme)}); } catch (error) { /* blocked storage */ }` });
+    }
     await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
 
     const cookies = new Map();
@@ -159,5 +169,5 @@ for (const entry of report) {
   if (!asJson) for (const w of entry.warnings) console.log(`       ~ ${w}`);
   failed += entry.failures.length;
 }
-console.log(`Browser audit: ${report.length} state(s) covered, ${failed} failure(s).`);
+console.log(`Browser audit${theme ? ` (${theme} theme)` : ""}: ${report.length} state(s) covered, ${failed} failure(s).`);
 process.exit(failed === 0 ? 0 : 1);

@@ -19,6 +19,8 @@
   --rail-ink: #E8F0EA; /* text on the rail */
   --rail-muted: #A9C2B6; /* links on the rail */
   --rail-hover: #1D4A3D; /* hovered link on the rail */
+  --rail-active: #FBFAF6; /* background of the current link on the rail */
+  --rail-active-ink: #18241F; /* text of the current link on the rail */
   --accent: #0F5B46; /* primary buttons, links, active badge text */
   --accent-hover: #0B4A38; /* hovered primary button */
   --accent-ink: #FFFFFF; /* text on accent */
@@ -54,6 +56,8 @@
     --rail-ink: #E8F0EA; /* text on the rail */
     --rail-muted: #A9C2B6; /* links on the rail */
     --rail-hover: #143528; /* hovered link on the rail */
+    --rail-active: #24573F; /* background of the current link on the rail */
+    --rail-active-ink: #E8F0EA; /* text of the current link on the rail */
     --accent: #4FBF9A; /* primary buttons, links, active badge text */
     --accent-hover: #6FD3B2; /* hovered primary button */
     --accent-ink: #07231A; /* text on accent */
@@ -79,6 +83,8 @@
   --rail-ink: #E8F0EA; /* text on the rail */
   --rail-muted: #A9C2B6; /* links on the rail */
   --rail-hover: #143528; /* hovered link on the rail */
+  --rail-active: #24573F; /* background of the current link on the rail */
+  --rail-active-ink: #E8F0EA; /* text of the current link on the rail */
   --accent: #4FBF9A; /* primary buttons, links, active badge text */
   --accent-hover: #6FD3B2; /* hovered primary button */
   --accent-ink: #07231A; /* text on accent */
@@ -100,6 +106,8 @@
   --color-rail-ink: var(--rail-ink);
   --color-rail-muted: var(--rail-muted);
   --color-rail-hover: var(--rail-hover);
+  --color-rail-active: var(--rail-active);
+  --color-rail-active-ink: var(--rail-active-ink);
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-accent-ink: var(--accent-ink);

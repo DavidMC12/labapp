@@ -86,8 +86,21 @@ freezes the tax rate and sets the status atomically; cancelling a confirmed orde
 the stock; both cancels store the current rate. `replace_all` moves the identity sequences
 and `order_number_seq` after the highest ids and numbers.
 
-For database errors the unexpected-error handler logs only the exception class, the
-SQLSTATE and the request id: never the message, the statement or the bound parameters.
+Database errors (`DBAPIError` and the bare `psycopg.Error`) have their own handler. It logs
+the exception class, the SQLSTATE, the request id and the stack frames, never the driver
+message, the statement or the bound parameters (the message can carry row values). Because it
+is registered for those classes, Starlette answers with it and does not re-raise, so no server
+log prints the message either.
+
+Every transaction starts with `SET LOCAL lock_timeout`, 5 seconds by default
+(`LOCK_TIMEOUT_MS`, 100 to 60000). `SET LOCAL` lasts only until the transaction ends, so it
+also works behind a transaction-mode pooler, where a startup option would be rejected. A
+request that waits longer for a row lock gets 503 `LOCK_TIMEOUT` (SQLSTATE 55P03) instead of
+hanging until the platform kills the function; the log line carries the method and path.
+A deadlock (40P01) is not mapped: it stays a 500 so that a locking bug shows up in the tests.
+Every login takes one advisory lock for the count and the trim of the session cap, held for
+about three round trips; a test that queues 20 logins over a slow link builds its engine with
+a longer `lock_timeout_ms`.
 
 The integration tests create a random schema, run the migrations there and drop the
 schema when they finish. They are skipped unless `TEST_DATABASE_URL` is set to a direct,

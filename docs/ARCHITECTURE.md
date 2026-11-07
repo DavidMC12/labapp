@@ -31,8 +31,11 @@ Next.js (web)  --/api routed-->  FastAPI (API)  -->  PostgreSQL
 |---|---|
 | `POST /__test__/reset` | Restore the seed data. |
 | `POST /__test__/seed` | Load a named dataset. |
+| `GET /__test__/clock` | Read the application time and the offset. |
 | `POST /__test__/clock` | Set or advance the application clock. |
 | `POST /__test__/faults` | Inject latency or errors on a given route, or make the payment gateway unavailable (target `gateway`). Latency is capped at 10 seconds. `/__test__/*` and `GET /api/health` are never affected, so a test cannot lock itself out. |
+| `GET /__test__/faults` | List the active fault rules with their remaining count. |
+| `DELETE /__test__/faults` | Remove every fault rule. |
 
 They are always registered under `/__test__` at the root of the API (not under `/api`) and guarded like this:
 

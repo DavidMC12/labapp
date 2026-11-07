@@ -200,7 +200,7 @@ export default function AppLayout({
                 className={[
                   "whitespace-nowrap",
                   current
-                    ? "bg-paper font-semibold text-ink"
+                    ? "bg-rail-active font-semibold text-rail-active-ink"
                     : "text-rail-muted",
                 ].join(" ")}
               >

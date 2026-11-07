@@ -1,10 +1,10 @@
 @import "tailwindcss";
 
 /*
- * "Libro mayor" light theme. Every color of the app is defined once, here,
- * and exposed to Tailwind with `@theme inline`, so utilities such as
- * `bg-paper` and `text-ink` exist. A future dark theme changes only this
- * file. The values were checked for WCAG contrast (tokens.test.ts).
+ * "Libro mayor" theme in two voices: light and dark. Every color of the
+ * app is defined once and exposed to Tailwind with `@theme inline`, so
+ * utilities such as `bg-paper` and `text-ink` exist. The dark values were
+ * checked for WCAG contrast (tokens.test.ts).
  */
 :root {
   color-scheme: light;
@@ -27,6 +27,66 @@
   --danger: #A3261B; /* error text */
   --danger-bg: #F9E1DE; /* error background */
   --focus: #1F8A6C; /* focus ring */
+}
+
+/*
+ * The dark ground of the theme. The same tokens, redefined for darkness,
+ * in exactly two places, both with the same values:
+ * - this media block is the default: the app follows the system
+ *   preference, unless the user pinned the light theme on <html> with
+ *   data-theme="light";
+ * - the attribute block below is the explicit choice, which also wins
+ *   over a light system preference.
+ * Every token is always defined on bare `:root`, so nothing lives only
+ * inside a media query or an attribute selector.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --paper: #111513; /* page background */
+    --surface: #1A1F1C; /* inputs, cards, table body */
+    --ink: #E8EEEA; /* main text, table header rule */
+    --muted: #9FB0A7; /* secondary text, labels */
+    --line: #2C3631; /* decorative separators, row rules */
+    --control-border: #7C8C84; /* borders of inputs and selects */
+    --rail: #0B2019; /* side rail background */
+    --rail-ink: #E8F0EA; /* text on the rail */
+    --rail-muted: #A9C2B6; /* links on the rail */
+    --rail-hover: #143528; /* hovered link on the rail */
+    --accent: #4FBF9A; /* primary buttons, links, active badge text */
+    --accent-hover: #6FD3B2; /* hovered primary button */
+    --accent-ink: #07231A; /* text on accent */
+    --ok-bg: #12362B; /* active badge background */
+    --off-bg: #262C29; /* inactive badge background */
+    --danger: #FF8F85; /* error text */
+    --danger-bg: #3A1D1B; /* error background */
+    --focus: #7AD9BC; /* focus ring */
+  }
+}
+
+/* The explicit dark choice, stored in localStorage by src/lib/theme.ts. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --paper: #111513; /* page background */
+  --surface: #1A1F1C; /* inputs, cards, table body */
+  --ink: #E8EEEA; /* main text, table header rule */
+  --muted: #9FB0A7; /* secondary text, labels */
+  --line: #2C3631; /* decorative separators, row rules */
+  --control-border: #7C8C84; /* borders of inputs and selects */
+  --rail: #0B2019; /* side rail background */
+  --rail-ink: #E8F0EA; /* text on the rail */
+  --rail-muted: #A9C2B6; /* links on the rail */
+  --rail-hover: #143528; /* hovered link on the rail */
+  --accent: #4FBF9A; /* primary buttons, links, active badge text */
+  --accent-hover: #6FD3B2; /* hovered primary button */
+  --accent-ink: #07231A; /* text on accent */
+  --ok-bg: #12362B; /* active badge background */
+  --off-bg: #262C29; /* inactive badge background */
+  --danger: #FF8F85; /* error text */
+  --danger-bg: #3A1D1B; /* error background */
+  --focus: #7AD9BC; /* focus ring */
 }
 
 @theme inline {

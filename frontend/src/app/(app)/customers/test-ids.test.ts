@@ -47,6 +47,8 @@ const REQUIRED_IDS: readonly TestId[] = [
   "customers-form-forbidden-alert",
   // Detail
   "customers-detail-heading",
+  "customers-detail-orders-heading",
+  "customers-detail-orders-link",
   "customers-detail-name-text",
   "customers-detail-email-text",
   "customers-detail-phone-text",

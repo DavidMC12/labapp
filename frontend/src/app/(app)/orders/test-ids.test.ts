@@ -11,6 +11,8 @@ const REQUIRED_IDS: readonly TestId[] = [
   // List
   "orders-list-heading",
   "orders-list-new-link",
+  "orders-list-customerfilter-text",
+  "orders-list-customerfilter-clear-link",
   "orders-list-search-form",
   "orders-list-search-input",
   "orders-list-status-select",

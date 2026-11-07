@@ -15,10 +15,27 @@ concurrency:
 jobs:
   backend:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: backend
+
+    # A throwaway PostgreSQL for the integration tests (backend/tests/integration): real constraints, real
+    # locks and real concurrency. Each run creates its own random schema there.
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: labapp
+          POSTGRES_PASSWORD: labapp-ci-only
+          POSTGRES_DB: labapp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U labapp -d labapp_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -37,8 +54,10 @@ jobs:
       - name: Ruff format check
         run: uv run ruff format --check .
 
-      - name: Tests
-        run: uv run pytest -q -W error
+      - name: Tests (unit and PostgreSQL integration)
+        env:
+          TEST_DATABASE_URL: postgresql+psycopg://labapp:labapp-ci-only@127.0.0.1:5432/labapp_test
+        run: uv run pytest -q -W error --durations=10
 
   frontend:
     runs-on: ubuntu-latest

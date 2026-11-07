@@ -192,6 +192,24 @@ function CustomerDetail({ id }: { id: number }) {
         </dl>
       </div>
 
+      {/*
+       * The section that connects the two modules: from here the orders
+       * of this customer are one link away (docs/SPEC.md section 5, the
+       * `customer_id` filter of the orders list). Visible to every role,
+       * for active and inactive customers alike.
+       */}
+      <section className="mt-6">
+        <h2 data-testid="customers-detail-orders-heading">Pedidos</h2>
+        <div className="mt-2">
+          <Link
+            href={`/orders?customer_id=${data.id}`}
+            testId="customers-detail-orders-link"
+          >
+            Ver pedidos de este cliente
+          </Link>
+        </div>
+      </section>
+
       {canManage ? (
         <div className="mt-6 flex flex-wrap items-center gap-3">
           <Link

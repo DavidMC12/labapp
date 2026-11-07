@@ -433,3 +433,54 @@ describe("the customer detail load states", () => {
     expect(customersCalls()).toEqual([]);
   });
 });
+
+describe("the orders section of the customer detail", () => {
+  it("links the orders of an active customer", async () => {
+    customerQueue.push(() => jsonResponse(activeCustomer));
+    renderAt("4");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-detail-orders-link"))
+        .toHaveAttribute("href", "/orders?customer_id=4");
+    });
+    expect(
+      screen.getByTestId("customers-detail-orders-link"),
+    ).toHaveTextContent("Ver pedidos de este cliente");
+    expect(screen.getByTestId("customers-detail-orders-heading"))
+      .toHaveTextContent("Pedidos");
+    expect(
+      screen.getByTestId("customers-detail-orders-heading").tagName,
+    ).toBe("H2");
+  });
+
+  it("links the orders of an inactive customer too", async () => {
+    customerQueue.push(() => jsonResponse(inactiveCustomer));
+    renderAt("8");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-detail-orders-link"))
+        .toHaveAttribute("href", "/orders?customer_id=8");
+    });
+    expect(screen.getByTestId("customers-detail-orders-link"))
+      .toHaveTextContent("Ver pedidos de este cliente");
+  });
+
+  it("keeps the section visible for a role that cannot manage customers", async () => {
+    meUser = {
+      id: 4,
+      name: "Solo Lectura Demo",
+      email: "readonly@labapp.test",
+      role: "readonly",
+    };
+    customerQueue.push(() => jsonResponse(activeCustomer));
+    renderAt("4");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-detail-orders-link"))
+        .toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId("customers-detail-edit-link"),
+    ).not.toBeInTheDocument();
+  });
+});

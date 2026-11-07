@@ -395,8 +395,8 @@ class InvoiceService:
     def _respond(self, payment: Payment, invoice: Invoice) -> StoredResponse:
         if payment.status == PaymentStatus.APPROVED:
             result = schemas.PaymentResult(
-                payment=self._payment_out(payment),
-                invoice=self._invoice_out(invoice),
+                payment=self.payment_out(payment),
+                invoice=self.invoice_out(invoice),
             )
             return StoredResponse(201, result.model_dump(mode="json"))
         if payment.status == PaymentStatus.DECLINED:
@@ -417,7 +417,7 @@ class InvoiceService:
         )
         return json.loads(response.body)
 
-    def _invoice_out(self, invoice: Invoice) -> schemas.Invoice:
+    def invoice_out(self, invoice: Invoice) -> schemas.Invoice:
         return schemas.Invoice(
             id=invoice.id,
             number=invoice.number,
@@ -446,14 +446,14 @@ class InvoiceService:
             tax_rate=invoice.tax_rate,
             tax=invoice.tax,
             total=invoice.total,
-            payments=[self._payment_out(payment) for payment in invoice.payments],
+            payments=[self.payment_out(payment) for payment in invoice.payments],
             version=invoice.version,
             created_at=invoice.created_at,
             updated_at=invoice.updated_at,
         )
 
     @staticmethod
-    def _payment_out(payment: Payment) -> schemas.Payment:
+    def payment_out(payment: Payment) -> schemas.Payment:
         return schemas.Payment(
             id=payment.id,
             method=payment.method,

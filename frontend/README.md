@@ -227,6 +227,36 @@ src/
   "Elige un cliente" placeholder, list at most 20 active customers and
   reset a choice the list no longer contains.
 
+## Settings
+
+- Page `/settings` ("Configuración"), feature code in
+  `src/features/settings/` (`api.ts`, `hooks.ts`, `permissions.ts`,
+  `types.ts`). Data layer on TanStack Query with `retry: false`:
+  `useSettings()` (`GET /api/settings`, key `["settings"]`) and
+  `useUpdateTaxRate()` (`PATCH /api/settings` with the body
+  `{"tax_rate": "<the string exactly as typed>"}`; on success the answer
+  replaces the `["settings"]` entry and every query whose key starts with
+  `"orders"` is invalidated, so the draft previews and totals read the
+  new rate).
+- **Permission rule** (`canChangeTaxRate`): exactly `admin` (docs/SPEC.md
+  section 2). Every role sees the heading, the "Impuesto" section and the
+  current rate ("10.00 %"); only the Admin sees the form, the other roles
+  see "Solo un administrador puede cambiar el impuesto." The server
+  remains the authority.
+- **The screen adds no validation**: no `min`/`max`/`step`, no trimming,
+  no parsing. The input is `type="text" inputMode="decimal"` inside a
+  `noValidate` form and the raw string travels to the server exactly as
+  typed, so `" 7"`, `"1e1"` and `"10.123"` reach the API and come back as
+  errors. The field errors of `tax_rate` (422 `INVALID_FORMAT` and
+  `OUT_OF_RANGE`, with the `message` of the answer) show next to the
+  field with the derived id `settings-taxrate-error` (the
+  `errorTestId()` pattern of the other forms); any other problem (403,
+  500, network) shows its `detail` in the form alert
+  `settings-taxrate-alert`. On success the returned value stays in the
+  input and a `role="status"` region announces it.
+- The navigation link "Configuración" (`app-nav-settings-link`) is
+  visible to every role; the current-section highlight covers it.
+
 ## Customers
 
 Feature code in `src/features/customers/`, screens under

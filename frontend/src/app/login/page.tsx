@@ -1,6 +1,6 @@
 "use client";
 
-import { Alert, Input } from "@/components/ui";
+import { Alert, Input, ThemeSelect } from "@/components/ui";
 import { Button } from "@/components/ui";
 import { LedgerMark } from "@/components/LedgerMark";
 import { useLogin } from "@/features/auth/hooks";
@@ -146,6 +146,15 @@ export default function LoginPage() {
        */}
       <div className="flex min-w-0 items-center justify-center px-4 py-10 md:px-10">
         <div className="w-full max-w-[440px]">
+          {/*
+           * The theme selector sits at the top right of the form column,
+           * above the heading.
+           */}
+          <div className="flex justify-end">
+            <div className="w-40">
+              <ThemeSelect testId="auth-login-theme-select" id="auth-login-theme" />
+            </div>
+          </div>
           <h1 data-testid="auth-login-heading">Iniciar sesión</h1>
 
           {formError ? (

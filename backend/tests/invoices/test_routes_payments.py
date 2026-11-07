@@ -300,6 +300,42 @@ def test_a_body_that_is_not_an_object_is_invalid(clients: dict[str, TestClient])
     assert field_codes(response) == [("body", "INVALID_FORMAT")]
 
 
+def test_a_non_finite_amount_in_raw_content_is_a_field_error(
+    clients: dict[str, TestClient],
+) -> None:
+    response = clients["finance"].post(
+        "/api/invoices/1/payments",
+        content='{"method":"cash","amount":NaN}',
+        headers={"Content-Type": "application/json", "Idempotency-Key": "key-1"},
+    )
+
+    assert field_codes(response) == [("amount", "INVALID_FORMAT")]
+
+
+def test_a_text_plain_body_is_invalid(clients: dict[str, TestClient]) -> None:
+    response = clients["finance"].post(
+        "/api/invoices/1/payments",
+        content='{"method":"cash","amount":"327.80"}',
+        headers={"Content-Type": "text/plain", "Idempotency-Key": "key-1"},
+    )
+
+    assert field_codes(response) == [("body", "INVALID_FORMAT")]
+
+
+def test_a_body_nested_nine_hundred_levels_is_invalid(
+    clients: dict[str, TestClient],
+) -> None:
+    deep = '{"method":"cash","amount":"327.80","deep":' + '{"n":' * 900 + "1" + "}" * 900 + "}"
+    response = clients["finance"].post(
+        "/api/invoices/1/payments",
+        content=deep,
+        headers={"Content-Type": "application/json", "Idempotency-Key": "key-1"},
+    )
+
+    assert response.status_code == 422
+    assert ("deep", "INVALID_FORMAT") in field_codes(response)
+
+
 def test_valid_amount_and_reference_boundaries(clients: dict[str, TestClient]) -> None:
     client = clients["finance"]
     assert pay(client, 1, card_body(amount="327.8")).status_code == 201

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -267,10 +268,11 @@ def test_a_declined_attempt_consumes_the_key(service) -> None:
 
 
 def test_a_missing_key_is_reported_at_once(service) -> None:
-    error = _error(service, {}, key=None)
+    for key in (None, ""):
+        error = _error(service, {}, key=key)
 
-    assert error.code == "IDEMPOTENCY_KEY_REQUIRED"
-    assert error.errors is None
+        assert error.code == "IDEMPOTENCY_KEY_REQUIRED"
+        assert error.errors is None
 
 
 def test_a_malformed_key_is_merged_with_the_body_errors(service) -> None:
@@ -330,7 +332,7 @@ def test_invalid_card_numbers(service, number: str) -> None:
     assert ("card.number", "CARD_NUMBER_INVALID") in _field_codes(error)
 
 
-@pytest.mark.parametrize("expiry", ["13/30", "1/30", "12-30", ""])
+@pytest.mark.parametrize("expiry", ["13/30", "1/30", "12-30", "", "12/30\n"])
 def test_malformed_expiry(service, expiry: str) -> None:
     error = _error(service, card_body(expiry=expiry))
 
@@ -400,7 +402,7 @@ def test_a_null_card_object_is_required(service) -> None:
 
 
 def test_a_body_that_is_not_an_object_is_invalid(service) -> None:
-    for body in ([], None, "text", 3):
+    for body in ([], None, "text", b"bytes", 3):
         error = _error(service, body)
         assert _field_codes(error) == [("body", "INVALID_FORMAT")]
 
@@ -459,3 +461,15 @@ def test_a_cash_payment_is_rendered_without_card_data(service) -> None:
     assert outcome.response.body["payment"]["card_last4"] is None
     assert outcome.response.body["payment"]["reference"] is None
     assert outcome.response.body["payment"]["status"] == PaymentStatus.APPROVED.value
+
+
+def test_no_log_record_contains_the_card_number_or_the_cvc(
+    service,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    with caplog.at_level(logging.DEBUG):
+        service.pay(1, "key-1", card_body(), None)
+
+    assert "4242 4242 4242 4242" not in caplog.text
+    assert "4242424242424242" not in caplog.text
+    assert "cvc" not in caplog.text

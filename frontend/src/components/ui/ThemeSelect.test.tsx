@@ -70,9 +70,12 @@ describe("the theme selector", () => {
 
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
     expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
-    expect(
-      (screen.getByTestId("app-theme-select") as HTMLSelectElement).value,
-    ).toBe("dark");
+    // The store write re-renders the controlled select after the change.
+    await waitFor(() => {
+      expect(
+        (screen.getByTestId("app-theme-select") as HTMLSelectElement).value,
+      ).toBe("dark");
+    });
   });
 
   it("applies and stores light when the user chooses Claro", async () => {

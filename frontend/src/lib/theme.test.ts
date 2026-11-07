@@ -2,6 +2,8 @@ import {
   applyTheme,
   currentThemeSetting,
   readStoredTheme,
+  subscribeToThemeChanges,
+  themeServerSetting,
   THEME_INIT_SCRIPT,
   THEME_STORAGE_KEY,
   writeStoredTheme,
@@ -82,6 +84,33 @@ describe("currentThemeSetting", () => {
     window.localStorage.setItem(THEME_STORAGE_KEY, "light");
 
     expect(currentThemeSetting()).toBe("light");
+  });
+});
+
+describe("subscribeToThemeChanges", () => {
+  it("notifies the subscribers of a local write and of a storage event", () => {
+    const notify = vi.fn();
+    const unsubscribe = subscribeToThemeChanges(notify);
+
+    writeStoredTheme("dark");
+    expect(notify).toHaveBeenCalledTimes(1);
+
+    window.dispatchEvent(new StorageEvent("storage"));
+    expect(notify).toHaveBeenCalledTimes(2);
+
+    unsubscribe();
+
+    writeStoredTheme("light");
+    window.dispatchEvent(new StorageEvent("storage"));
+    expect(notify).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("themeServerSetting", () => {
+  it("is always system: the server never sees the client storage", () => {
+    window.localStorage.setItem(THEME_STORAGE_KEY, "dark");
+
+    expect(themeServerSetting()).toBe("system");
   });
 });
 

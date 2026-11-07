@@ -2,13 +2,15 @@
 
 import { Select } from "./Select";
 import {
+  subscribeToThemeChanges,
   applyTheme,
   currentThemeSetting,
   writeStoredTheme,
+  themeServerSetting,
   type ThemeSetting,
 } from "@/lib/theme";
 import type { ChangeEvent } from "react";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import type { TestId } from "@/lib/testid";
 
 type ThemeSelectProps = {
@@ -22,21 +24,21 @@ type ThemeSelectProps = {
  * by writing `data-theme` on `<html>` and remembering the choice under
  * the storage key of `src/lib/theme.ts`.
  *
- * The stored choice is read after hydration, never during render, so the
- * server and the client markup match ("system" is what a fresh render
- * shows when nothing is stored yet). With blocked storage every
+ * The setting comes from the external store of `src/lib/theme.ts` with
+ * `useSyncExternalStore`: during hydration the server snapshot ("system",
+ * what the server markup shows) applies, and the real stored choice takes
+ * over right after, never during a render. With blocked storage every
  * operation degrades silently to the system theme.
  */
 export function ThemeSelect({ id, testId }: ThemeSelectProps) {
-  const [setting, setSetting] = useState<ThemeSetting>("system");
-
-  useEffect(() => {
-    setSetting(currentThemeSetting());
-  }, []);
+  const setting = useSyncExternalStore(
+    subscribeToThemeChanges,
+    currentThemeSetting,
+    themeServerSetting,
+  );
 
   function handleChange(event: ChangeEvent<HTMLSelectElement>) {
     const next = event.target.value as ThemeSetting;
-    setSetting(next);
     applyTheme(next);
     writeStoredTheme(next);
   }

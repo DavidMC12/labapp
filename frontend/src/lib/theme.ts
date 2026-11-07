@@ -38,9 +38,34 @@ export function readStoredTheme(): StoredTheme | null {
   }
 }
 
+const storageListeners = new Set<() => void>();
+
+/**
+ * The external store of the theme, consumed by the selectors with
+ * `useSyncExternalStore`: the `storage` event fires when another tab
+ * changes the choice, and a write made in this tab (the only writer) is
+ * followed by a notification of its own subscribers.
+ */
+export function subscribeToThemeChanges(notify: () => void): () => void {
+  storageListeners.add(notify);
+  window.addEventListener("storage", notify);
+  return () => {
+    storageListeners.delete(notify);
+    window.removeEventListener("storage", notify);
+  };
+}
+
+function notifyThemeChanged(): void {
+  for (const notify of storageListeners) {
+    notify();
+  }
+}
+
 /**
  * Stores the explicit choices; "system" removes the key. Never throws:
  * with blocked storage the visit keeps the attribute it already has.
+ * After a successful write the subscribers are notified, so the store
+ * consumers re-render with the new snapshot.
  */
 export function writeStoredTheme(setting: ThemeSetting): void {
   try {
@@ -49,18 +74,25 @@ export function writeStoredTheme(setting: ThemeSetting): void {
     } else {
       window.localStorage.setItem(THEME_STORAGE_KEY, setting);
     }
+    notifyThemeChanged();
   } catch {
     // Storage is blocked or full; the attribute is still applied.
   }
 }
 
-/**
- * The setting in force right now: the stored choice, else "system". The
- * selector calls it after hydration, never during render, so the server
- * and the client markup match.
- */
+/** The setting in force right now: the stored choice, else "system". */
 export function currentThemeSetting(): ThemeSetting {
   return readStoredTheme() ?? "system";
+}
+
+/**
+ * The setting the server markup always shows: "system", because the
+ * server cannot see the `localStorage` of the client. The selector uses
+ * it as the server snapshot of `useSyncExternalStore`, so the hydration
+ * markup matches and the stored choice takes over after hydration.
+ */
+export function themeServerSetting(): ThemeSetting {
+  return "system";
 }
 
 /**

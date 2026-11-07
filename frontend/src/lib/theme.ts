@@ -108,15 +108,3 @@ export function applyTheme(setting: ThemeSetting): void {
     root.setAttribute("data-theme", setting);
   }
 }
-
-/**
- * The inline script of the root layout, started before the first paint:
- * it reads the stored choice and sets the attribute only for the two
- * explicit choices ("system" is no attribute, so the unlayered CSS
- * keyword of the media query applies). All inside try/catch, so blocked
- * cookies or storage leave the document on the system theme. Kept as a
- * constant so a test can assert exactly what ships in the HTML.
- */
-export const THEME_INIT_SCRIPT =
-  'try{var t=localStorage.getItem("labapp-theme");'
-  + 'if(t==="light"||t==="dark"){document.documentElement.setAttribute("data-theme",t)}}catch(e){}';

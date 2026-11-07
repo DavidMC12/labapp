@@ -4,7 +4,6 @@ import {
   readStoredTheme,
   subscribeToThemeChanges,
   themeServerSetting,
-  THEME_INIT_SCRIPT,
   THEME_STORAGE_KEY,
   writeStoredTheme,
 } from "./theme";
@@ -131,20 +130,5 @@ describe("applyTheme", () => {
   });
 });
 
-describe("THEME_INIT_SCRIPT", () => {
-  it("reads exactly the storage key of this module", () => {
-    expect(THEME_INIT_SCRIPT).toContain(THEME_STORAGE_KEY);
-  });
-
-  it("sets data-theme only for light and dark", () => {
-    // The attribute happens inside the guard, so an unknown value never
-    // reaches setAttribute.
-    expect(THEME_INIT_SCRIPT).toContain('if(t==="light"||t==="dark")');
-    expect(THEME_INIT_SCRIPT).toContain('setAttribute("data-theme",t)');
-  });
-
-  it("runs entirely inside one try/catch", () => {
-    expect(THEME_INIT_SCRIPT.startsWith("try{")).toBe(true);
-    expect(THEME_INIT_SCRIPT.endsWith("}catch(e){}")).toBe(true);
-  });
-});
+// The script assertions live next to the layout that ships it:
+// src/app/layout.test.tsx.

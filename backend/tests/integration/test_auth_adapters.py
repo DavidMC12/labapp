@@ -10,7 +10,9 @@ from threading import Barrier
 import pytest
 from sqlalchemy import Connection, Engine, func, insert, select
 
+from app.config import Settings
 from app.domain.permissions import Role
+from app.infra.db import create_db_engine
 from app.modules.auth.adapters.postgres import PostgresSessionStore, PostgresUserRepository
 from app.modules.auth.tables import sessions, users
 from tests.auth.contract_sessions import NOW, SessionStoreContract, session
@@ -119,10 +121,15 @@ def test_a_stale_touch_does_not_move_last_seen_back(
 
 
 def test_concurrent_creates_respect_the_cap(
-    db: Connection, unpinned_database_engine: Engine
+    db: Connection, unpinned_database_engine: Engine, database_settings: Settings
 ) -> None:
     PostgresUserRepository(unpinned_database_engine).replace_all([user()])
-    store = PostgresSessionStore(unpinned_database_engine, max_sessions=5)
+    # 20 logins queue behind one advisory lock; over a slow link to the database the queue
+    # can outlast the default lock timeout, so this test waits longer than a request would.
+    patient_engine = create_db_engine(
+        database_settings.model_copy(update={"lock_timeout_ms": 30_000})
+    )
+    store = PostgresSessionStore(patient_engine, max_sessions=5)
     barrier = Barrier(20)
 
     def create(index: int) -> None:

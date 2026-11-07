@@ -16,6 +16,8 @@ import type { TestId } from "@/lib/testid";
 type ThemeSelectProps = {
   id: string;
   testId: TestId;
+  /** Extra classes for the label, for example a rail color. */
+  labelClassName?: string;
 };
 
 /**
@@ -30,7 +32,7 @@ type ThemeSelectProps = {
  * over right after, never during a render. With blocked storage every
  * operation degrades silently to the system theme.
  */
-export function ThemeSelect({ id, testId }: ThemeSelectProps) {
+export function ThemeSelect({ id, testId, labelClassName }: ThemeSelectProps) {
   const setting = useSyncExternalStore(
     subscribeToThemeChanges,
     currentThemeSetting,
@@ -48,6 +50,7 @@ export function ThemeSelect({ id, testId }: ThemeSelectProps) {
       id={id}
       testId={testId}
       label="Tema"
+      labelClassName={labelClassName}
       value={setting}
       onChange={handleChange}
     >

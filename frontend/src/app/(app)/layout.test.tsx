@@ -292,6 +292,11 @@ describe("app shell theme", () => {
 
     const options = [...select.options].map((option) => option.textContent);
     expect(options).toEqual(["Sistema", "Claro", "Oscuro"]);
+
+    // One DOM instance only: responsive CSS moves it between the rail
+    // block and the phone layout, and the browser audit counts ids.
+    expect(screen.getAllByTestId("app-theme-select")).toHaveLength(1);
+    expect(screen.getByText("Tema")).toHaveClass("text-rail-ink");
   });
 
   it("applies and stays with the stored choice after hydration", async () => {

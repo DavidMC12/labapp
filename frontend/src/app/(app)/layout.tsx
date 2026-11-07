@@ -230,7 +230,11 @@ export default function AppLayout({
            * phone layout. On the phone it takes a row of its own.
            */}
           <div className="w-full basis-full md:w-auto md:basis-auto">
-            <ThemeSelect testId="app-theme-select" id="app-theme" />
+            <ThemeSelect
+              testId="app-theme-select"
+              id="app-theme"
+              labelClassName="text-rail-ink"
+            />
           </div>
           <Button
             testId="app-logout-button"

@@ -7,6 +7,8 @@
  * file. The values were checked for WCAG contrast (tokens.test.ts).
  */
 :root {
+  color-scheme: light;
+
   --paper: #FBFAF6; /* page background */
   --surface: #FFFFFF; /* inputs, cards, table body */
   --ink: #18241F; /* main text, table header rule */

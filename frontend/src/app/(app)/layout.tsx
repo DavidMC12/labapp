@@ -1,7 +1,7 @@
 "use client";
 
 import { Alert } from "@/components/ui";
-import { Button, Link } from "@/components/ui";
+import { Button, Link, ThemeSelect } from "@/components/ui";
 import { LedgerMark } from "@/components/LedgerMark";
 import { useLogout, useMe } from "@/features/auth/hooks";
 import { roleLabel } from "@/features/auth/types";
@@ -211,7 +211,7 @@ export default function AppLayout({
           })}
         </nav>
 
-        <div className="flex items-center gap-3 px-4 pb-2 md:mt-auto md:flex-col md:items-stretch md:border-t md:border-rail-muted/40 md:px-3 md:py-3">
+        <div className="flex flex-wrap items-center gap-3 px-4 pb-2 md:mt-auto md:flex-col md:items-stretch md:border-t md:border-rail-muted/40 md:px-3 md:py-3">
           <p
             data-testid="app-user-name-text"
             className="text-[15px] font-medium"
@@ -224,6 +224,14 @@ export default function AppLayout({
           >
             {roleLabel(user.role)}
           </p>
+          {/*
+           * The theme selector lives in the user block: at the bottom of
+           * the rail on desktop, in the same block under the links on the
+           * phone layout. On the phone it takes a row of its own.
+           */}
+          <div className="w-full basis-full md:w-auto md:basis-auto">
+            <ThemeSelect testId="app-theme-select" id="app-theme" />
+          </div>
           <Button
             testId="app-logout-button"
             variant="rail"

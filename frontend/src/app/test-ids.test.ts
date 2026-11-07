@@ -42,6 +42,24 @@ const REQUIRED_IDS: readonly TestId[] = [
   "auth-login-password-error",
 ];
 
+/** The test ids of the theme (task 023), declared for the grammar too. */
+const THEME_IDS: readonly TestId[] = [
+  "app-theme-select",
+  "auth-login-theme-select",
+];
+
+describe("the theme ids of task 023", () => {
+  it("lists every id of the theme exactly once", () => {
+    expect(new Set(THEME_IDS).size).toBe(THEME_IDS.length);
+  });
+
+  it("makes every theme id pass isValidTestId", () => {
+    for (const id of THEME_IDS) {
+      expect(isValidTestId(id), id).toBe(true);
+    }
+  });
+});
+
 describe("the test ids of the auth shell", () => {
   it("lists every id of the task table exactly once", () => {
     expect(new Set(REQUIRED_IDS).size).toBe(REQUIRED_IDS.length);

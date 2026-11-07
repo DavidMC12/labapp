@@ -6,10 +6,10 @@
  * The exact regular expression checked by the lint rule, the types and the
  * audit:
  *
- * ^(app|auth|customers|products|orders|invoices|payments|settings)(-[a-z][a-z0-9]*)+-(button|input|select|textarea|checkbox|radio|switch|link|tab|menuitem|form|table|row|cell|list|item|dialog|alert|error|status|text|heading)(-[0-9]+)?$
+ * ^(app|auth|customers|products|orders|invoices|payments|settings|home)(-[a-z][a-z0-9]*)+-(button|input|select|textarea|checkbox|radio|switch|link|tab|menuitem|form|table|row|cell|list|item|dialog|alert|error|status|text|heading)(-[0-9]+)?$
  */
 export const TEST_ID_PATTERN =
-  /^(app|auth|customers|products|orders|invoices|payments|settings)(-[a-z][a-z0-9]*)+-(button|input|select|textarea|checkbox|radio|switch|link|tab|menuitem|form|table|row|cell|list|item|dialog|alert|error|status|text|heading)(-[0-9]+)?$/;
+  /^(app|auth|customers|products|orders|invoices|payments|settings|home)(-[a-z][a-z0-9]*)+-(button|input|select|textarea|checkbox|radio|switch|link|tab|menuitem|form|table|row|cell|list|item|dialog|alert|error|status|text|heading)(-[0-9]+)?$/;
 
 export type TestIdModule =
   | "app"
@@ -19,7 +19,8 @@ export type TestIdModule =
   | "orders"
   | "invoices"
   | "payments"
-  | "settings";
+  | "settings"
+  | "home";
 
 export type TestIdKind =
   | "button"

@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
 import psycopg
-from sqlalchemy import MetaData, Sequence, Table, create_engine
-from sqlalchemy.engine import Engine
+from sqlalchemy import MetaData, Sequence, Table, create_engine, event
+from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.pool import NullPool
 
 from app.config import Settings
@@ -60,9 +61,31 @@ def create_db_engine(settings: Settings, *, pin_search_path: bool = False) -> En
         hide_parameters=True,
         connect_args=connect_args,
     )
+    event.listen(engine, "begin", _lock_timeout_setter(settings.lock_timeout_ms))
     if schema is not None:
         engine = engine.execution_options(schema_translate_map={None: schema})
     return engine
+
+
+def _lock_timeout_setter(milliseconds: int) -> Callable[[Connection], None]:
+    """Build the ``begin`` listener that bounds every lock wait of a transaction.
+
+    ``SET LOCAL`` lasts until the transaction ends, so it also works behind a
+    transaction-mode pooler, where a startup option or a plain ``SET`` would not. The
+    value is an integer validated by ``Settings``, so formatting it in is safe.
+    """
+    statement = f"SET LOCAL lock_timeout = {int(milliseconds)}"
+
+    def set_lock_timeout(connection: Connection) -> None:
+        connection.exec_driver_sql(statement)
+
+    return set_lock_timeout
+
+
+def is_lock_timeout(error: BaseException) -> bool:
+    """Tell whether the error is PostgreSQL giving up on a lock wait (SQLSTATE 55P03)."""
+    original = getattr(error, "orig", error)
+    return isinstance(original, psycopg.errors.LockNotAvailable)
 
 
 def as_utc(value: datetime) -> datetime:

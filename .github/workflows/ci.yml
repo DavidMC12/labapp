@@ -99,7 +99,7 @@ jobs:
           API_URL: http://127.0.0.1:8000
         run: pnpm build
 
-      - name: Start the API and the web app, then audit the browser states
+      - name: Start the API and the web app, then audit the browser states in both themes
         env:
           API_URL: http://127.0.0.1:8000
           SESSION_SECRET: ci-session-secret-not-used-anywhere-else
@@ -111,7 +111,8 @@ jobs:
             if curl -sf http://127.0.0.1:8000/api/health > /dev/null && curl -sf http://127.0.0.1:3000/login > /dev/null; then break; fi
             sleep 1
           done
-          node tools/audit/browser-audit.mjs --base http://127.0.0.1:3000
+          node tools/audit/browser-audit.mjs --base http://127.0.0.1:3000 --theme light
+          node tools/audit/browser-audit.mjs --base http://127.0.0.1:3000 --theme dark
 
       - name: Show the logs when the audit fails
         if: failure()

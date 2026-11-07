@@ -40,17 +40,18 @@ The Neon integration for Vercel can create `DATABASE_URL` and `DATABASE_URL_UNPO
 
 ## Nightly reset
 
-The workflow [`nightly-reset.yml`](../.github/workflows/nightly-reset.yml) calls `POST /__test__/reset` every day at 03:00 UTC and can be started by hand from the Actions tab. It needs two settings in the GitHub repository (Settings, Secrets and variables, Actions):
+The workflow [`nightly-reset.yml`](../.github/workflows/nightly-reset.yml) calls `POST /__test__/reset` every day at 03:17 UTC and can be started by hand from the Actions tab. It needs two settings in the GitHub repository (Settings, Secrets and variables, Actions):
 
 | Name | Kind | Value |
 |---|---|---|
 | `DEMO_URL` | Variable | The production URL, for example `https://labapp.vercel.app` |
 | `TEST_TOKEN` | Secret | The same value as `TEST_TOKEN` in Vercel |
 
-Until both exist the workflow ends with a notice and does nothing. It cannot work before the test controls (task 022) are deployed.
+Without `DEMO_URL` the job shows as skipped; with it but without the secret the job fails. Only an exact HTTP 200 counts as a reset (a redirect fails, and redirects are never followed, so the token cannot leave the configured host). It cannot work before the test controls (task 022) are deployed.
 
 ## Known limits
 
+- GitHub disables scheduled workflows of a repository with no activity for 60 days. The nightly reset then stops without any error: a push or a re-enable from the Actions tab starts it again.
 - Vercel Services is in beta. Function limits of the free plan apply to each service: 300 seconds, 2 GB of memory, a 500 MB Python bundle and 4.5 MB request bodies.
 - A function instance does not outlive a request, so nothing stateful lives in memory in production: sessions, rate-limit counters, the clock offset, fault rules and idempotency keys are stored in PostgreSQL. Until the tasks that move them there are merged, the in-memory rate limits are best effort (per instance).
 - Every preview deployment shares the database unless the Neon integration creates a branch per preview.

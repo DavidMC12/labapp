@@ -38,6 +38,17 @@ The Neon integration for Vercel can create `DATABASE_URL` and `DATABASE_URL_UNPO
 - Once the test controls exist (a later task): `POST /__test__/reset` answers 404 without a token and 200 with `X-Test-Token: <TEST_TOKEN>`.
 - Rotate the database password and update the two connection strings if the string was ever pasted into a chat or a ticket.
 
+## Nightly reset
+
+The workflow [`nightly-reset.yml`](../.github/workflows/nightly-reset.yml) calls `POST /__test__/reset` every day at 03:00 UTC and can be started by hand from the Actions tab. It needs two settings in the GitHub repository (Settings, Secrets and variables, Actions):
+
+| Name | Kind | Value |
+|---|---|---|
+| `DEMO_URL` | Variable | The production URL, for example `https://labapp.vercel.app` |
+| `TEST_TOKEN` | Secret | The same value as `TEST_TOKEN` in Vercel |
+
+Until both exist the workflow ends with a notice and does nothing. It cannot work before the test controls (task 022) are deployed.
+
 ## Known limits
 
 - Vercel Services is in beta. Function limits of the free plan apply to each service: 300 seconds, 2 GB of memory, a 500 MB Python bundle and 4.5 MB request bodies.

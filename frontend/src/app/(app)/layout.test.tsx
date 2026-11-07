@@ -285,8 +285,30 @@ describe("app shell logout", () => {
   });
 });
 
-describe("app shell theme", () => {
-  it("offers the Tema control in the rail user block", async () => {
+describe("the shell navigation row", () => {
+  it("wraps the phone row instead of scrolling it sideways", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(userPayload("admin", "admin@labapp.test"), 200,
+        "application/json"),
+    );
+
+    renderShell();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("app-nav-customers-link")).toBeInTheDocument();
+    });
+
+    const nav = screen.getByRole("navigation", { name: "Principal" });
+
+    // The four links wrap onto a second row on a phone (and the desktop
+    // rail keeps its column).
+    expect(nav.className).toContain("flex-wrap");
+    expect(nav.className).not.toContain("overflow-x-auto");
+    expect(nav.className).toContain("md:flex-col");
+  });
+});
+
+describe("app shell theme", () => {  it("offers the Tema control in the rail user block", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(userPayload("admin", "admin@labapp.test"), 200,
         "application/json"),

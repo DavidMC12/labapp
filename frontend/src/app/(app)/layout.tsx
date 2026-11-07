@@ -198,7 +198,7 @@ export default function AppLayout({
 
         <nav
           aria-label="Principal"
-          className="flex gap-1 overflow-x-auto p-1.5 md:mt-4 md:flex-col md:px-3"
+          className="flex flex-wrap gap-1 p-1.5 md:mt-4 md:flex-col md:px-3"
         >
           {navItems.map((item) => {
             const current = isCurrentSection(pathname, item.href);

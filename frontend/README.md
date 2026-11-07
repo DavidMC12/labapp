@@ -316,7 +316,8 @@ Spanish.
 - Data layer on TanStack Query, all with `retry: false`:
   `useCustomers({page, q, status})`, `useCustomer(id)`,
   `useCreateCustomer()`, `useUpdateCustomer()` and
-  `useSetCustomerStatus()`. Keys: `["customers","list",{page,q,status}]`  and `["customers","detail",id]`, with the id always a number (the route
+  `useSetCustomerStatus()`. Keys: `["customers","list",{page,q,status}]`
+  and `["customers","detail",id]`, with the id always a number (the route
   parameter is parsed once by `parseCustomerIdParam`, which only accepts
   `^[1-9][0-9]*$` up to 2147483647). A successful write caches the returned
   customer under its detail key before navigating and invalidates

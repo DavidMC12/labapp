@@ -40,17 +40,24 @@ export const ORDERS_LIST_KEY = ["orders", "list"] as const;
 export const PRODUCTS_KEY = ["products"] as const;
 
 /**
- * Key of one list query: `["orders", "list", { page, q, status }]`. An
- * empty `q` never has one of these keys, so `{ page: 1, q: "" }` and
- * `{ page: 1 }` do not split the cache in two.
+ * Key of one list query: `["orders", "list", { page, q, status,
+ * customerId }]`. An empty `q` never has one of these keys, so
+ * `{ page: 1, q: "" }` and `{ page: 1 }` do not split the cache in two;
+ * the same applies to a `customerId` of 0 or null.
  */
 export function ordersListQueryKey(
   params: OrderListRequest,
-): readonly [string, string, { page: number; q?: string; status?: string }] {
+): readonly [string, string, {
+  page: number;
+  q?: string;
+  status?: string;
+  customerId?: number;
+}] {
   return [ORDERS_LIST_KEY[0], ORDERS_LIST_KEY[1], {
     page: params.page,
     q: params.q || undefined,
     status: params.status || undefined,
+    customerId: params.customerId || undefined,
   }];
 }
 

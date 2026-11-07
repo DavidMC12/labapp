@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
+import psycopg
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
+from sqlalchemy.exc import OperationalError
 
 from app.errors import ApiError
 
@@ -209,3 +211,87 @@ def test_api_error_renders_errors_and_extra_members(app: FastAPI) -> None:
             "message": "El formato no es válido.",
         }
     ]
+
+
+def test_lock_wait_timeout_returns_service_unavailable(app: FastAPI) -> None:
+    @app.get("/lock-timeout")
+    def lock_timeout() -> None:
+        raise OperationalError(
+            "SELECT 1 FOR UPDATE", {}, psycopg.errors.LockNotAvailable("canceling statement")
+        )
+
+    response = TestClient(app, raise_server_exceptions=False).get("/lock-timeout")
+
+    _assert_problem(
+        response,
+        status=503,
+        code="LOCK_TIMEOUT",
+        detail="El recurso está ocupado. Inténtalo de nuevo.",
+    )
+
+
+def test_other_database_errors_stay_internal_errors(app: FastAPI) -> None:
+    @app.get("/other-database-error")
+    def other_database_error() -> None:
+        raise OperationalError("SELECT 1", {}, psycopg.errors.DeadlockDetected("deadlock"))
+
+    response = TestClient(app, raise_server_exceptions=False).get("/other-database-error")
+
+    _assert_problem(
+        response,
+        status=500,
+        code="INTERNAL_ERROR",
+        detail="Ocurrió un error inesperado. Inténtalo de nuevo.",
+    )
+
+
+def test_a_bare_driver_lock_timeout_is_also_service_unavailable(app: FastAPI) -> None:
+    @app.get("/bare-lock-timeout")
+    def bare_lock_timeout() -> None:
+        raise psycopg.errors.LockNotAvailable("canceling statement due to lock timeout")
+
+    response = TestClient(app, raise_server_exceptions=False).get("/bare-lock-timeout")
+
+    _assert_problem(
+        response,
+        status=503,
+        code="LOCK_TIMEOUT",
+        detail="El recurso está ocupado. Inténtalo de nuevo.",
+    )
+
+
+def test_a_lock_timeout_inside_a_dependency_is_service_unavailable(app: FastAPI) -> None:
+    def failing_dependency() -> None:
+        raise OperationalError("SELECT 1 FOR UPDATE", {}, psycopg.errors.LockNotAvailable("x"))
+
+    @app.get("/lock-timeout-in-dependency")
+    def route(_: None = Depends(failing_dependency)) -> None:
+        return None
+
+    response = TestClient(app, raise_server_exceptions=False).get("/lock-timeout-in-dependency")
+
+    _assert_problem(
+        response,
+        status=503,
+        code="LOCK_TIMEOUT",
+        detail="El recurso está ocupado. Inténtalo de nuevo.",
+    )
+
+
+def test_database_errors_do_not_reach_the_server_even_with_the_default_client(
+    app: FastAPI,
+) -> None:
+    """The handler answers and swallows the error, so no server log prints its message."""
+
+    @app.get("/database-error")
+    def database_error() -> None:
+        raise OperationalError("SELECT 1", {}, psycopg.errors.DeadlockDetected("deadlock"))
+
+    response = TestClient(app).get("/database-error")
+
+    _assert_problem(
+        response,
+        status=500,
+        code="INTERNAL_ERROR",
+        detail="Ocurrió un error inesperado. Inténtalo de nuevo.",
+    )

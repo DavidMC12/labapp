@@ -272,6 +272,48 @@ Rules:
 - **Register a payment.** `Idempotency-Key` is 1 to 64 characters of `[A-Za-z0-9._-]` (missing: `IDEMPOTENCY_KEY_REQUIRED`; malformed: `INVALID_FORMAT` on `Idempotency-Key`). The body is `{method, amount, card?, reference?}` with no other field. `method` is required and is `card`, `transfer` or `cash` (`REQUIRED`, `INVALID_FORMAT`). `amount` is required, a string that fully matches `^[0-9]{1,10}(\.[0-9]{1,2})?$` (`REQUIRED`, `INVALID_FORMAT`). For `card`, `card` is required and is `{number, expiry, cvc}` validated by the card rules of this section (the field paths are `card.number`, `card.expiry` and `card.cvc`); for `transfer`, `reference` is required (`REQUIRED`, then `TOO_SHORT` or `TOO_LONG`); a `card` object with another method, or a `reference` with another method, is `INVALID_FORMAT` on that field. The expiry is checked against the application clock. The checks run in the order of section 7: permission, existence of the invoice, idempotency (replay), body validation, and then under the locks the stale `version`, `INVOICE_NOT_PAYABLE` (the invoice is not `issued`), `PAYMENT_AMOUNT_MISMATCH` (422, a top-level code, when `amount` differs from the total) and the gateway. An approved payment, the invoice becoming `paid` and the order becoming `paid` (each with its `version` + 1) are one transaction.
 - **Idempotency.** As described above: scoped to the invoice, 24 hours, consumed only by `approved`, `declined` and `failed` outcomes; the same key with the same body replays the stored status and body (also the 402 and 503 ones) and adds the header `Idempotency-Replayed: true`; the same key with another body is 422 `IDEMPOTENCY_KEY_REUSED`. The body is compared through `app/security/idempotency.py` (keyed hash of the canonical JSON, with the card redacted); the card number and the CVC are never stored.
 - **List.** `page`, `q` and the ordering follow the orders rules. `q` matches the invoice number or the customer's name in the snapshot; `status` is `issued`, `paid` or `void` (otherwise 422 `INVALID_FORMAT`); `order_id` is an optional integer from 1 to 2147483647.
+- **Examples.** Right after the seed, Finance issues the invoice of `PED-0002` with `POST /api/orders/2/invoice` (no body; status 201, `Location: /api/invoices/4`, `ETag: "1"`):
+
+  ```json
+  {"id": 4, "number": "FAC-0004", "status": "issued", "order_id": 2, "order_number": "PED-0002",
+   "customer": {"id": 2, "name": "Beta Comercial Ltda.", "tax_id": "BETA-800456", "address": null},
+   "lines": [{"id": 4, "product_id": 2, "sku": "MS-200", "name": "Mouse óptico",
+              "quantity": 5, "unit_price": "9.50", "line_total": "47.50"},
+             {"id": 5, "product_id": 6, "sku": "CB-010", "name": "Cable HDMI 2 m",
+              "quantity": 10, "unit_price": "6.25", "line_total": "62.50"}],
+   "subtotal": "110.00", "tax_rate": "10.00", "tax": "11.00", "total": "121.00",
+   "payments": [], "version": 1,
+   "created_at": "2026-11-05T15:00:00Z", "updated_at": "2026-11-05T15:00:00Z"}
+  ```
+
+  Then `POST /api/invoices/4/payments` with `Idempotency-Key: pay-0001` and `{"method": "card", "amount": "121.00", "card": {"number": "4242 4242 4242 4242", "expiry": "12/30", "cvc": "123"}}` answers 201 with `ETag: "2"` and a `PaymentResult` (the same request again answers the same status and body with `Idempotency-Replayed: true`; the order is now `paid`):
+
+  ```json
+  {"payment": {"id": 5, "method": "card", "status": "approved", "amount": "121.00",
+               "reference": null, "card_last4": "4242", "reason": null,
+               "created_at": "2026-11-05T15:02:00Z"},
+   "invoice": {"id": 4, "number": "FAC-0004", "status": "paid", "order_id": 2, "order_number": "PED-0002",
+               "customer": {"id": 2, "name": "Beta Comercial Ltda.", "tax_id": "BETA-800456", "address": null},
+               "lines": [{"id": 4, "product_id": 2, "sku": "MS-200", "name": "Mouse óptico",
+                          "quantity": 5, "unit_price": "9.50", "line_total": "47.50"},
+                         {"id": 5, "product_id": 6, "sku": "CB-010", "name": "Cable HDMI 2 m",
+                          "quantity": 10, "unit_price": "6.25", "line_total": "62.50"}],
+               "subtotal": "110.00", "tax_rate": "10.00", "tax": "11.00", "total": "121.00",
+               "payments": [{"id": 5, "method": "card", "status": "approved", "amount": "121.00",
+                             "reference": null, "card_last4": "4242", "reason": null,
+                             "created_at": "2026-11-05T15:02:00Z"}],
+               "version": 2,
+               "created_at": "2026-11-05T15:00:00Z", "updated_at": "2026-11-05T15:02:00Z"}}
+  ```
+
+  On a freshly seeded database, paying `FAC-0001` (`POST /api/invoices/1/payments`, key `pay-0002`) with `{"method": "card", "amount": "327.80", "card": {"number": "4000 0000 0000 0002", "expiry": "12/30", "cvc": "123"}}` is a 402; the attempt is stored as payment 5 and the invoice stays `issued`:
+
+  ```json
+  {"type": "about:blank", "title": "Payment Required", "status": 402, "code": "PAYMENT_DECLINED",
+   "detail": "La pasarela rechazó el pago. Prueba con otra tarjeta.",
+   "payment_id": 5, "reason": "CARD_DECLINED"}
+  ```
+
 - **Seed.** The 3 invoices and 4 payments of `docs/SEED.md` exist from the start (with the order `invoice_id` filled in), all with `version` 1 where the seed says nothing else; the next invoice is `FAC-0004` and the next payment id is 5.
 
 ## 7. Errors and validation order

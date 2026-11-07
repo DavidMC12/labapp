@@ -64,7 +64,7 @@ jobs:
       - name: Test id audit
         working-directory: .
         run: |
-          node --test tools/audit/testid-audit.test.mjs
+          node --test tools/audit/testid-audit.test.mjs tools/audit/browser-audit.test.mjs
           node tools/audit/testid-audit.mjs
 
       - name: Tests
@@ -103,6 +103,8 @@ jobs:
         env:
           API_URL: http://127.0.0.1:8000
           SESSION_SECRET: ci-session-secret-not-used-anywhere-else
+          # Rate limits off: two audit runs back to back would otherwise share one 120 requests per minute window.
+          TEST_MODE: "1"
           CHROME_BIN: /usr/bin/google-chrome
         run: |
           (cd backend && nohup uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 > ../api.log 2>&1 &)
@@ -111,8 +113,10 @@ jobs:
             if curl -sf http://127.0.0.1:8000/api/health > /dev/null && curl -sf http://127.0.0.1:3000/login > /dev/null; then break; fi
             sleep 1
           done
-          node tools/audit/browser-audit.mjs --base http://127.0.0.1:3000 --theme light
-          node tools/audit/browser-audit.mjs --base http://127.0.0.1:3000 --theme dark
+          status=0
+          node tools/audit/browser-audit.mjs --base http://127.0.0.1:3000 --theme light || status=1
+          node tools/audit/browser-audit.mjs --base http://127.0.0.1:3000 --theme dark || status=1
+          exit $status
 
       - name: Show the logs when the audit fails
         if: failure()

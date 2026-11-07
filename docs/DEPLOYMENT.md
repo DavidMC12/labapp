@@ -28,6 +28,7 @@ Both services answer on one domain, so the session cookie is first party and the
 | `APP_ORIGIN` | The production URL, for example `https://labapp.vercel.app`. Preview origins are added from the platform variables. |
 | `TRUSTED_PROXY_COUNT` | `1`, so the client IP is the entry the platform appends to `X-Forwarded-For`. Check it on the first deployment. |
 | `DEFAULT_TAX_RATE` | `10` |
+| `LOCK_TIMEOUT_MS` | `5000` (the default). The longest wait for a row lock before a request answers 503 `LOCK_TIMEOUT`. |
 
 The Neon integration for Vercel can create `DATABASE_URL` and `DATABASE_URL_UNPOOLED` and a database branch per preview deployment. Without it, every preview shares one database.
 

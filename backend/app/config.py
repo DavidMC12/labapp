@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     default_tax_rate: Decimal = Decimal("10")
     app_origin: str = "http://localhost:3000"
     trusted_proxy_count: int = 0
+    lock_timeout_ms: int = Field(default=5000, ge=100, le=60000)
     vercel_url: str | None = None
     vercel_branch_url: str | None = None
     vercel_project_production_url: str | None = None

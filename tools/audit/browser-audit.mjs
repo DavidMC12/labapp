@@ -10,7 +10,10 @@
 // It prints the states it covered: the 100% goal is measured over those states. Exit code 1 when anything fails.
 //
 // Needs a running application (API and web) at "baseUrl" and the frontend dependencies installed.
-// Usage: node tools/audit/browser-audit.mjs [--base http://localhost:3000] [--only name,name] [--json]
+// Usage: node tools/audit/browser-audit.mjs [--base http://localhost:3000] [--only name,name] [--theme light|dark] [--json]
+//   --theme pins the explicit choice of the theme selector (the localStorage key of frontend/src/lib/theme.ts) before every
+//   page loads and checks that <html data-theme> took it, so the same states can be audited in both voices of the design;
+//   without it the page follows the browser default.
 import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -26,9 +29,24 @@ const option = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i 
 const base = (option("--base") ?? process.env.AUDIT_BASE_URL ?? config.baseUrl).replace(/\/+$/, "");
 const only = option("--only")?.split(",");
 const asJson = args.includes("--json");
+// --theme light|dark or --theme=light|dark; any other spelling or value stops the audit before it starts,
+// so a typo can never turn into a silently unpinned run.
+const themeArgs = args.filter((arg) => arg === "--theme" || arg.startsWith("--theme"));
+let theme;
+if (themeArgs.length > 0) {
+  const arg = themeArgs[0];
+  theme = arg === "--theme" ? args[args.indexOf(arg) + 1] : arg.startsWith("--theme=") ? arg.slice("--theme=".length) : undefined;
+  if (themeArgs.length > 1 || (theme !== "light" && theme !== "dark")) {
+    console.error(`--theme must be given once, as "--theme light" or "--theme dark" (got: ${args.filter((a, i) => a.startsWith("--theme") || args[i - 1] === "--theme").join(" ")})`);
+    process.exit(2);
+  }
+}
 
 const pattern = new RegExp(/export const TEST_ID_PATTERN =\s*\/(.+)\/;/.exec(readFileSync(join(frontend, "src/lib/testid.ts"), "utf8"))[1]);
 const axeSource = readFileSync(join(frontend, "node_modules/axe-core/axe.min.js"), "utf8");
+// The storage key of the theme selector, read from its one definition like the test id grammar above.
+const themeKey = /export const THEME_STORAGE_KEY = "([^"]+)";/.exec(readFileSync(join(frontend, "src/lib/theme.ts"), "utf8"))?.[1];
+if (theme && !themeKey) throw new Error("THEME_STORAGE_KEY not found in frontend/src/lib/theme.ts");
 
 function findChrome() {
   const candidates = [process.env.CHROME_BIN, "/usr/bin/google-chrome", "/usr/bin/google-chrome-stable", "/usr/bin/chromium", "/usr/bin/chromium-browser"];
@@ -105,6 +123,9 @@ async function main() {
       return result.result.result.value;
     };
     await send("Page.enable"); await send("Network.enable"); await send("Runtime.enable");
+    if (theme) {
+      await send("Page.addScriptToEvaluateOnNewDocument", { source: `try { window.localStorage.setItem(${JSON.stringify(themeKey)}, ${JSON.stringify(theme)}); } catch (error) { /* blocked storage */ }` });
+    }
     await send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false });
 
     const cookies = new Map();
@@ -129,6 +150,11 @@ async function main() {
         continue;
       }
       await sleep(300);
+      if (theme) {
+        // The run is only worth something if the page really took the theme it was asked for.
+        const applied = await evaluate(`document.documentElement.getAttribute("data-theme")`);
+        if (applied !== theme) entry.failures.push(`the ${theme} theme was not applied (data-theme is ${applied === null ? "absent" : `"${applied}"`})`);
+      }
       const check = await evaluate(PAGE_CHECK);
       entry.ids = check.ids.length;
       for (const html of check.missing) entry.failures.push(`interactive element without a test id: ${html}`);
@@ -159,5 +185,5 @@ for (const entry of report) {
   if (!asJson) for (const w of entry.warnings) console.log(`       ~ ${w}`);
   failed += entry.failures.length;
 }
-console.log(`Browser audit: ${report.length} state(s) covered, ${failed} failure(s).`);
+console.log(`Browser audit${theme ? ` (${theme} theme)` : ""}: ${report.length} state(s) covered, ${failed} failure(s).`);
 process.exit(failed === 0 ? 0 : 1);

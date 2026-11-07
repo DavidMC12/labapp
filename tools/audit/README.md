@@ -29,6 +29,9 @@ It prints every state it covered: the 100% goal is measured over those states, s
 scripts/dev.sh                                  # or any running API and web app
 CHROME_BIN=/usr/bin/chromium node tools/audit/browser-audit.mjs
 node tools/audit/browser-audit.mjs --only orders-list,orders-new --base http://localhost:3000
+node tools/audit/browser-audit.mjs --theme dark   # the same states with the dark theme pinned
 ```
 
-It needs a running application (the states use the demo users and the fixed seed data, so run the API in memory mode: with `DATABASE_URL` empty, or against a freshly seeded database) and Chrome or Chromium (`CHROME_BIN` or the usual paths). CI builds the web app, starts both processes and runs it in the `browser-audit` job.
+`--theme light|dark` stores the explicit choice of the theme selector in `localStorage` before every page loads, so the axe contrast check runs against each voice of the design. CI runs the audit twice, once per theme. A color that is only wrong in one theme fails only that run.
+
+It needs a running application (the states use the demo users and the fixed seed data, so run the API in memory mode: with `DATABASE_URL` empty, or against a freshly seeded database) and Chrome or Chromium (`CHROME_BIN` or the usual paths). CI builds the web app, starts both processes and runs it, once per theme, in the `browser-audit` job.

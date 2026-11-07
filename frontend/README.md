@@ -106,11 +106,14 @@ src/
   app/globals.css     the design tokens of the theme (the only colored file)
   components/
     ui/       Button (primary/secondary/rail), Input, Select, Textarea,
-              Link (text/primary/secondary/rail), Alert — interactive
-              elements take a required testId; fields also share Field
+              Link (text/primary/secondary/rail), Alert, ThemeSelect —
+              interactive elements take a required testId; fields also
+              share Field
     LedgerMark.tsx  the brand mark of the theme
   features/   customers + auth (hooks, api, screens helpers)
   lib/        testid.ts — the test id grammar: pattern, type and helpers
+              theme.ts — the storage key, the setting and the no-flash
+              script of the theme (see Design above)
   test/       Vitest setup
 ```
 

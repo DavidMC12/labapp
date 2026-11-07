@@ -1,0 +1,44 @@
+name: nightly-reset
+
+# Restores the shared data of the online demo every night (SPEC section 9).
+# It calls the test-only reset of the deployed API with the test token, so it does nothing until
+# the repository variable DEMO_URL and the repository secret TEST_TOKEN exist (docs/DEPLOYMENT.md).
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # 03:00 UTC
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: nightly-reset
+  cancel-in-progress: false
+
+jobs:
+  reset:
+    if: github.repository == 'DavidMC12/labapp'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Reset the data of the online demo
+        env:
+          DEMO_URL: ${{ vars.DEMO_URL }}
+          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
+        run: |
+          if [ -z "$DEMO_URL" ] || [ -z "$TEST_TOKEN" ]; then
+            echo "::notice::DEMO_URL or TEST_TOKEN is not set: nothing to reset yet."
+            exit 0
+          fi
+          case "$DEMO_URL" in
+            https://*) ;;
+            *) echo "::error::DEMO_URL must start with https://"; exit 1 ;;
+          esac
+          url="${DEMO_URL%/}/__test__/reset"
+          # The token travels in a header read from the environment; it is never printed (secrets are masked anyway).
+          curl --fail-with-body --silent --show-error --max-time 60 \
+            --retry 3 --retry-all-errors --retry-delay 10 \
+            --request POST --header "X-Test-Token: ${TEST_TOKEN}" "$url"
+          echo
+          echo "Reset requested at $(date -u +%FT%TZ)."

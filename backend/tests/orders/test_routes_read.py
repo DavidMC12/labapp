@@ -259,6 +259,14 @@ def test_order_sort_validation(
     )
 
 
+def test_a_bad_sort_without_a_session_is_unauthenticated_first(app: FastAPI) -> None:
+    response = TestClient(app).get("/api/orders", params={"sort": "bad"})
+
+    assert_problem(response, 401, "UNAUTHENTICATED")
+    products = TestClient(app).get("/api/products", params={"sort": "bad"})
+    assert_problem(products, 401, "UNAUTHENTICATED")
+
+
 def test_read_a_draft_with_its_line_and_totals(clients: dict[str, TestClient]) -> None:
     response = clients["sales"].get("/api/orders/1")
 

@@ -143,6 +143,12 @@ def test_sort_validation(
     )
 
 
+def test_a_bad_sort_without_a_session_is_unauthenticated_first(app) -> None:
+    response = TestClient(app).get("/api/invoices", params={"sort": "bad"})
+
+    assert_problem(response, 401, "UNAUTHENTICATED")
+
+
 def test_one_invoice_carries_the_snapshot_the_lines_and_the_payments(
     clients: dict[str, TestClient],
 ) -> None:

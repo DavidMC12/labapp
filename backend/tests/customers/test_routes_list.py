@@ -199,6 +199,12 @@ def test_invalid_direction_is_a_validation_error(
     )
 
 
+def test_a_bad_sort_without_a_session_is_unauthenticated_first(app) -> None:
+    response = TestClient(app).get("/api/customers", params={"sort": "bad"})
+
+    assert_problem(response, 401, "UNAUTHENTICATED")
+
+
 def test_an_empty_sort_is_invalid_like_an_empty_status(
     clients: dict[str, TestClient],
 ) -> None:

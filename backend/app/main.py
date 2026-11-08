@@ -15,7 +15,11 @@ from app.guards.ratelimit_middleware import RateLimitMiddleware
 from app.guards.request_controls import RequestControlsMiddleware
 from app.infra.clock import Clock, ControlledClock, OffsetClock, SystemClock
 from app.infra.db import create_db_engine
-from app.middleware import BodySizeLimitMiddleware, RequestIdMiddleware
+from app.middleware import (
+    ApiResponseHeadersMiddleware,
+    BodySizeLimitMiddleware,
+    RequestIdMiddleware,
+)
 from app.modules.auth.container import build_container
 from app.modules.auth.routes import router as auth_router
 from app.modules.customers.adapters.memory import InMemoryCustomerRepository
@@ -211,6 +215,14 @@ def create_app(
         return HealthOut(status="ok")
 
     install_openapi(app)
+
+    # The response headers are the outermost layer because they must also reach the
+    # answers that the other guards produce before a route runs (413, 429, 404) and the
+    # 500 that Starlette's ServerErrorMiddleware builds outside the user middleware
+    # stack. Wrapping the completed stack is the only way to cover that last case.
+    # Outside to inside: API response headers, request id, rate limit, controls guard,
+    # request controls, body size, application.
+    app.middleware_stack = ApiResponseHeadersMiddleware(app.build_middleware_stack())
 
     return app
 

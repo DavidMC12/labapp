@@ -338,16 +338,18 @@ What is stored where:
   once. A gateway fault with latency holds the invoice lock for up to 10 seconds, so a
   reset that needs that invoice can answer 409 or 503.
 
-For local use the CLI has the same reset with two refusals:
+For local use the CLI has the same reset with three refusals:
 
 ```bash
 TEST_MODE=1 uv run python -m app.cli reset --yes
 TEST_MODE=1 uv run python -m app.cli reset --yes --allow-public
 ```
 
-It refuses unless `TEST_MODE=1` and `--yes` are both given, prints the schema it will
-touch, and refuses when `DATABASE_SCHEMA` is unset (the public schema would be wiped)
-unless `--allow-public` is also given. It exits with code 2 when it refuses.
+It refuses unless `TEST_MODE=1` and `--yes` are both given, refuses a host that is not
+`localhost`, `127.0.0.1` or `::1` unless `--allow-remote` is also given, prints the host,
+the database name and the schema it will touch, and refuses when `DATABASE_SCHEMA` is
+unset (the public schema would be wiped) unless `--allow-public` is also given. It exits
+with code 2 when it refuses.
 
 ## Test
 

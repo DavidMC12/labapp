@@ -53,6 +53,34 @@ Without `--output` the command prints the document to standard output.
 disagree, and CI runs that test, so every change of the API regenerates the file and
 commits it in the same change.
 
+What a reader can rely on:
+
+- **Errors.** Every error answer of every operation is `application/problem+json` and
+  references the `Problem` component: `type`, `title`, `status`, `code` (stable),
+  `detail` (Spanish) and the optional `errors[]` of `FieldError {field, code, message}`,
+  `shortages[]`, `payment_id`, `reason` and `retry_after`. The description of each answer
+  names the codes it can carry.
+- **Answers that apply to every route.** Every operation documents only the guards it
+  really passes through: 400 `MALFORMED_JSON` and 413 `PAYLOAD_TOO_LARGE` when it takes a
+  body, 401 `UNAUTHENTICATED`/`SESSION_EXPIRED` when it needs a session, 403
+  `CSRF_ORIGIN_MISMATCH` (and `FORBIDDEN` when it also needs a permission) on POST,
+  PATCH, PUT and DELETE, 429 `RATE_LIMITED`, 500 `INTERNAL_ERROR` and 503 (`LOCK_TIMEOUT`,
+  plus `SERVICE_BUSY` on login and `PAYMENT_GATEWAY_UNAVAILABLE` on payment). The feature
+  answers (404, 409, 422 and the business codes) appear only where `docs/SPEC.md` says the
+  operation can give them. `GET /api/health` is the exception: the rate limiter skips it
+  and it never reaches the database, so it documents neither 429 nor 503.
+- **Sessions.** The `cookieAuth` scheme is an `apiKey` in the `labapp_session` cookie.
+  Every operation carries it except the three public ones: `POST /api/auth/login`,
+  `POST /api/auth/logout` (idempotent, as the SPEC says) and `GET /api/health`.
+- **Shapes.** Money is a string with two decimals (`^[0-9]+\.[0-9]{2}$`), with an example;
+  the tax-rate input documents its own pattern. Ids and versions are integers from 1 to
+  2147483647. The payment body is the `PaymentCreate` component (method, amount, card,
+  reference) and describes which fields each method needs; the route still validates the
+  raw body so that an idempotency replay is decided first.
+- **Metadata.** `info.version` is the package version, the tags group the operations by
+  module and `servers` has one relative entry, `{"url": "/"}`, because the web app and the
+  API share one origin locally and online.
+
 ## PostgreSQL
 
 Without `DATABASE_URL` the API stores everything in memory, which is the default for

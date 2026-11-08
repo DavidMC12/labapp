@@ -15,3 +15,9 @@
 | # | Severity | Finding | Disposition |
 |---|---|---|---|
 | 1 | Minor | The docstring of `InvoiceStore` says the invoice row is locked `FOR UPDATE`; the design is `FOR NO KEY UPDATE` (a plain `FOR UPDATE` deadlocks with the key claim). | Passed to task 021, whose first commit fixes the docstring. |
+
+## Follow-up: the invoice screens against this backend (2026-11-08, after the merge)
+
+- The screens of task 020 were driven in a real browser against the running application (not a mock): the list, the detail of an issued, a paid and a read-only view, in both themes (screenshots read one by one).
+- The payment form was driven by script: the declined card shows "La pasarela rechazó el pago. Prueba con otra tarjeta." and keeps the form; the unavailable gateway shows its message and keeps the form; the approved card shows "Pago aprobado.", the invoice turns "Pagada", the form disappears and the history gains one row per attempt (5 rows after the 2 seeded ones plus 3 attempts). Each declined or failed attempt took a new idempotency key, as the policy requires.
+- The browser audit now covers 21 states (the four invoice states replace the placeholder), in both themes, 0 failures.

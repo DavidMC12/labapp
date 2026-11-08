@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import re
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Header, Response, status
 
 from app.domain.permissions import Action
+from app.domain.sorting import SortDirection
 from app.errors import ApiError
 from app.modules.auth.dependencies import get_current_user, require_action
 from app.modules.auth.models import User
@@ -23,6 +24,8 @@ from app.modules.customers.service import MAX_ID, PAGE_SIZE, CustomerService
 from app.openapi import documented_responses
 
 router = APIRouter(prefix="/api/customers", tags=["customers"])
+
+SortField = Literal["created_at", "name", "email"]
 
 _LIST_RESPONSES = documented_responses(
     method="GET",
@@ -128,9 +131,11 @@ def list_customers(
     page: int = 1,
     q: str | None = None,
     status: CustomerStatus | None = None,
+    sort: SortField | None = None,
+    direction: SortDirection | None = None,
 ) -> CustomerListOut:
     """List customers with literal, accent-insensitive search."""
-    items, total = service.list_customers(page, q, status)
+    items, total = service.list_customers(page, q, status, sort, direction)
     return CustomerListOut(
         items=[_customer_out(customer) for customer in items],
         page=page,

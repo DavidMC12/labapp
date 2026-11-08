@@ -6,6 +6,7 @@ from collections.abc import Iterable
 from datetime import datetime
 from typing import Protocol
 
+from app.domain.sorting import SortSpec
 from app.modules.customers.models import Changes, Customer, CustomerStatus, NewCustomer
 
 
@@ -31,10 +32,12 @@ class CustomerRepository(Protocol):
         status: CustomerStatus | None,
         page: int,
         page_size: int,
+        sort: SortSpec | None = None,
     ) -> tuple[list[Customer], int]:
         """Return one page of matches and the total number of matches.
 
-        Results are ordered by ``created_at`` descending, then ``id`` descending.
+        Results follow ``sort`` (``created_at`` descending when it is absent),
+        with ties broken by ``id`` in the same direction.
         ``query`` is already trimmed and non-empty when given. It is literal text:
         ``%``, ``_`` and ``\\`` have no special meaning (a SQL adapter must escape
         them). It matches a contains search on the name or email, using the search

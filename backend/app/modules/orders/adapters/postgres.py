@@ -16,7 +16,19 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import Sequence, Table, delete, func, insert, or_, select, text, update
+from sqlalchemy import (
+    Integer,
+    Sequence,
+    Table,
+    cast,
+    delete,
+    func,
+    insert,
+    or_,
+    select,
+    text,
+    update,
+)
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.exc import IntegrityError
@@ -33,6 +45,7 @@ from app.domain.orders import (
     next_status,
     validate_draft_lines,
 )
+from app.domain.sorting import SortSpec
 from app.errors import ApiError
 from app.infra.db import (
     as_utc,
@@ -67,6 +80,15 @@ from app.modules.orders.tables import (
 
 _DUPLICATE_PRODUCT_MESSAGE = "Ese producto ya está en el pedido; edita su cantidad."
 _LINE_PRODUCT_CONSTRAINT = "order_lines_order_product_key"
+_ORDER_DEFAULT_SORT = SortSpec("created_at", True)
+_PRODUCT_DEFAULT_SORT = SortSpec("id", False)
+# Text sorts must follow Python's code point order, not the database collation.
+_PRODUCT_SORT_COLUMNS = {
+    "id": products.c.id,
+    "sku": products.c.sku.collate("C"),
+    "price": products.c.price,
+    "stock": products.c.stock,
+}
 
 
 def _number_value(number: str) -> int:
@@ -275,10 +297,27 @@ class PostgresOrderStore:
         )
         return self._reload_order(connection, order.id)
 
-    def list_products(self) -> list[Product]:
+    def list_products(self, *, sort: SortSpec | None = None) -> list[Product]:
+        spec = sort or _PRODUCT_DEFAULT_SORT
         with self._engine.begin() as connection:
-            rows = connection.execute(select(products).order_by(products.c.id)).mappings().all()
-        return [_product_from_row(row) for row in rows]
+            if spec.field == "name":
+                rows = connection.execute(select(products)).mappings().all()
+            else:
+                column = _PRODUCT_SORT_COLUMNS[spec.field]
+                primary = column.desc() if spec.descending else column.asc()
+                secondary = products.c.id.desc() if spec.descending else products.c.id.asc()
+                rows = (
+                    connection.execute(select(products).order_by(primary, secondary))
+                    .mappings()
+                    .all()
+                )
+        items = [_product_from_row(row) for row in rows]
+        if spec.field == "name":
+            items.sort(
+                key=lambda product: (normalize_for_search(product.name), product.id),
+                reverse=spec.descending,
+            )
+        return items
 
     def get_product(self, id: int) -> Product | None:
         with self._engine.begin() as connection:
@@ -301,7 +340,18 @@ class PostgresOrderStore:
         customer_id: int | None,
         page: int,
         page_size: int,
+        sort: SortSpec | None = None,
     ) -> tuple[list[tuple[Order, str]], int]:
+        spec = sort or _ORDER_DEFAULT_SORT
+        if spec.field == "number":
+            sort_column = cast(func.substring(orders.c.number, "[0-9]+"), Integer)
+        elif spec.field == "customer":
+            sort_column = customers.c.name_search.collate("C")
+        else:
+            sort_column = orders.c.created_at
+        primary = sort_column.desc() if spec.descending else sort_column.asc()
+        secondary = orders.c.id.desc() if spec.descending else orders.c.id.asc()
+
         filters = []
         if status is not None:
             filters.append(orders.c.status == status.value)
@@ -327,7 +377,7 @@ class PostgresOrderStore:
                     select(orders, customers.c.name.label("customer_name"))
                     .join(customers, join)
                     .where(*filters)
-                    .order_by(orders.c.created_at.desc(), orders.c.id.desc())
+                    .order_by(primary, secondary)
                     .offset(offset)
                     .limit(page_size)
                 )

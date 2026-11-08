@@ -35,7 +35,19 @@ from decimal import Decimal
 from typing import Any
 
 import psycopg
-from sqlalchemy import Sequence, Table, delete, func, insert, or_, select, text, update
+from sqlalchemy import (
+    Integer,
+    Sequence,
+    Table,
+    cast,
+    delete,
+    func,
+    insert,
+    or_,
+    select,
+    text,
+    update,
+)
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.exc import IntegrityError
@@ -43,6 +55,7 @@ from sqlalchemy.exc import IntegrityError
 from app.domain.money import MIN_TAX_RATE
 from app.domain.numbering import format_number
 from app.domain.orders import OrderStatus
+from app.domain.sorting import SortSpec
 from app.errors import ERROR_MESSAGES, LOCK_TIMEOUT, ApiError
 from app.infra.db import (
     as_utc,
@@ -78,6 +91,7 @@ from app.modules.orders.ports import CustomerNotFound, OrderNotFound, VersionCon
 from app.modules.orders.tables import order_lines, orders
 
 KEY_LIFETIME = timedelta(hours=24)
+_DEFAULT_SORT = SortSpec("created_at", True)
 _CLAIM_ATTEMPTS = 3
 
 _INVOICE_ORDER_CONSTRAINT = "invoices_order_key"
@@ -247,7 +261,20 @@ class PostgresInvoiceStore:
         order_id: int | None,
         page: int,
         page_size: int,
+        sort: SortSpec | None = None,
     ) -> tuple[list[Invoice], int]:
+        spec = sort or _DEFAULT_SORT
+        if spec.field == "number":
+            sort_column = cast(func.substring(invoices.c.number, "[0-9]+"), Integer)
+        elif spec.field == "customer":
+            sort_column = invoices.c.customer_name_search.collate("C")
+        elif spec.field == "total":
+            sort_column = invoices.c.total
+        else:
+            sort_column = invoices.c.created_at
+        primary = sort_column.desc() if spec.descending else sort_column.asc()
+        secondary = invoices.c.id.desc() if spec.descending else invoices.c.id.asc()
+
         filters = []
         if status is not None:
             filters.append(invoices.c.status == status.value)
@@ -271,7 +298,7 @@ class PostgresInvoiceStore:
                 connection.execute(
                     select(invoices)
                     .where(*filters)
-                    .order_by(invoices.c.created_at.desc(), invoices.c.id.desc())
+                    .order_by(primary, secondary)
                     .offset(offset)
                     .limit(page_size)
                 )

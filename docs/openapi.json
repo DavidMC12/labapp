@@ -295,6 +295,43 @@
               ],
               "title": "Status"
             }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "created_at",
+                    "name",
+                    "email"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/SortDirection"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Direction"
+            }
           }
         ],
         "responses": {
@@ -1009,8 +1046,49 @@
           "orders"
         ],
         "summary": "List Products",
-        "description": "Return the whole catalog ordered by id.",
+        "description": "Return the whole catalog following the requested sort.",
         "operationId": "list_products_api_products_get",
+        "parameters": [
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "id",
+                    "sku",
+                    "name",
+                    "price",
+                    "stock"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/SortDirection"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Direction"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -1054,6 +1132,16 @@
           },
           "503": {
             "description": "The service or a database lock is busy. Code: `LOCK_TIMEOUT`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The query parameters are invalid. Code: `VALIDATION_ERROR` (with `errors[]`).",
             "content": {
               "application/problem+json": {
                 "schema": {
@@ -1317,6 +1405,43 @@
                 }
               ],
               "title": "Customer Id"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "created_at",
+                    "number",
+                    "customer"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/SortDirection"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Direction"
             }
           }
         ],
@@ -2661,6 +2786,44 @@
                 }
               ],
               "title": "Order Id"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "created_at",
+                    "number",
+                    "customer",
+                    "total"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sort"
+            }
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/SortDirection"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Direction"
             }
           }
         ],
@@ -4356,6 +4519,13 @@
         "type": "object",
         "title": "SettingsPatch",
         "description": "The settings update payload."
+      },
+      "SortDirection": {
+        "type": "string",
+        "enum": [
+          "asc",
+          "desc"
+        ]
       },
       "TaxRateOut": {
         "properties": {

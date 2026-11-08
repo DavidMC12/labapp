@@ -47,6 +47,7 @@ class RecordingRepository:
         status: CustomerStatus | None,
         page: int,
         page_size: int,
+        sort: object = None,
     ) -> tuple[list[object], int]:
         self.query = query
         return [], 0

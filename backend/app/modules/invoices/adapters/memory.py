@@ -9,6 +9,7 @@ from decimal import Decimal
 from threading import RLock
 
 from app.domain.numbering import format_number
+from app.domain.sorting import SortSpec
 from app.modules.customers.ports import CustomerNotFound, CustomerRepository
 from app.modules.customers.search import normalize_for_search
 from app.modules.invoices import rules
@@ -36,8 +37,21 @@ _STATUS_BY_OUTCOME = {
 }
 
 
+_DEFAULT_SORT = SortSpec("created_at", True)
+
+
 def _number_value(number: str) -> int:
     return int(number.rsplit("-", 1)[-1])
+
+
+def _invoice_sort_key(invoice: Invoice, field: str):
+    if field == "number":
+        return _number_value(invoice.number), invoice.id
+    if field == "customer":
+        return normalize_for_search(invoice.customer_name), invoice.id
+    if field == "total":
+        return invoice.total, invoice.id
+    return invoice.created_at, invoice.id
 
 
 class InMemoryInvoiceStore:
@@ -74,7 +88,9 @@ class InMemoryInvoiceStore:
         order_id: int | None,
         page: int,
         page_size: int,
+        sort: SortSpec | None = None,
     ) -> tuple[list[Invoice], int]:
+        spec = sort or _DEFAULT_SORT
         with self._lock:
             matches: list[Invoice] = []
             for invoice in self._invoices.values():
@@ -89,7 +105,10 @@ class InMemoryInvoiceStore:
                     ) and needle not in normalize_for_search(invoice.customer_name):
                         continue
                 matches.append(invoice)
-            matches.sort(key=lambda item: (item.created_at, item.id), reverse=True)
+            matches.sort(
+                key=lambda invoice: _invoice_sort_key(invoice, spec.field),
+                reverse=spec.descending,
+            )
             start = (page - 1) * page_size
             return [
                 replace(invoice, lines=(), payments=())

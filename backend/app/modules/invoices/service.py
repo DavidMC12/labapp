@@ -11,6 +11,7 @@ from typing import Any
 
 from app.domain.money import quantize_money
 from app.domain.payments import Card, parse_card, validate_transfer_reference
+from app.domain.sorting import parse_sort
 from app.errors import ERROR_MESSAGES, NOT_FOUND, ApiError, problem_response
 from app.infra.clock import Clock
 from app.modules.customers.ports import CustomerRepository
@@ -36,6 +37,7 @@ PAGE_SIZE = 20
 MAX_PAGE = 1_000_000
 MAX_ID = 2_147_483_647
 MAX_QUERY_LENGTH = 100
+SORT_FIELDS = ("created_at", "number", "customer", "total")
 
 VALIDATION_DETAIL = "Revisa los datos ingresados."
 VERSION_CONFLICT_MESSAGE = "El registro cambió mientras lo editabas. Recarga e inténtalo de nuevo."
@@ -131,6 +133,8 @@ class InvoiceService:
         query: str | None,
         status: InvoiceStatus | None,
         order_id: int | None,
+        sort: str | None = None,
+        direction: str | None = None,
     ) -> tuple[list[Invoice], int]:
         """Validate the list parameters and return one page plus the total."""
         errors: list[dict[str, str]] = []
@@ -143,12 +147,19 @@ class InvoiceService:
         if errors:
             _raise_validation(errors)
 
+        sort_spec = parse_sort(
+            sort,
+            direction,
+            allowed=SORT_FIELDS,
+            default="created_at",
+        )
         return self._store.list_invoices(
             query=normalized_query,
             status=status,
             order_id=order_id,
             page=page,
             page_size=PAGE_SIZE,
+            sort=sort_spec,
         )
 
     def get(self, id: int) -> Invoice:

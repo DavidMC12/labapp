@@ -20,6 +20,7 @@ from app.domain.orders import (
     OrderAction,
     OrderStatus,
 )
+from app.domain.sorting import parse_sort
 from app.errors import ERROR_MESSAGES, NOT_FOUND, ApiError
 from app.infra.clock import Clock
 from app.modules.customers.models import Customer
@@ -41,6 +42,8 @@ PAGE_SIZE = 20
 MAX_PAGE = 1_000_000
 MAX_ID = 2_147_483_647
 MAX_QUERY_LENGTH = 100
+ORDER_SORT_FIELDS = ("created_at", "number", "customer")
+PRODUCT_SORT_FIELDS = ("id", "sku", "name", "price", "stock")
 
 VALIDATION_DETAIL = "Revisa los datos ingresados."
 VERSION_CONFLICT_MESSAGE = "El registro cambió mientras lo editabas. Recarga e inténtalo de nuevo."
@@ -201,9 +204,19 @@ class OrderService:
         self._clock = clock
         self._customers = customers
 
-    def list_products(self) -> list[Product]:
-        """Return the catalog ordered by id."""
-        return self._store.list_products()
+    def list_products(
+        self,
+        sort: str | None = None,
+        direction: str | None = None,
+    ) -> list[Product]:
+        """Return the catalog following the requested sort."""
+        sort_spec = parse_sort(
+            sort,
+            direction,
+            allowed=PRODUCT_SORT_FIELDS,
+            default="id",
+        )
+        return self._store.list_products(sort=sort_spec)
 
     def get_tax_rate(self) -> Decimal:
         """Return the current tax rate."""
@@ -225,6 +238,8 @@ class OrderService:
         query: str | None,
         status: OrderStatus | None,
         customer_id: int | None,
+        sort: str | None = None,
+        direction: str | None = None,
     ) -> tuple[list[OrderSummaryView], int]:
         """Validate the list parameters and return one page plus the total."""
         errors: list[dict[str, str]] = []
@@ -237,12 +252,19 @@ class OrderService:
         if errors:
             _raise_validation(errors)
 
+        sort_spec = parse_sort(
+            sort,
+            direction,
+            allowed=ORDER_SORT_FIELDS,
+            default="created_at",
+        )
         items, total = self._store.list_orders(
             query=normalized_query,
             status=status,
             customer_id=customer_id,
             page=page,
             page_size=PAGE_SIZE,
+            sort=sort_spec,
         )
         return [self._summary(order, customer_name) for order, customer_name in items], total
 

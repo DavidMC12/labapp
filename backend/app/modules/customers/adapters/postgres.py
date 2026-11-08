@@ -11,6 +11,7 @@ from sqlalchemy import Table, delete, func, insert, or_, select, text, update
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.exc import IntegrityError
 
+from app.domain.sorting import SortSpec
 from app.infra.db import as_utc, qualified_table_name, unique_violation_of
 from app.modules.customers.models import Changes, Customer, CustomerStatus, NewCustomer
 from app.modules.customers.ports import CustomerNotFound, EmailTaken, VersionConflict
@@ -19,6 +20,13 @@ from app.modules.customers.tables import customers
 
 _FIELDS = ("name", "email", "phone", "tax_id", "address")
 _EMAIL_CONSTRAINT = "customers_email_lower_key"
+_DEFAULT_SORT = SortSpec("created_at", True)
+# Text sorts must follow Python's code point order, not the database collation.
+_SORT_COLUMNS = {
+    "created_at": customers.c.created_at,
+    "name": customers.c.name_search.collate("C"),
+    "email": customers.c.email_search.collate("C"),
+}
 
 
 def _customer_from_row(row: Mapping[str, Any]) -> Customer:
@@ -68,7 +76,12 @@ class PostgresCustomerRepository:
         status: CustomerStatus | None,
         page: int,
         page_size: int,
+        sort: SortSpec | None = None,
     ) -> tuple[list[Customer], int]:
+        spec = sort or _DEFAULT_SORT
+        column = _SORT_COLUMNS[spec.field]
+        primary = column.desc() if spec.descending else column.asc()
+        secondary = customers.c.id.desc() if spec.descending else customers.c.id.asc()
         filters = []
         if status is not None:
             filters.append(customers.c.status == status.value)
@@ -90,7 +103,7 @@ class PostgresCustomerRepository:
                 connection.execute(
                     select(customers)
                     .where(*filters)
-                    .order_by(customers.c.created_at.desc(), customers.c.id.desc())
+                    .order_by(primary, secondary)
                     .offset(offset)
                     .limit(page_size)
                 )

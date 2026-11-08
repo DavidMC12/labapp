@@ -10,6 +10,7 @@ from threading import Barrier
 import pytest
 
 from app.domain.orders import OrderStatus
+from app.domain.sorting import SortSpec
 from app.errors import ApiError
 from app.modules.customers.ports import CustomerRepository
 from app.modules.invoices.gateway import FakeGateway
@@ -23,7 +24,9 @@ from app.modules.invoices.models import (
     StoredResponse,
 )
 from app.modules.invoices.ports import InvoiceNotFound
+from app.modules.orders.models import Order
 from app.modules.orders.ports import OrderNotFound, VersionConflict
+from app.modules.orders.seed import seed_products
 
 NOW = datetime(2026, 2, 1, 12, 0, tzinfo=UTC)
 LATER = NOW + timedelta(minutes=1)
@@ -68,6 +71,53 @@ def respond(payment: Payment, invoice: Invoice) -> StoredResponse:
             "invoice_version": invoice.version,
             "payments": len(invoice.payments),
         },
+    )
+
+
+def _invoice(
+    identifier: int,
+    *,
+    number: str,
+    order_id: int,
+    customer_name: str = "Acme Industrial S.A.",
+    total: str = "100.00",
+    status: InvoiceStatus = InvoiceStatus.ISSUED,
+    created_at: datetime = NOW,
+) -> Invoice:
+    amount = Decimal(total)
+    return Invoice(
+        id=identifier,
+        number=number,
+        status=status,
+        order_id=order_id,
+        order_number=f"PED-{order_id:04d}",
+        customer_id=1,
+        customer_name=customer_name,
+        customer_tax_id="ACME-900123",
+        customer_address=None,
+        lines=(),
+        subtotal=amount,
+        tax_rate=Decimal("0.00"),
+        tax=Decimal("0.00"),
+        total=amount,
+        version=1,
+        created_at=created_at,
+        updated_at=created_at,
+    )
+
+
+def _order(identifier: int, *, created_at: datetime = NOW) -> Order:
+    return Order(
+        id=identifier,
+        number=f"PED-{identifier:04d}",
+        status=OrderStatus.DRAFT,
+        customer_id=(identifier - 1) % 10 + 1,
+        lines=(),
+        tax_rate=None,
+        version=1,
+        created_at=created_at,
+        updated_at=created_at,
+        invoice_id=None,
     )
 
 
@@ -174,6 +224,236 @@ class InvoiceStoreContract:
         assert [invoice.id for invoice in by_number] == [2]
         assert [invoice.id for invoice in by_name] == [3]
         assert [invoice.id for invoice in by_accent] == [3]
+
+    def test_list_sorts_by_every_field_in_both_directions(self, store) -> None:
+        expected = {
+            "created_at": ([1, 2, 3], [3, 2, 1]),
+            "number": ([1, 2, 3], [3, 2, 1]),
+            "customer": ([1, 2, 3], [3, 2, 1]),
+            "total": ([2, 1, 3], [3, 1, 2]),
+        }
+        for field, (ascending, descending) in expected.items():
+            asc, _ = store.list_invoices(
+                query=None,
+                status=None,
+                order_id=None,
+                page=1,
+                page_size=20,
+                sort=SortSpec(field, False),
+            )
+            desc, _ = store.list_invoices(
+                query=None,
+                status=None,
+                order_id=None,
+                page=1,
+                page_size=20,
+                sort=SortSpec(field, True),
+            )
+
+            assert [invoice.id for invoice in asc] == ascending
+            assert [invoice.id for invoice in desc] == descending
+
+    def test_total_ties_are_broken_by_id_in_the_same_direction(self, store) -> None:
+        store.replace_all(
+            [
+                _invoice(1, number="FAC-0001", order_id=3, total="327.80"),
+                _invoice(2, number="FAC-0002", order_id=4, total="327.80"),
+            ],
+            [],
+        )
+
+        asc, _ = store.list_invoices(
+            query=None,
+            status=None,
+            order_id=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("total", False),
+        )
+        desc, _ = store.list_invoices(
+            query=None,
+            status=None,
+            order_id=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("total", True),
+        )
+
+        assert [invoice.id for invoice in asc] == [1, 2]
+        assert [invoice.id for invoice in desc] == [2, 1]
+
+    def test_the_customer_sort_ignores_accents(self, store) -> None:
+        store.replace_all(
+            [
+                _invoice(1, number="FAC-0001", order_id=3, customer_name="Ana"),
+                _invoice(2, number="FAC-0002", order_id=4, customer_name="Álvaro"),
+                _invoice(3, number="FAC-0003", order_id=5, customer_name="Alba"),
+                _invoice(4, number="FAC-0004", order_id=6, customer_name="Beto"),
+            ],
+            [],
+        )
+
+        items, _ = store.list_invoices(
+            query=None,
+            status=None,
+            order_id=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("customer", False),
+        )
+
+        assert [invoice.customer_name for invoice in items] == [
+            "Alba",
+            "Álvaro",
+            "Ana",
+            "Beto",
+        ]
+
+    def test_the_customer_sort_uses_the_code_point_order(self, store) -> None:
+        names = ("ab-c", "ab", "a-c", "a b")
+        store.replace_all(
+            [
+                _invoice(
+                    identifier,
+                    number=f"FAC-{identifier:04d}",
+                    order_id=order_id,
+                    customer_name=name,
+                )
+                for identifier, (name, order_id) in enumerate(
+                    zip(names, (3, 4, 5, 6), strict=True),
+                    start=1,
+                )
+            ],
+            [],
+        )
+
+        asc, _ = store.list_invoices(
+            query=None,
+            status=None,
+            order_id=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("customer", False),
+        )
+        desc, _ = store.list_invoices(
+            query=None,
+            status=None,
+            order_id=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("customer", True),
+        )
+
+        assert [invoice.customer_name for invoice in asc] == [
+            "a b",
+            "a-c",
+            "ab",
+            "ab-c",
+        ]
+        assert [invoice.customer_name for invoice in desc] == [
+            "ab-c",
+            "ab",
+            "a-c",
+            "a b",
+        ]
+
+    def test_the_number_sorts_as_an_integer(self, store) -> None:
+        store.replace_all(
+            [
+                _invoice(1, number="FAC-0009", order_id=3),
+                _invoice(2, number="FAC-0010", order_id=4),
+                _invoice(3, number="FAC-0100", order_id=5),
+            ],
+            [],
+        )
+
+        asc, _ = store.list_invoices(
+            query=None,
+            status=None,
+            order_id=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("number", False),
+        )
+        desc, _ = store.list_invoices(
+            query=None,
+            status=None,
+            order_id=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("number", True),
+        )
+
+        assert [int(invoice.number.rsplit("-", 1)[-1]) for invoice in asc] == [9, 10, 100]
+        assert [int(invoice.number.rsplit("-", 1)[-1]) for invoice in desc] == [100, 10, 9]
+
+    def test_sorting_combines_with_the_filters(self, store) -> None:
+        paid, _ = store.list_invoices(
+            query=None,
+            status=InvoiceStatus.PAID,
+            order_id=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("total", False),
+        )
+        by_name, _ = store.list_invoices(
+            query="iberica",
+            status=None,
+            order_id=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("total", False),
+        )
+
+        assert [invoice.id for invoice in paid] == [2, 3]
+        assert [invoice.id for invoice in by_name] == [3]
+
+    def test_page_two_continues_page_one_under_a_sort(self, store, order_store) -> None:
+        store.replace_all([], [])
+        order_store.replace_all(
+            seed_products(),
+            [
+                _order(
+                    identifier,
+                    created_at=NOW + timedelta(seconds=identifier),
+                )
+                for identifier in range(1, 46)
+            ],
+            Decimal("10.00"),
+        )
+        store.replace_all(
+            [
+                _invoice(
+                    identifier,
+                    number=f"FAC-{identifier:04d}",
+                    order_id=identifier,
+                    created_at=NOW + timedelta(seconds=identifier),
+                )
+                for identifier in range(1, 46)
+            ],
+            [],
+        )
+
+        first, total = store.list_invoices(
+            query=None,
+            status=None,
+            order_id=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("number", False),
+        )
+        second, _ = store.list_invoices(
+            query=None,
+            status=None,
+            order_id=None,
+            page=2,
+            page_size=20,
+            sort=SortSpec("number", False),
+        )
+
+        assert total == 45
+        assert [invoice.id for invoice in first] == list(range(1, 21))
+        assert [invoice.id for invoice in second] == list(range(21, 41))
 
     def test_list_pages(self, store) -> None:
         first, total = store.list_invoices(

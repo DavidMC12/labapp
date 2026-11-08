@@ -114,6 +114,159 @@ def test_query_with_a_control_character(clients: dict[str, TestClient]) -> None:
     )
 
 
+def test_the_products_sort_by_a_field_in_both_directions(
+    clients: dict[str, TestClient],
+) -> None:
+    ascending = clients["sales"].get("/api/products", params={"sort": "price"})
+    descending = clients["sales"].get(
+        "/api/products",
+        params={"sort": "price", "direction": "desc"},
+    )
+
+    assert ascending.status_code == 200
+    assert [item["id"] for item in ascending.json()["items"]] == [
+        6,
+        2,
+        14,
+        1,
+        8,
+        12,
+        13,
+        7,
+        11,
+        5,
+        10,
+        3,
+        9,
+        15,
+        4,
+    ]
+    assert [item["id"] for item in descending.json()["items"]] == [
+        4,
+        15,
+        9,
+        3,
+        10,
+        5,
+        11,
+        7,
+        13,
+        12,
+        8,
+        1,
+        14,
+        2,
+        6,
+    ]
+
+
+def test_the_product_defaults_and_a_lone_direction(clients: dict[str, TestClient]) -> None:
+    default = clients["sales"].get("/api/products")
+    by_name = clients["sales"].get("/api/products", params={"sort": "name"})
+    descending = clients["sales"].get("/api/products", params={"direction": "desc"})
+
+    assert [item["id"] for item in default.json()["items"]] == list(range(1, 16))
+    assert [item["id"] for item in by_name.json()["items"]] == [
+        8,
+        6,
+        7,
+        5,
+        13,
+        9,
+        4,
+        3,
+        2,
+        11,
+        15,
+        12,
+        14,
+        1,
+        10,
+    ]
+    assert [item["id"] for item in descending.json()["items"]] == list(range(15, 0, -1))
+
+
+@pytest.mark.parametrize(
+    ("query", "field"),
+    [
+        ("sort=", "sort"),
+        ("sort=unknown", "sort"),
+        ("sort=Price", "sort"),
+        ("direction=", "direction"),
+        ("direction=ASC", "direction"),
+    ],
+)
+def test_product_sort_validation(
+    clients: dict[str, TestClient],
+    query: str,
+    field: str,
+) -> None:
+    response = clients["sales"].get(f"/api/products?{query}")
+
+    assert_field_error(
+        response,
+        field=field,
+        code="INVALID_FORMAT",
+        message="El formato no es válido.",
+    )
+
+
+def test_the_orders_sort_by_a_field_and_a_direction(clients: dict[str, TestClient]) -> None:
+    by_number = clients["sales"].get("/api/orders", params={"sort": "number"})
+    by_customer = clients["sales"].get(
+        "/api/orders",
+        params={"sort": "customer", "direction": "asc"},
+    )
+
+    assert [item["id"] for item in by_number.json()["items"]] == [1, 2, 3, 4, 5, 6, 7]
+    assert [item["id"] for item in by_customer.json()["items"]] == [1, 2, 7, 3, 4, 5, 6]
+
+
+def test_the_order_defaults_and_a_lone_direction(clients: dict[str, TestClient]) -> None:
+    default = clients["sales"].get("/api/orders")
+    by_created_at = clients["sales"].get("/api/orders", params={"sort": "created_at"})
+    ascending = clients["sales"].get("/api/orders", params={"direction": "asc"})
+    descending = clients["sales"].get("/api/orders", params={"direction": "desc"})
+
+    assert [item["id"] for item in default.json()["items"]] == [7, 6, 5, 4, 3, 2, 1]
+    assert [item["id"] for item in by_created_at.json()["items"]] == [7, 6, 5, 4, 3, 2, 1]
+    assert [item["id"] for item in ascending.json()["items"]] == [1, 2, 3, 4, 5, 6, 7]
+    assert [item["id"] for item in descending.json()["items"]] == [7, 6, 5, 4, 3, 2, 1]
+
+
+@pytest.mark.parametrize(
+    ("query", "field"),
+    [
+        ("sort=", "sort"),
+        ("sort=unknown", "sort"),
+        ("sort=Number", "sort"),
+        ("direction=", "direction"),
+        ("direction=ASC", "direction"),
+    ],
+)
+def test_order_sort_validation(
+    clients: dict[str, TestClient],
+    query: str,
+    field: str,
+) -> None:
+    response = clients["sales"].get(f"/api/orders?{query}")
+
+    assert_field_error(
+        response,
+        field=field,
+        code="INVALID_FORMAT",
+        message="El formato no es válido.",
+    )
+
+
+def test_a_bad_sort_without_a_session_is_unauthenticated_first(app: FastAPI) -> None:
+    response = TestClient(app).get("/api/orders", params={"sort": "bad"})
+
+    assert_problem(response, 401, "UNAUTHENTICATED")
+    products = TestClient(app).get("/api/products", params={"sort": "bad"})
+    assert_problem(products, 401, "UNAUTHENTICATED")
+
+
 def test_read_a_draft_with_its_line_and_totals(clients: dict[str, TestClient]) -> None:
     response = clients["sales"].get("/api/orders/1")
 

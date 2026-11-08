@@ -5,7 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CustomerCreatePage from "./page";
 import type { Customer } from "@/features/customers/types";
 
-const { routerMock } = vi.hoisted(() => ({
+const state = vi.hoisted(() => ({
+  /** The search string (`"?customer_id=7"`) that `useSearchParams` reads. */
+  search: "",
   routerMock: {
     push: vi.fn(),
     replace: vi.fn(),
@@ -16,10 +18,12 @@ const { routerMock } = vi.hoisted(() => ({
   },
 }));
 
+const { routerMock } = state;
+
 vi.mock("next/navigation", () => ({
   useRouter: () => routerMock,
   usePathname: () => "/",
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(state.search),
 }));
 
 const fetchMock = vi.fn();
@@ -35,6 +39,10 @@ let customersStatus: number;
 /** The body, status and headers of the mocked POST /api/orders. */
 let createBody: unknown;
 let createStatus: number;
+
+/** The body and the status of the mocked GET /api/customers/{id}. */
+let presetBody: Customer | null;
+let presetStatus: number;
 
 const adminUser = {
   id: 1,
@@ -96,7 +104,7 @@ function problem(status: number, code: string, detail: string, errors?: unknown)
 }
 
 function renderPage() {
-  render(
+  return render(
     <QueryClientProvider client={queryClient}>
       <CustomerCreatePage />
     </QueryClientProvider>,
@@ -107,6 +115,7 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
   fetchMock.mockReset();
   routerMock.replace.mockClear();
+  state.search = "";
   meUser = adminUser;
   customersBody = {
     items: [customer(1, { name: "Acme Industrial S.A." }), customer(6, { name: "Ferretería Fénix" })],
@@ -124,10 +133,20 @@ beforeEach(() => {
     },
   });
 
+  // GET /api/customers/{id}: the detail of the preselected one. null is a
+  // 404 (the customer does not exist).
+  presetBody = null;
+  presetStatus = 200;
+
   fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url === "/api/auth/me") {
       return jsonResponse(meUser);
+    }
+    if (/^\/api\/customers\/\d+$/.test(url)) {
+      return presetBody === null
+        ? problem(404, "NOT_FOUND", "No se encontró el recurso solicitado.")
+        : jsonResponse(presetBody, presetStatus);
     }
     if (url.startsWith("/api/customers")) {
       return jsonResponse(customersBody, customersStatus);
@@ -555,5 +574,223 @@ describe("the create page submit", () => {
     await waitFor(() => {
       expect(routerMock.replace).toHaveBeenCalledWith("/orders/8");
     });
+  });
+});
+
+describe("the preselected customer of the create url", () => {
+  async function expectPreselected(id: string) {
+    await waitFor(() => {
+      const select = screen.getByTestId(
+        "orders-form-customer-select",
+      ) as HTMLSelectElement;
+      expect(select.value, "the preset customer is the choice").toBe(id);
+      expect(select.disabled).toBe(false);
+    });
+    expect(screen.getByTestId("orders-form-submit-button")).toBeEnabled();
+  }
+
+  it("applies a customer that is already among the first 20 without duplicating it", async () => {
+    state.search = "?customer_id=1";
+    presetBody = customer(1, { name: "Acme Industrial S.A." });
+    renderPage();
+
+    await expectPreselected("1");
+    // The select came from the picker list: same option, no duplicate.
+    const select = screen.getByTestId(
+      "orders-form-customer-select",
+    ) as HTMLSelectElement;
+    expect(
+      Array.from(select.options)
+        .filter((option) => option.value === "1")
+        .map((option) => option.textContent),
+    ).toEqual(["Acme Industrial S.A."]);
+  });
+
+  it("adds a customer outside the first 20 to the options and selects it", async () => {
+    state.search = "?customer_id=42";
+    presetBody = customer(42, { name: "Náutica Delta" });
+    renderPage();
+
+    await expectPreselected("42");
+    const select = screen.getByTestId(
+      "orders-form-customer-select",
+    ) as HTMLSelectElement;
+    expect(
+      Array.from(select.options).map((option) => option.textContent),
+    ).toContain("Náutica Delta");
+  });
+
+  it("disables the select with Cargando cliente… while the preset is in the air", async () => {
+    state.search = "?customer_id=42";
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/auth/me") {
+        return jsonResponse(meUser);
+      }
+      if (/^\/api\/customers\/\d+$/.test(url)) {
+        return new Promise<Response>(() => {});
+      }
+      if (url.startsWith("/api/customers")) {
+        return jsonResponse(customersBody, customersStatus);
+      }
+      if (url === "/api/orders") {
+        return jsonResponse(draftOrder, 201);
+      }
+      return problem(404, "NOT_FOUND", "No se encontró el recurso solicitado.");
+    });
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("orders-customer-form")).toBeInTheDocument();
+    });
+    const select = screen.getByTestId(
+      "orders-form-customer-select",
+    ) as HTMLSelectElement;
+    expect(select.disabled).toBe(true);
+    expect(
+      Array.from(select.options).map((option) => option.textContent),
+    ).toContain("Cargando cliente…");
+    expect(screen.getByTestId("orders-form-submit-button")).toBeDisabled();
+  });
+
+  it("announces an inactive preset customer and keeps the picker open", async () => {
+    state.search = "?customer_id=9";
+    presetBody = customer(9, { name: "Estudio Épsilon", status: "inactive" });
+    renderPage();
+
+    const notice = await waitFor(() => {
+      const element = screen.getByTestId("orders-form-presetcustomer-status");
+      expect(element).toHaveTextContent(
+        "El cliente indicado no está disponible para nuevos pedidos.",
+      );
+      return element;
+    });
+    expect(notice).toHaveAttribute("role", "status");
+
+    // The picker stays usable: nothing selected, the submit disabled.
+    const select = screen.getByTestId(
+      "orders-form-customer-select",
+    ) as HTMLSelectElement;
+    expect(select.value).toBe("");
+    expect(select.disabled).toBe(false);
+    expect(screen.getByTestId("orders-form-submit-button")).toBeDisabled();
+  });
+
+  it("announces a preset customer that does not exist (404)", async () => {
+    state.search = "?customer_id=9";
+    presetBody = null;
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("orders-form-presetcustomer-status"))
+        .toHaveTextContent(
+          "El cliente indicado no está disponible para nuevos pedidos.",
+        );
+    });
+    const select = screen.getByTestId(
+      "orders-form-customer-select",
+    ) as HTMLSelectElement;
+    expect(select.value).toBe("");
+    expect(screen.getByTestId("orders-form-submit-button")).toBeDisabled();
+  });
+
+  it("never overwrites the choice of the user on a refetch", async () => {
+    state.search = "?customer_id=42";
+    presetBody = customer(42, { name: "Náutica Delta" });
+    renderPage();
+    await expectPreselected("42");
+
+    // The user picks someone else from the picker list.
+    const user = userEvent.setup();
+    await user.selectOptions(
+      screen.getByTestId("orders-form-customer-select"),
+      "1",
+    );
+    expect(screen.getByTestId("orders-form-customer-select")).toHaveValue("1");
+
+    // A background refetch of the preselected customer does not bring the
+    // choice back.
+    await queryClient.refetchQueries({ queryKey: ["customers", "detail", 42] });
+    expect(screen.getByTestId("orders-form-customer-select")).toHaveValue("1");
+    expect(fetchMock.mock.calls.filter((call) => String(call[0]) === "/api/orders"))
+      .toHaveLength(0);
+  });
+
+  it("sends the preselected customer id on submit", async () => {
+    state.search = "?customer_id=42";
+    presetBody = customer(42, { name: "Náutica Delta" });
+    createBody = {
+      ...draftOrder,
+      customer: { id: 42, name: "Náutica Delta", status: "active" },
+    };
+    renderPage();
+
+    await expectPreselected("42");
+    await userEvent
+      .setup()
+      .click(screen.getByTestId("orders-form-submit-button"));
+
+    await waitFor(() => {
+      expect(routerMock.replace).toHaveBeenCalledWith("/orders/8");
+    });
+    expect(fetchMock.mock.calls.find((call) => String(call[0]) === "/api/orders"))
+      .toEqual([
+        "/api/orders",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ customer_id: 42 }),
+        }),
+      ]);
+  });
+
+  it("ignores an invalid customer id as if the url had none", async () => {
+    for (const value of [
+      "0",
+      "-4",
+      "4.5",
+      "cuatro",
+      "1e3",
+      "2147483648",
+    ]) {
+      state.search = `?customer_id=${value}`;
+      const view = renderPage();
+
+      // The form behaves as without the parameter: the placeholder is
+      // the choice, no preset request, no notice.
+      await waitFor(() => {
+        expect(screen.getByTestId("orders-customer-form")).toBeInTheDocument();
+      });
+      const select = screen.getByTestId(
+        "orders-form-customer-select",
+      ) as HTMLSelectElement;
+      expect(select.value).toBe("");
+      expect(
+        screen.queryByTestId("orders-form-presetcustomer-status"),
+      ).not.toBeInTheDocument();
+      view.unmount();
+    }
+    const detailCalls = fetchMock.mock.calls
+      .map((call) => String(call[0]))
+      .filter((url) => /^\/api\/customers\/\d+$/.test(url));
+    expect(detailCalls).toEqual([]);
+  });
+
+  it("keeps the page exactly as before without the parameter", async () => {
+    renderPage();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("orders-customer-form")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("orders-form-presetcustomer-status"))
+      .not.toBeInTheDocument();
+    expect(fetchMock.mock.calls
+      .map((call) => String(call[0]))
+      .filter((url) => /^\/api\/customers\/\d+$/.test(url))).toEqual([]);
+    const select = screen.getByTestId(
+      "orders-form-customer-select",
+    ) as HTMLSelectElement;
+    expect(select.value).toBe("");
+    expect(select.disabled).toBe(false);
+    expect(screen.getByTestId("orders-form-submit-button")).toBeDisabled();
   });
 });

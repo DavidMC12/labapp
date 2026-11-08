@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
 from app.cli import build_parser, main, reset_refusal, skip_reason
@@ -94,3 +97,23 @@ def test_reset_without_a_schema_needs_allow_public(
     monkeypatch.delenv("DATABASE_SCHEMA", raising=False)
 
     assert main(["reset", "--yes"]) == 2
+
+
+def test_openapi_prints_the_document(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["openapi"]) == 0
+
+    printed = capsys.readouterr().out
+    assert printed.endswith("\n")
+    document = json.loads(printed)
+    assert document["info"]["title"] == "LabApp API"
+    assert "/api/customers" in document["paths"]
+
+
+def test_openapi_writes_the_document_to_a_file(tmp_path: Path) -> None:
+    target = tmp_path / "openapi.json"
+
+    assert main(["openapi", "--output", str(target)]) == 0
+
+    written = target.read_text(encoding="utf-8")
+    assert written.endswith("\n")
+    assert "/api/invoices/{id}/payments" in json.loads(written)["paths"]

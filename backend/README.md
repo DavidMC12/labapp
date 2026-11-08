@@ -231,11 +231,23 @@ as the bytes received exceed the limit.
 
 ## Request guards
 
-The outer middleware chain is, from outside to inside: `RequestIdMiddleware`,
-`RateLimitMiddleware`, `ControlsGuardMiddleware`, `RequestControlsMiddleware`,
-`BodySizeLimitMiddleware`, then the application. The order matters: the rate limit and
-the test-controls guard answer before the body is read or parsed, and the size limit
-answers before the application validates the body.
+The outer middleware chain is, from outside to inside: `ApiResponseHeadersMiddleware`,
+`RequestIdMiddleware`, `RateLimitMiddleware`, `ControlsGuardMiddleware`,
+`RequestControlsMiddleware`, `BodySizeLimitMiddleware`, then the application. The order
+matters: the response headers wrap every other answer (including the 413 of the size
+limit, the 429 of the rate limit, the 404 of the controls guard and an unhandled 500);
+the rate limit and the test-controls guard answer before the body is read or parsed; and
+the size limit answers before the application validates the body.
+
+## Response headers
+
+Every response to a path that starts with `/api/` or `/__test__/`, whatever its status,
+carries `X-Content-Type-Options: nosniff` and `Cache-Control: no-store`: the answers
+depend on the session or on the data, so a shared cache or a browser must never keep
+them. The only exceptions are the public contract `GET /api/openapi.json` and the
+Swagger page `GET /api/docs`, which carry only `nosniff`; a path outside those prefixes
+gets neither header. A route that sets its own `Cache-Control` keeps its value: the
+middleware never overwrites it or adds a second copy, as the three CSV exports do.
 
 Rate limits are best effort per instance: 120 requests per minute and 10 login attempts
 per minute for each client IP. They are off with `TEST_MODE=1` and for a request with a

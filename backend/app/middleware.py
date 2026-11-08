@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from uuid import uuid4
 
+from starlette._utils import get_route_path
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
@@ -90,3 +91,42 @@ class BodySizeLimitMiddleware:
             return message
 
         await self.app(scope, limited_receive, send)
+
+
+API_PATH_PREFIX = "/api/"
+TEST_CONTROLS_PATH_PREFIX = "/__test__/"
+CACHEABLE_PATHS = frozenset({"/api/openapi.json", "/api/docs"})
+
+
+class ApiResponseHeadersMiddleware:
+    """Add the security headers that every API answer carries (SPEC section 8).
+
+    The API answers depend on the session or on the data, so a shared cache or a
+    browser must never keep them. The contract and its Swagger page are the only
+    exception: they are public documents and only need ``nosniff``.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = get_route_path(scope)
+        if not (path.startswith(API_PATH_PREFIX) or path.startswith(TEST_CONTROLS_PATH_PREFIX)):
+            await self.app(scope, receive, send)
+            return
+
+        only_nosniff = scope.get("method") == "GET" and path in CACHEABLE_PATHS
+
+        async def send_with_headers(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                headers["X-Content-Type-Options"] = "nosniff"
+                if not only_nosniff and "cache-control" not in headers:
+                    headers["Cache-Control"] = "no-store"
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)

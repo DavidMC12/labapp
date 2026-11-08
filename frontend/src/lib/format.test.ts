@@ -50,6 +50,14 @@ describe("formatTime", () => {
     expect(formatTime("2026-02-28T23:05:00Z")).toBe("23:05");
     expect(formatTime("2026-02-28T23:59:00Z")).toBe("23:59");
   });
+
+  it("returns an invalid timestamp unchanged, like a date", () => {
+    expect(formatTime("not-a-date")).toBe("not-a-date");
+  });
+
+  it("shows the UTC suffix instead of the viewer's date on an invalid timestamp", () => {
+    expect(formatDateTime("nope")).toBe("nope nope UTC");
+  });
 });
 
 describe("formatDateTime", () => {

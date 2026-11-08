@@ -79,6 +79,27 @@ def test_two_concurrent_advances_add_up(
 ) -> None:
     first = PostgresClockOffsetStore(unpinned_database_engine)
     second = PostgresClockOffsetStore(unpinned_database_engine)
+    first.set(100.0)
+    barrier = Barrier(2)
+
+    def advance(store: PostgresClockOffsetStore) -> float:
+        barrier.wait()
+        return store.advance(12.5)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [executor.submit(advance, store) for store in (first, second)]
+        results = [future.result(timeout=15) for future in futures]
+
+    assert sorted(results) == pytest.approx([112.5, 125.0])
+    assert first.get() == pytest.approx(125.0)
+
+
+def test_two_concurrent_advances_on_an_absent_row_add_up(
+    db,
+    unpinned_database_engine: Engine,
+) -> None:
+    first = PostgresClockOffsetStore(unpinned_database_engine)
+    second = PostgresClockOffsetStore(unpinned_database_engine)
     barrier = Barrier(2)
 
     def advance(store: PostgresClockOffsetStore) -> float:

@@ -41,24 +41,44 @@ class InMemoryCustomerRepository:
         page_size: int,
         sort: SortSpec | None = None,
     ) -> tuple[list[Customer], int]:
-        spec = sort or _DEFAULT_SORT
         with self._lock:
-            matches = [
-                customer
-                for customer in self._customers.values()
-                if status is None or customer.status == status
-            ]
-            if query is not None:
-                normalized = normalize_for_search(query)
-                matches = [
-                    customer
-                    for customer in matches
-                    if normalized in self._search[customer.id][0]
-                    or normalized in self._search[customer.id][1]
-                ]
-            matches.sort(key=self._sort_key(spec.field), reverse=spec.descending)
+            matches = self._matches(query, status, sort)
             start = (page - 1) * page_size
             return matches[start : start + page_size], len(matches)
+
+    def export_rows(
+        self,
+        *,
+        query: str | None,
+        status: CustomerStatus | None,
+        sort: SortSpec | None = None,
+    ) -> list[Customer]:
+        with self._lock:
+            return self._matches(query, status, sort)
+
+    def _matches(
+        self,
+        query: str | None,
+        status: CustomerStatus | None,
+        sort: SortSpec | None,
+    ) -> list[Customer]:
+        """Return every match in the requested order; the caller holds the lock."""
+        spec = sort or _DEFAULT_SORT
+        matches = [
+            customer
+            for customer in self._customers.values()
+            if status is None or customer.status == status
+        ]
+        if query is not None:
+            normalized = normalize_for_search(query)
+            matches = [
+                customer
+                for customer in matches
+                if normalized in self._search[customer.id][0]
+                or normalized in self._search[customer.id][1]
+            ]
+        matches.sort(key=self._sort_key(spec.field), reverse=spec.descending)
+        return matches
 
     def _sort_key(self, field: str):
         if field == "name":

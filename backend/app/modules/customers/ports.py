@@ -52,6 +52,22 @@ class CustomerRepository(Protocol):
         """Return the customer with that id, or ``None``."""
         ...
 
+    def export_rows(
+        self,
+        *,
+        query: str | None,
+        status: CustomerStatus | None,
+        sort: SortSpec | None = None,
+    ) -> list[Customer]:
+        """Return every match of the list filters, in one read.
+
+        The filters and the order are exactly those of ``list`` with the same
+        ``query``, ``status`` and ``sort``, without a page: the result is the
+        concatenation of every page of ``list``. A SQL adapter reads it in one
+        statement, so a concurrent write cannot repeat or skip a row between pages.
+        """
+        ...
+
     def add(self, data: NewCustomer, now: datetime) -> Customer:
         """Store a new active customer atomically.
 

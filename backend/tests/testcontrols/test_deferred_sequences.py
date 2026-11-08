@@ -116,3 +116,14 @@ def test_the_user_repository_defers_its_id_sequence() -> None:
     _run_deferred(deferred, recorder)
 
     assert len(recorder.setval_calls()) == 1
+
+
+def test_without_the_list_the_restart_runs_now() -> None:
+    recorder = Recorder()
+
+    PostgresCustomerRepository(_engine()).replace_all(
+        [],
+        connection=recorder,  # type: ignore[arg-type]
+    )
+
+    assert len(recorder.setval_calls()) == 1

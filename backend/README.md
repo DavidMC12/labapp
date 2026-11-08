@@ -201,6 +201,7 @@ nothing and `ControlledClock` never reads the database.
 - **Gateway.** `FaultyGateway` wraps `FakeGateway`. A consumed gateway rule waits its
   latency (capped at 10 seconds) and answers `unavailable` with
   `GATEWAY_UNAVAILABLE` without calling the inner gateway; with no rule it delegates.
+  When the controls are disabled it delegates directly and never reads the store.
 - **Route faults.** A consumed route rule waits its latency and, when it has a status,
   answers a problem document with code `INJECTED_FAULT` before the application runs.
   `/__test__/*` and `GET /api/health` are exempt.

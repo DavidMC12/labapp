@@ -571,11 +571,11 @@ class PostgresInvoiceStore:
 
     def replace_all(
         self,
-        invoices: Iterable[Invoice],
-        payments: Iterable[Payment],
+        invoice_rows: Iterable[Invoice],
+        payment_rows: Iterable[Payment],
     ) -> None:
-        invoice_list = list(invoices)
-        payment_list = list(payments)
+        invoice_list = list(invoice_rows)
+        payment_list = list(payment_rows)
         line_list = [(invoice.id, line) for invoice in invoice_list for line in invoice.lines]
 
         with self._engine.begin() as connection:

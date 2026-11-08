@@ -57,7 +57,7 @@ beforeEach(() => {
 });
 
 function renderShell() {
-  render(
+  return render(
     <QueryClientProvider client={queryClient}>
       <AppLayout>
         <h1 data-testid="app-page-heading">Página</h1>
@@ -76,6 +76,65 @@ describe("the current section of the rail", () => {
     { pathname: "/invoices", testId: "app-nav-invoices-link", label: "Facturas" },
     { pathname: "/settings", testId: "app-nav-settings-link", label: "Configuración" },
   ];
+
+  it("scrolls the current link into view when the pathname changes", async () => {
+    // The phone navigation is a single horizontal row (task 038); the
+    // shell scrolls the section link into view on every pathname change.
+    // jsdom has a no-op scrollIntoView; spy it through a stub and put the
+    // original back, the later tests of this file render on the same jsdom.
+    const scrollSpy = vi.fn();
+    const originalScrollIntoView = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrollSpy;
+
+    // The first section in the file order: the mount scroll and the
+    // navigation scroll both point at a link of this row.
+    state.pathname = "/customers";
+
+    const { rerender } = renderShell();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("app-user-name-text")).toBeInTheDocument();
+    });
+
+    // On mount the current section ("/customers" here) is scrolled into
+    // view — also right after the session load makes the nav exist. The
+    // `this` of the call is the current link.
+    await waitFor(() => {
+      expect(scrollSpy).toHaveBeenCalledWith({
+        inline: "nearest",
+        block: "nearest",
+      });
+    });
+    expect(
+      (scrollSpy.mock.instances[0] as HTMLElement).getAttribute("data-testid"),
+    ).toBe("app-nav-customers-link");
+
+    // Navigating to another section moves the row to that link.
+    scrollSpy.mockClear();
+    state.pathname = "/orders";
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <AppLayout>
+          <h1 data-testid="app-page-heading">Página</h1>
+        </AppLayout>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(scrollSpy).toHaveBeenCalledWith({
+        inline: "nearest",
+        block: "nearest",
+      });
+    });
+    expect(
+      (scrollSpy.mock.instances[0] as HTMLElement).getAttribute("data-testid"),
+    ).toBe("app-nav-orders-link");
+
+    // The pathname change effect also runs for every later navigation;
+    // restore the stub's original jsdom implementation for the next
+    // tests.
+    Element.prototype.scrollIntoView = originalScrollIntoView;
+  });
 
   for (const { pathname, testId } of cases) {
     it(`marks ${pathname} as the current section with aria-current="page"`, async () => {

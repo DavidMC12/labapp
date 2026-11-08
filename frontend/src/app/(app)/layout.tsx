@@ -96,16 +96,20 @@ export default function AppLayout({
     }
   }, [me.isSuccess, me.data, queryClient, router]);
 
-  // Keep the current navigation link visible on the phone: the single
-  // scrollable row moves to the section that just came into view. A no-op
-  // on the home (no link is current) and on the desktop rail (never
-  // overflows).
+  // Keep the current navigation link visible on the phone (task 038):
+  // the single scrollable row moves to the section that just came into
+  // view — on a pathname change and again after the session load makes
+  // the nav exist at all, so a deep link to a section scrolls too. A
+  // no-op on the home (no current link) and on the desktop rail (the
+  // column never overflows).
   useEffect(() => {
-    currentLinkRef.current?.scrollIntoView({
+    // Optional call: environments without the method (old engines) keep
+    // the page working; a real browser has it.
+    currentLinkRef.current?.scrollIntoView?.({
       inline: "nearest",
       block: "nearest",
     });
-  }, [pathname]);
+  }, [pathname, me.data]);
 
   async function handleLogout() {
     // The guard lives in the handler: state updates arrive too late for a

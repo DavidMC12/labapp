@@ -473,3 +473,159 @@ def test_no_log_record_contains_the_card_number_or_the_cvc(
     assert "4242 4242 4242 4242" not in caplog.text
     assert "4242424242424242" not in caplog.text
     assert "cvc" not in caplog.text
+
+
+def test_list_rejects_an_invalid_order_id_type(service) -> None:
+    with pytest.raises(ApiError) as error:
+        service.list_invoices(1, None, None, "1")  # type: ignore[arg-type]
+
+    assert _field_codes(error.value) == [("order_id", "INVALID_FORMAT")]
+
+
+def test_list_rejects_a_control_character_and_ignores_blank_queries(service) -> None:
+    with pytest.raises(ApiError) as error:
+        service.list_invoices(1, "acme\u0000", None, None)
+    assert _field_codes(error.value) == [("q", "INVALID_FORMAT")]
+
+    items, total = service.list_invoices(1, "   ", None, None)
+    assert total == 3
+    assert len(items) == 3
+
+
+def test_get_and_issue_reject_an_out_of_range_id(service) -> None:
+    with pytest.raises(ApiError) as missing:
+        service.get(0)
+    assert missing.value.status == 404
+
+    with pytest.raises(ApiError) as order:
+        service.issue(2_147_483_648, None)
+    assert order.value.status == 404
+
+
+def test_issue_rejects_an_out_of_range_version(service) -> None:
+    with pytest.raises(ApiError) as error:
+        service.issue(2, 2_147_483_648)
+
+    assert _field_codes(error.value) == [("version", "OUT_OF_RANGE")]
+
+
+@pytest.mark.parametrize("method", ["bitcoin", 3, ["card"]])
+def test_an_unsupported_method_is_invalid(service, method: object) -> None:
+    error = _error(service, {"method": method, "amount": "1.00"})
+
+    assert ("method", "INVALID_FORMAT") in _field_codes(error)
+
+
+def test_a_card_that_is_not_an_object_is_invalid(service) -> None:
+    error = _error(service, {"method": "card", "amount": "1.00", "card": "4242"})
+
+    assert _field_codes(error) == [("card", "INVALID_FORMAT")]
+
+
+def test_each_card_field_is_validated(service) -> None:
+    error = _error(
+        service,
+        {"method": "card", "amount": "1.00", "card": {"number": "4242 4242 4242 4242"}},
+    )
+
+    assert _field_codes(error) == [
+        ("card.expiry", "REQUIRED"),
+        ("card.cvc", "REQUIRED"),
+    ]
+
+    error = _error(
+        service,
+        {
+            "method": "card",
+            "amount": "1.00",
+            "card": {"number": 4242, "expiry": 1230, "cvc": 123, "holder": "Ana"},
+        },
+    )
+
+    assert _field_codes(error) == [
+        ("card.number", "INVALID_FORMAT"),
+        ("card.expiry", "INVALID_FORMAT"),
+        ("card.cvc", "INVALID_FORMAT"),
+        ("card.holder", "INVALID_FORMAT"),
+    ]
+
+
+def test_a_reference_is_rejected_outside_a_transfer(service) -> None:
+    error = _error(service, {"method": "cash", "amount": "1.00", "reference": "TRF-1"})
+
+    assert _field_codes(error) == [("reference", "INVALID_FORMAT")]
+
+
+def test_a_transfer_needs_a_string_reference(service) -> None:
+    error = _error(service, {"method": "transfer", "amount": "1.00"})
+    assert _field_codes(error) == [("reference", "REQUIRED")]
+
+    error = _error(service, {"method": "transfer", "amount": "1.00", "reference": 42})
+    assert _field_codes(error) == [("reference", "INVALID_FORMAT")]
+
+
+class MissingCustomerRepository:
+    def get(self, id: int) -> None:
+        return None
+
+
+def test_an_invoice_for_a_deleted_customer_skips_the_notice(
+    store,
+    orders,
+    clock,
+    mailer,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    service = InvoiceService(store, orders, MissingCustomerRepository(), clock, mailer, SECRET)  # type: ignore[arg-type]
+
+    with caplog.at_level(logging.WARNING):
+        invoice = service.issue(2, 1)
+
+    assert invoice.number == "FAC-0004"
+    assert mailer.calls == []
+    assert "customer 2 not found" in caplog.text
+
+
+def test_list_rejects_an_out_of_range_page_and_order_id_and_a_long_query(service) -> None:
+    with pytest.raises(ApiError) as page:
+        service.list_invoices(0, None, None, None)
+    assert _field_codes(page.value) == [("page", "OUT_OF_RANGE")]
+
+    with pytest.raises(ApiError) as order:
+        service.list_invoices(1, None, None, 0)
+    assert _field_codes(order.value) == [("order_id", "OUT_OF_RANGE")]
+
+    with pytest.raises(ApiError) as query:
+        service.list_invoices(1, "a" * 101, None, None)
+    assert _field_codes(query.value) == [("q", "TOO_LONG")]
+
+    items, total = service.list_invoices(1, "FAC-0001", None, 3)
+    assert total == 1
+    assert items[0].number == "FAC-0001"
+
+
+class VanishingStore:
+    """An invoice store whose invoice disappears between the read and the payment."""
+
+    def __init__(self, inner: InMemoryInvoiceStore) -> None:
+        self._inner = inner
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._inner, name)
+
+    def register_payment(self, *args: object, **kwargs: object) -> object:
+        from app.modules.invoices.ports import InvoiceNotFound
+
+        raise InvoiceNotFound()
+
+
+def test_a_payment_on_an_invoice_that_vanished_is_not_found(
+    service, store, orders, customers, clock, mailer
+) -> None:
+    vanishing = InvoiceService(VanishingStore(store), orders, customers, clock, mailer, SECRET)  # type: ignore[arg-type]
+
+    with pytest.raises(ApiError) as error:
+        vanishing.pay(1, "key-1", card_body(), None)
+
+    assert error.value.status == 404
+    assert error.value.code == "NOT_FOUND"

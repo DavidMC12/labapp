@@ -15,7 +15,7 @@ import {
   type UseQueryResult,
 } from "@tanstack/react-query";
 import { ApiRequestError } from "@/lib/api";
-import { ME_QUERY_KEY } from "@/features/auth/hooks";
+import { noteUnauthorized } from "@/features/auth/session";
 import {
   addOrderLine,
   createOrder,
@@ -73,12 +73,12 @@ export function orderDetailKey(id: number): readonly [string, string, number] {
 /**
  * Any 401 of the orders or products endpoints means "no session": it
  * writes `null` into the `["auth", "me"]` cache entry so the shell
- * redirects to the login instead of showing "Reintentar" for ever.
+ * redirects to the login instead of showing "Reintentar" for ever, and a
+ * 401 `SESSION_EXPIRED` also raises the expired flag (see
+ * `noteUnauthorized`).
  */
 function note401(error: unknown, queryClient: QueryClient): void {
-  if (error instanceof ApiRequestError && error.problem.status === 401) {
-    queryClient.setQueryData(ME_QUERY_KEY, null);
-  }
+  noteUnauthorized(error, queryClient);
 }
 
 /** One page of the orders list, url state of `?page=&q=&status=`. */

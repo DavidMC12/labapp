@@ -28,6 +28,7 @@ from app.modules.orders.adapters.postgres import PostgresOrderStore
 from app.modules.orders.seed import seed_orders, seed_products
 from app.modules.orders.tables import orders as orders_table
 from app.modules.orders.tables import products as products_table
+from app.modules.testcontrols.reset import PostgresResetter
 
 ALEMBIC_INI = Path(__file__).resolve().parent.parent / "migrations" / "alembic.ini"
 
@@ -38,6 +39,20 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("migrate", help="Apply the database migrations")
     subparsers.add_parser("seed", help="Load the demo data into an empty database")
+    reset = subparsers.add_parser(
+        "reset",
+        help="Restore the demo data (local use, requires TEST_MODE=1)",
+    )
+    reset.add_argument(
+        "--yes",
+        action="store_true",
+        help="Confirm that the data will be replaced",
+    )
+    reset.add_argument(
+        "--allow-public",
+        action="store_true",
+        help="Allow the reset when DATABASE_SCHEMA is unset (it wipes public)",
+    )
     deploy = subparsers.add_parser(
         "deploy",
         help="Migrate and seed an empty database (the platform build hook)",
@@ -70,6 +85,40 @@ def _alembic_config(settings: Settings) -> Config:
     config = Config(str(ALEMBIC_INI))
     config.attributes["settings"] = settings
     return config
+
+
+def reset_refusal(
+    *,
+    test_mode: bool,
+    schema: str | None,
+    yes: bool,
+    allow_public: bool,
+) -> str | None:
+    """Say why a local reset must not run, or ``None`` to go ahead."""
+    if not test_mode or not yes:
+        return "Refusing to reset: TEST_MODE=1 and --yes are both required."
+    if schema is None and not allow_public:
+        return (
+            "Refusing to reset: DATABASE_SCHEMA is unset and the public schema would "
+            "be wiped. Pass --allow-public to allow it."
+        )
+    return None
+
+
+def reset_database(settings: Settings) -> None:
+    """Restore the demo data in the configured database."""
+    engine = create_db_engine(settings)
+    try:
+        resetter = PostgresResetter(
+            engine,
+            customers=PostgresCustomerRepository(engine),
+            orders=PostgresOrderStore(engine),
+            invoices=PostgresInvoiceStore(engine, FakeGateway()),
+            default_tax_rate=settings.default_tax_rate,
+        )
+        resetter.reset()
+    finally:
+        engine.dispose()
 
 
 def seed_database(settings: Settings) -> None:
@@ -121,6 +170,23 @@ def main(argv: list[str] | None = None) -> int:
     elif arguments.command == "seed":
         seed_database(Settings())
         print("Database seed complete.")
+    elif arguments.command == "reset":
+        settings = Settings()
+        reason = reset_refusal(
+            test_mode=settings.test_mode,
+            schema=settings.database_schema,
+            yes=arguments.yes,
+            allow_public=arguments.allow_public,
+        )
+        if reason is not None:
+            print(reason)
+            return 2
+        if settings.database_url is None:
+            print("Refusing to reset: DATABASE_URL is not set.")
+            return 2
+        print(f"Resetting database schema {settings.database_schema or 'public'}.")
+        reset_database(settings)
+        print("Database reset complete.")
     elif arguments.command == "deploy":
         reason = skip_reason(arguments.production_only, os.environ)
         if reason is not None:

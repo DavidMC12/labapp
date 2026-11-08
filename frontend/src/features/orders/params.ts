@@ -41,6 +41,21 @@ export function parseOrderIdParam(value: unknown): number | null {
   return id > MAX_ID ? null : id;
 }
 
+/**
+ * Parses a `customer_id` from the url (`/orders/new?customer_id=7`), with
+ * the exact rules the API and the list parser put on it: a positive
+ * integer without sign, leading zeros or other syntax, at most
+ * 2147483647. Anything else returns `null`, so `/orders/new` can treat it
+ * as if the parameter were absent instead of guessing.
+ */
+export function parseCustomerIdParam(value: unknown): number | null {
+  if (typeof value !== "string" || !ID_PATTERN.test(value)) {
+    return null;
+  }
+  const id = Number(value);
+  return id > MAX_ID ? null : id;
+}
+
 /** Parsed state of the list URL: `?page=2&q=ped&status=confirmed`. */
 export type OrderListParams = {
   page: number;
@@ -77,11 +92,9 @@ export function parseOrderListParams(
     ? (statusRaw as OrderStatus)
     : null;
 
-  const customerIdRaw = searchParams.get("customer_id") ?? "";
-  const customerId = ID_PATTERN.test(customerIdRaw)
-    && Number(customerIdRaw) <= MAX_ID
-    ? Number(customerIdRaw)
-    : null;
+  const customerId = parseCustomerIdParam(
+    searchParams.get("customer_id") ?? "",
+  );
 
   return { page, q, status, customerId };
 }

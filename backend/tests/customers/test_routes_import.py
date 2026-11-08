@@ -290,6 +290,47 @@ def test_invalid_utf8_is_invalid(clients: dict[str, TestClient]) -> None:
     import_error(response, "file", "INVALID_FORMAT", "El formato no es válido.")
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        'name,email,address\nAna,a@x.co,"Calle 1\nBeto,b@x.co,Calle 2\n',
+        'name,email,address\nAna,"Calle 1,a@x.co,Calle 2\nBeto,b@x.co,Calle 2\n',
+        'name,email,address\nAna,a@x.co,Calle 1\nBeto,b@x.co,"',
+    ],
+    ids=["last-column", "middle-column", "start-of-field-at-the-end"],
+)
+def test_an_unclosed_quote_rejects_the_whole_file(
+    clients: dict[str, TestClient],
+    text: str,
+) -> None:
+    before = clients["sales"].get("/api/customers").json()["total"]
+
+    response = upload(clients["sales"], text)
+
+    import_error(response, "file", "INVALID_FORMAT", "El formato no es válido.")
+    assert clients["sales"].get("/api/customers").json()["total"] == before
+
+
+def test_a_quote_after_the_closing_quote_rejects_the_whole_file(
+    clients: dict[str, TestClient],
+) -> None:
+    before = clients["sales"].get("/api/customers").json()["total"]
+
+    response = upload(clients["sales"], 'name,email\n"a"b,ab@example.test\n')
+
+    import_error(response, "file", "INVALID_FORMAT", "El formato no es válido.")
+    assert clients["sales"].get("/api/customers").json()["total"] == before
+
+
+def test_a_bare_quote_inside_an_unquoted_field_is_stored(
+    clients: dict[str, TestClient],
+) -> None:
+    response = upload(clients["sales"], 'name,email\n5" pipe,pipe@example.test\n')
+
+    assert response.status_code == 201
+    assert response.json()["items"][0]["name"] == '5" pipe'
+
+
 def test_a_missing_file_part_is_required(clients: dict[str, TestClient]) -> None:
     response = clients["sales"].post(
         "/api/customers/import",

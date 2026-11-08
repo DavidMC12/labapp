@@ -263,3 +263,16 @@ def test_concurrent_hits_allow_exactly_the_limit() -> None:
 
     assert sum(decision.allowed for decision in decisions) == 10
     assert all(decision.retry_after == 60 for decision in decisions if not decision.allowed)
+
+
+def test_a_key_whose_hits_expire_between_sweeps_is_treated_as_new() -> None:
+    limiter, clock = _limiter(limit=2, window_seconds=10)
+    limiter.hit("other")
+    clock.advance(5)
+    limiter.hit("k")
+    clock.advance(5)
+    limiter.hit("other")
+    clock.advance(5)
+
+    assert limiter.hit("k") == RateDecision(True, 0)
+    assert list(limiter._hits["k"]) == [15]

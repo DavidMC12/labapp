@@ -7,9 +7,10 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
+from starlette.requests import Request
 
 from app.domain.permissions import Action
-from app.modules.auth.dependencies import require_action
+from app.modules.auth.dependencies import require_action, session_cookie_values
 from app.modules.auth.models import User
 from app.modules.auth.seed import DEMO_PASSWORD
 
@@ -72,3 +73,18 @@ def test_protected_routes_need_a_session(make_app: Callable[..., FastAPI]) -> No
 
     assert response.status_code == 401
     assert response.json()["code"] == "UNAUTHENTICATED"
+
+
+def test_session_cookie_values_reads_every_labapp_session_value() -> None:
+    scope = {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/auth/me",
+        "query_string": b"",
+        "headers": [
+            (b"cookie", b"other=1; labapp_session=first; labapp_session="),
+            (b"cookie", b"labapp_session=second"),
+        ],
+    }
+
+    assert session_cookie_values(Request(scope)) == ["first", "second"]

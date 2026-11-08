@@ -17,6 +17,7 @@ dependencies = [
 dev = [
     "httpx2",
     "pytest",
+    "pytest-cov>=7.1.0",
     "ruff",
 ]
 
@@ -36,6 +37,17 @@ select = ["E", "F", "I", "B", "UP"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+omit = ["*/__main__.py"]
+
+[tool.coverage.report]
+show_missing = true
+# The unit-only total rounded down by two points. The PostgreSQL integration tests raise the
+# number in CI, so the floor only guards the tests that run everywhere.
+fail_under = 85
 
 [tool.vercel.scripts]
 # Runs after the dependencies are installed and before the deployment goes live.

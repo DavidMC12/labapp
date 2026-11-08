@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
+from typing import Any
+
 import pytest
 from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
 from app.config import Settings
+from app.guards.controls import ControlsGuardMiddleware
 from app.middleware import MAX_BODY_BYTES
 from tests.guards.helpers import FakeMonotonic, make_app, make_settings
 
@@ -141,3 +145,23 @@ def test_paths_outside_the_test_prefix_are_not_guarded() -> None:
     client = TestClient(_app(make_settings(test_token="secret")))
 
     assert client.get("/api/health").status_code == 200
+
+
+def test_a_lifespan_scope_reaches_the_application_unchanged() -> None:
+    scopes: list[dict[str, Any]] = []
+
+    async def inner(scope: dict[str, Any], receive: Any, send: Any) -> None:
+        scopes.append(scope)
+
+    async def receive() -> dict[str, Any]:
+        return {"type": "lifespan.startup"}
+
+    async def send(message: dict[str, Any]) -> None:
+        return None
+
+    scope: dict[str, Any] = {"type": "lifespan"}
+
+    middleware = ControlsGuardMiddleware(inner, make_settings())
+    asyncio.run(middleware(scope, receive, send))
+
+    assert scopes == [scope]

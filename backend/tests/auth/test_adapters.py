@@ -97,6 +97,19 @@ class TestInMemorySessionStore(SessionStoreContract):
         assert store.get("token-0") is None
         assert store.get("overflow") is not None
 
+    def test_a_non_positive_capacity_is_rejected(self) -> None:
+        with pytest.raises(ValueError, match="max_sessions must be at least 1"):
+            InMemorySessionStore(max_sessions=0)
+
+    def test_recreating_a_token_replaces_the_stored_session(self) -> None:
+        store = InMemorySessionStore(max_sessions=1)
+        store.create(_session("token-hash", NOW))
+
+        updated = _session("token-hash", NOW + timedelta(seconds=1))
+        store.create(updated)
+
+        assert store.get("token-hash") == updated
+
     def test_concurrent_creates_respect_the_capacity(self) -> None:
         store = InMemorySessionStore(max_sessions=50)
 

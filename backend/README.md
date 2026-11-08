@@ -365,6 +365,27 @@ with code 2 when it refuses.
 uv run pytest -q
 ```
 
+## Coverage
+
+The suite measures branch coverage with `pytest-cov`:
+
+```bash
+uv run pytest --cov=app --cov-report=term-missing:skip-covered
+```
+
+The configuration lives in `pyproject.toml` (`[tool.coverage.run]` and
+`[tool.coverage.report]`). `term-missing` prints the files below 100 percent and the lines
+and branches they miss; `skip-covered` hides the files that are complete. The total of the
+last line is the number the floor uses.
+
+Without `TEST_DATABASE_URL` the PostgreSQL adapters are skipped, so that total is the
+unit-only one. The floor is `fail_under = 85`: the unit-only total rounded down by two
+points, low enough to hold on any machine that runs the unit tests. CI runs the same
+command with the integration tests against a throwaway PostgreSQL, so its total is higher;
+the report prints it, and only the floor gates the run. A change must not lower the floor:
+when a new module or branch lowers the total, add tests in the same change. Raise the floor
+only when the new total keeps the same two-point margin.
+
 ## Documents and code
 
 `tests/docs/` keeps `docs/SEED.md` and the error, label, permission and transition
@@ -373,9 +394,9 @@ files and call the same pure functions the application uses; they do not start a
 server or a database.
 
 When one fails, change the document and the code in the same commit. Do not edit
-the test to accept the difference. A test marked `xfail(strict=True)` records a
-known disagreement: its reason names both sides, and the mark comes off once the
-document and the code agree.
+the test to accept the difference. `tests/docs/test_field_errors.py` also checks
+that every message of the field-level table appears in `app/` as a literal or an
+f-string template, so a message that lives only in the document fails too.
 
 ## Lint and format
 

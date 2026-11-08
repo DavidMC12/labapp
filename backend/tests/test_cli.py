@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.cli import build_parser, skip_reason
+from app.cli import build_parser, main, reset_refusal, skip_reason
 
 
 def test_deploy_accepts_the_production_only_flag() -> None:
@@ -40,3 +40,57 @@ def test_the_preview_opt_in_is_honored_only_when_exactly_one() -> None:
         skip_reason(True, {"VERCEL_ENV": "preview", "RUN_MIGRATIONS_ON_PREVIEW": "true"})
         is not None
     )
+
+
+def test_reset_accepts_its_flags() -> None:
+    arguments = build_parser().parse_args(["reset", "--yes", "--allow-public"])
+    assert arguments.command == "reset"
+    assert arguments.yes is True
+    assert arguments.allow_public is True
+
+    defaults = build_parser().parse_args(["reset"])
+    assert defaults.yes is False
+    assert defaults.allow_public is False
+
+
+@pytest.mark.parametrize(
+    ("test_mode", "schema", "yes", "allow_public", "refused"),
+    [
+        (False, "labapp", True, False, True),
+        (True, "labapp", False, False, True),
+        (True, "labapp", True, False, False),
+        (True, None, True, False, True),
+        (True, None, True, True, False),
+        (False, None, False, True, True),
+    ],
+)
+def test_reset_refusals(
+    test_mode: bool,
+    schema: str | None,
+    yes: bool,
+    allow_public: bool,
+    refused: bool,
+) -> None:
+    reason = reset_refusal(
+        test_mode=test_mode,
+        schema=schema,
+        yes=yes,
+        allow_public=allow_public,
+    )
+
+    assert (reason is not None) is refused
+
+
+def test_reset_without_test_mode_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("TEST_MODE", raising=False)
+
+    assert main(["reset", "--yes"]) == 2
+
+
+def test_reset_without_a_schema_needs_allow_public(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TEST_MODE", "1")
+    monkeypatch.delenv("DATABASE_SCHEMA", raising=False)
+
+    assert main(["reset", "--yes"]) == 2

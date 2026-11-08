@@ -152,8 +152,8 @@ class PostgresCustomerRepository:
             raise
         return _customer_from_row(row)
 
-    def add_many(self, customers: Iterable[NewCustomer], now: datetime) -> list[Customer]:
-        batch = list(customers)
+    def add_many(self, new_customers: Iterable[NewCustomer], now: datetime) -> list[Customer]:
+        batch = list(new_customers)
         if not batch:
             return []
         try:

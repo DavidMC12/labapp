@@ -78,8 +78,8 @@ class InMemoryCustomerRepository:
                 raise EmailTaken
             return self._insert(data, now)
 
-    def add_many(self, customers: Iterable[NewCustomer], now: datetime) -> list[Customer]:
-        batch = list(customers)
+    def add_many(self, new_customers: Iterable[NewCustomer], now: datetime) -> list[Customer]:
+        batch = list(new_customers)
         with self._lock:
             stored_emails = {customer.email.lower() for customer in self._customers.values()}
             batch_emails = [data.email.lower() for data in batch]

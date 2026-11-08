@@ -62,7 +62,7 @@ class CustomerRepository(Protocol):
         """
         ...
 
-    def add_many(self, customers: Iterable[NewCustomer], now: datetime) -> list[Customer]:
+    def add_many(self, new_customers: Iterable[NewCustomer], now: datetime) -> list[Customer]:
         """Store every customer of an import in one atomic step.
 
         The ids are assigned in file order and are consecutive; every row gets

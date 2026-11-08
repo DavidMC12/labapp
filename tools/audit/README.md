@@ -39,6 +39,9 @@ The sorted lists are audited too: each of the four lists has a
 `customers-list-sort-click` state reaches by clicking a header button and
 waiting for the sort announcement), so `aria-sort`, the direction arrow
 and the announcement live in the light and the dark theme of the audit.
+The `customers-list-filtered-export` state audits the filtered customers
+list and its "Exportar CSV" download link (a plain `<a download>` whose
+id every list state of the audit carries).
 
 Twelve states audit the pages at 320 CSS pixels (WCAG 2.1 criterion 1.4.10, Reflow: a 1280 px window zoomed to 400 %): `login-narrow`, `home-narrow`, `customers-list-narrow`, `customers-detail-narrow`, `customers-new-narrow`, `products-list-narrow`, `orders-list-narrow`, `orders-new-narrow`, `orders-detail-confirmed-narrow`, `invoices-list-narrow`, `invoices-detail-issued-narrow` and `settings-admin-narrow`, each named `<page>-narrow` with `"viewport": { "width": 320, "height": 568 }` and `"catalog": false`. They repeat the path, user, wait, title and steps of the phone state of the same page (of the desktop state when it has no phone one); the data tables may scroll inside their own `TableScroll` container, the page itself may not.
 

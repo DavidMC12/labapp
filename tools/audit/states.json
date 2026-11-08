@@ -10,6 +10,7 @@
     { "name": "customers-list-sorted", "path": "/customers?sort=name&direction=desc", "user": "sales@labapp.test", "waitFor": "customers-list-table", "title": "Clientes · LabApp", "catalog": false },
     { "name": "customers-list-sort-click", "path": "/customers", "user": "sales@labapp.test", "waitFor": "customers-list-table", "steps": [{ "click": "customers-list-sort-name-button", "waitFor": "customers-list-sort-text" }], "title": "Clientes · LabApp", "catalog": false },
     { "name": "customers-list-readonly", "path": "/customers", "user": "readonly@labapp.test", "waitFor": "customers-list-table", "title": "Clientes · LabApp" },
+    { "name": "customers-list-filtered-export", "path": "/customers?q=a&status=active", "user": "sales@labapp.test", "waitFor": "customers-list-table", "title": "Clientes · LabApp", "catalog": false },
     { "name": "customers-detail", "path": "/customers/2", "user": "sales@labapp.test", "waitFor": "customers-detail-heading", "title": "Cliente Beta Comercial Ltda. · LabApp" },
     { "name": "customers-detail-inactive", "path": "/customers/5", "user": "sales@labapp.test", "waitFor": "customers-detail-heading", "title": "Cliente Estudio Épsilon · LabApp" },
     { "name": "customers-deactivate-dialog", "path": "/customers/2", "user": "sales@labapp.test", "waitFor": "customers-detail-heading", "steps": [{ "click": "customers-detail-deactivate-button", "waitFor": "customers-deactivate-confirm-dialog" }], "title": "Cliente Beta Comercial Ltda. · LabApp" },

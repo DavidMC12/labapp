@@ -6,6 +6,80 @@
 
 import type { InvoiceStatus } from "./types";
 
+/** The fields the invoices list URL may sort by (docs/SPEC.md section 6). */
+export type InvoiceSortField = "created_at" | "number" | "customer" | "total";
+
+/** The two directions the URLs of the list can carry for one field. */
+export type InvoiceSortDirection = "asc" | "desc";
+
+/** One full sort: a field and its direction, the state the headers write. */
+export type InvoiceSort = {
+  sort: InvoiceSortField;
+  direction: InvoiceSortDirection;
+};
+
+/** The fields the list accepts; any other `sort` value in the URL falls back. */
+const SORT_FIELDS: readonly InvoiceSortField[] = [
+  "created_at",
+  "number",
+  "customer",
+  "total",
+];
+
+/** The order of the plain list: newest invoice first. */
+export const DEFAULT_INVOICE_SORT: InvoiceSort = {
+  sort: "created_at",
+  direction: "desc",
+};
+
+/** The direction one field sorts with when the click does not flip it. */
+export function invoiceSortDefaultDirection(
+  field: InvoiceSortField,
+): InvoiceSortDirection {
+  return field === "created_at" ? "desc" : "asc";
+}
+
+/** The other direction of one sort (there is no "unsorted" state). */
+export function flipInvoiceSortDirection(
+  direction: InvoiceSortDirection,
+): InvoiceSortDirection {
+  return direction === "asc" ? "desc" : "asc";
+}
+
+/**
+ * The effective sort of one visit: the URL pair, with a missing or
+ * invalid value meaning the default of the field (the customers list
+ * rule, docs/SPEC.md section 6).
+ */
+export function resolveInvoiceSort(params: {
+  sort: InvoiceSortField | null;
+  direction: InvoiceSortDirection | null;
+}): InvoiceSort {
+  const sort = params.sort ?? DEFAULT_INVOICE_SORT.sort;
+  return {
+    sort,
+    direction: params.direction ?? invoiceSortDefaultDirection(sort),
+  };
+}
+
+/** True when the pair is the one of the plain list. */
+export function isDefaultInvoiceSort(sort: InvoiceSort): boolean {
+  return sort.sort === DEFAULT_INVOICE_SORT.sort
+    && sort.direction === DEFAULT_INVOICE_SORT.direction;
+}
+
+/** The Spanish label of a sort field, the text the announcement carries. */
+const INVOICE_SORT_LABELS: Record<InvoiceSortField, string> = {
+  "created_at": "Creada",
+  "number": "Número",
+  "customer": "Cliente",
+  "total": "Total",
+};
+
+export function invoiceSortLabel(field: InvoiceSortField): string {
+  return INVOICE_SORT_LABELS[field];
+}
+
 /** Largest page the list API recognizes (docs/SPEC.md section 6). */
 const MAX_PAGE = 1000000;
 
@@ -40,6 +114,10 @@ export type InvoiceListParams = {
   page: number;
   q: string | null;
   status: InvoiceStatus | null;
+  /** Parsed `sort` of the URL: null is the default field (`created_at`). */
+  sort: InvoiceSortField | null;
+  /** Parsed `direction` of the URL: null is the default of `sort`. */
+  direction: InvoiceSortDirection | null;
 };
 
 /**
@@ -64,5 +142,15 @@ export function parseInvoiceListParams(
     ? (statusRaw as InvoiceStatus)
     : null;
 
-  return { page, q, status };
+  const sortRaw = searchParams.get("sort") ?? "";
+  const sort = (SORT_FIELDS as readonly string[]).includes(sortRaw)
+    ? (sortRaw as InvoiceSortField)
+    : null;
+
+  const directionRaw = searchParams.get("direction") ?? "";
+  const direction = directionRaw === "asc" || directionRaw === "desc"
+    ? directionRaw
+    : null;
+
+  return { page, q, status, sort, direction };
 }

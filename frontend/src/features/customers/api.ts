@@ -4,6 +4,11 @@
  */
 
 import { apiFetch } from "@/lib/api";
+import {
+  customerSortDefaultDirection,
+  type CustomerSortDirection,
+  type CustomerSortField,
+} from "./params";
 import type { Customer, CustomerList, CustomerStatus } from "./types";
 
 /** Parameters of one list page: `page` always, the rest only when set. */
@@ -11,6 +16,13 @@ export type CustomerListRequest = {
   page: number;
   q?: string;
   status?: CustomerStatus;
+  /**
+   * The sort of the request. It is only present when the URL state is
+   * not the default (`created_at` descending): with no parameters the
+   * API answers exactly as before the sorting existed.
+   */
+  sort?: CustomerSortField;
+  direction?: CustomerSortDirection;
 };
 
 /**
@@ -29,6 +41,10 @@ export function buildCustomerListQuery(
   }
   if (params.status) {
     search.set("status", params.status);
+  }
+  if (params.sort) {
+    search.set("sort", params.sort);
+    search.set("direction", params.direction ?? customerSortDefaultDirection(params.sort));
   }
   return search;
 }

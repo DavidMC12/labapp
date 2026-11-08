@@ -92,6 +92,17 @@ describe("buildOrderListQuery", () => {
       orderListUrl({ page: 1, customerId: 4, q: "ped", status: "draft" }),
     ).toBe("/api/orders?page=1&q=ped&status=draft&customer_id=4");
   });
+
+  it("carries the sort only when the request has one, with both parameters", () => {
+    expect(orderListUrl({ page: 1 })).toBe("/api/orders?page=1");
+    expect(
+      orderListUrl({ page: 1, sort: "customer", direction: "desc" }),
+    ).toBe("/api/orders?page=1&sort=customer&direction=desc");
+    // A sort without a direction takes the default direction of the field.
+    expect(orderListUrl({ page: 1, sort: "number" }).split("&")).toContain(
+      "direction=asc",
+    );
+  });
 });
 
 describe("the orders requests", () => {
@@ -118,18 +129,20 @@ describe("the orders requests", () => {
   });
 
   it("reads the whole product catalog without paging", async () => {
-    fetchMock.mockResolvedValueOnce(
+    fetchMock.mockImplementation(async () =>
       jsonResponse({
         items: [
           { id: 1, sku: "KB-100", name: "Teclado USB", price: "19.90", stock: 120 },
         ],
-      }),
-    );
+      }));
 
     const result = await fetchProducts();
 
     expect(call(0)[0]).toBe("/api/products");
     expect(result.items[0].price).toBe("19.90");
+
+    await fetchProducts({ sort: "price", direction: "desc" });
+    expect(call(1)[0]).toBe("/api/products?sort=price&direction=desc");
   });
 
   it("creates a draft with the customer id as the only field", async () => {

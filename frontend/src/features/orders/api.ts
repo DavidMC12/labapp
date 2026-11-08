@@ -7,6 +7,11 @@
  */
 
 import { apiFetch } from "@/lib/api";
+import {
+  orderSortDefaultDirection,
+  type OrderSortDirection,
+  type OrderSortField,
+} from "./params";
 import type {
   Order,
   OrderList,
@@ -24,6 +29,12 @@ export type OrderListRequest = {
    * validated). Present only when the URL carries a valid one.
    */
   customerId?: number;
+  /**
+   * The sort of the request. It is only present when the URL state is
+   * not the default (`created_at` descending).
+   */
+  sort?: OrderSortField;
+  direction?: OrderSortDirection;
 };
 
 /**
@@ -47,6 +58,10 @@ export function buildOrderListQuery(
   if (params.customerId) {
     search.set("customer_id", String(params.customerId));
   }
+  if (params.sort) {
+    search.set("sort", params.sort);
+    search.set("direction", params.direction ?? orderSortDefaultDirection(params.sort));
+  }
   return search;
 }
 
@@ -65,8 +80,18 @@ export function fetchOrder(id: number): Promise<Order> {
 }
 
 /** GET /api/products — 200 `{items: [Product]}`, no paging. */
-export function fetchProducts(): Promise<{ items: Product[] }> {
-  return apiFetch<{ items: Product[] }>("/api/products");
+export function fetchProducts(
+  params: { sort?: string; direction?: string } = {},
+): Promise<{ items: Product[] }> {
+  const search = new URLSearchParams();
+  if (params.sort) {
+    search.set("sort", params.sort);
+    search.set("direction", params.direction ?? "asc");
+  }
+  const query = search.toString();
+  return apiFetch<{ items: Product[] }>(
+    `/api/products${query ? `?${query}` : ""}`,
+  );
 }
 
 /** POST /api/orders — 201 `Order` (a new draft of one line set). */

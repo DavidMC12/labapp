@@ -499,3 +499,109 @@ function respondList(body: unknown, status = 200): void {
   listBody = body;
   listStatus = status;
 }
+
+describe("the invoices list sorting", () => {
+  function seededSummaries(): InvoiceSummary[] {
+    // Names and totals in a different order than the numbers, so an
+    // ascending sort of one is not an ascending sort of the other.
+    return [
+      summary(2, { number: "FAC-0002", customer_name: "Zeta Ferretería", total: "120.50" }),
+      summary(1, { number: "FAC-0001", customer_name: "Acme Industrial S.A.", total: "55.28" }),
+      summary(3, { number: "FAC-0003", customer_name: "Cafetería La Esquina", total: "327.80" }),
+    ];
+  }
+
+  it("renders a sorting button with its label in the Número, Cliente, Total and Creada headers", async () => {
+    respondList(listPageOf(seededSummaries()));
+    renderAt("");
+    await waitFor(() => {
+      expect(screen.getByTestId("invoices-list-table")).toBeInTheDocument();
+    });
+
+    for (const [label, testid] of [
+      ["Número", "invoices-list-sort-number-button"],
+      ["Cliente", "invoices-list-sort-customer-button"],
+      ["Total", "invoices-list-sort-total-button"],
+      ["Creada", "invoices-list-sort-created-button"],
+    ] as Array<[string, string]>) {
+      const button = screen.getByRole("button", { name: label });
+      expect(button).toHaveAttribute("data-testid", testid);
+    }
+
+    // On arrival Creada sorts descending (the plain order) and every
+    // other column has no aria-sort.
+    expect(
+      screen.getByRole("columnheader", { name: "Creada" }),
+    ).toHaveAttribute("aria-sort", "descending");
+    expect(
+      screen.getByRole("columnheader", { name: "Número" }),
+    ).not.toHaveAttribute("aria-sort");
+    expect(screen.getByTestId("invoices-list-sort-text")).toHaveTextContent(
+      "Ordenado por Creada, descendente",
+    );
+  });
+
+  it("sorts Total descending on the first click and flips it on the second", async () => {
+    respondList(listPageOf(seededSummaries(), 80));
+    const { rerenderAt } = renderAt("");
+    await waitFor(() => {
+      expect(screen.getByTestId("invoices-list-table")).toBeInTheDocument();
+    });
+
+    await userEvent.setup().click(screen.getByTestId("invoices-list-sort-total-button"));
+    expect(state.router.push).toHaveBeenCalledWith(
+      "/invoices?page=1&sort=total&direction=asc",
+    );
+
+    rerenderAt("page=1&sort=total&direction=asc");
+    await waitFor(() => {
+      expect(listRequests().at(-1)).toBe(
+        "/api/invoices?page=1&sort=total&direction=asc",
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("invoices-list-table")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("columnheader", { name: "Total" }),
+    ).toHaveAttribute("aria-sort", "ascending");
+    expect(screen.getByTestId("invoices-list-sort-total-button"))
+      .toHaveAttribute("data-state", "ascending");
+    expect(screen.getByTestId("invoices-list-sort-text")).toHaveTextContent(
+      "Ordenado por Total, ascendente",
+    );
+
+    state.router.push.mockClear();
+    await userEvent.setup().click(screen.getByTestId("invoices-list-sort-total-button"));
+    expect(state.router.push).toHaveBeenCalledWith(
+      "/invoices?page=1&sort=total&direction=desc",
+    );
+  });
+
+  it("keeps the filters on a sort and falls back on invalid URL values", async () => {
+    respondList(listPageOf(seededSummaries(), 80));
+    renderAt("sort=basket&direction=upwards&page=2&q=fac&status=paid");
+
+    await waitFor(() => {
+      expect(listRequests().at(-1)).toBe(
+        "/api/invoices?page=2&q=fac&status=paid",
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("invoices-list-table")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("columnheader", { name: "Creada" }),
+    ).toHaveAttribute("aria-sort", "descending");
+    expect(screen.getByTestId("invoices-list-sort-text")).toHaveTextContent(
+      "Ordenado por Creada, descendente",
+    );
+
+    // Sorting from here goes back to page 1 with the filters intact.
+    state.router.push.mockClear();
+    await userEvent.setup().click(screen.getByTestId("invoices-list-sort-customer-button"));
+    expect(state.router.push).toHaveBeenCalledWith(
+      "/invoices?page=1&q=fac&status=paid&sort=customer&direction=asc",
+    );
+  });
+});

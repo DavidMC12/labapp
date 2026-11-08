@@ -130,6 +130,16 @@ Present in every logged-in state.
 
 | Test id | Element |
 |---|---|
+| `customers-list-created-cell-1` | `td` |
+| `customers-list-created-cell-2` | `td` |
+| `customers-list-created-cell-3` | `td` |
+| `customers-list-created-cell-4` | `td` |
+| `customers-list-created-cell-5` | `td` |
+| `customers-list-created-cell-6` | `td` |
+| `customers-list-created-cell-7` | `td` |
+| `customers-list-created-cell-8` | `td` |
+| `customers-list-created-cell-9` | `td` |
+| `customers-list-created-cell-10` | `td` |
 | `customers-list-email-cell-1` | `td` |
 | `customers-list-email-cell-2` | `td` |
 | `customers-list-email-cell-3` | `td` |
@@ -170,6 +180,10 @@ Present in every logged-in state.
 | `customers-list-search-button` | `button` |
 | `customers-list-search-form` | `form` |
 | `customers-list-search-input` | `input[type=text]` |
+| `customers-list-sort-created-button` | `button` |
+| `customers-list-sort-email-button` | `button` |
+| `customers-list-sort-name-button` | `button` |
+| `customers-list-sort-text` | `p[role=status]` |
 | `customers-list-state-cell-1` | `td` |
 | `customers-list-state-cell-2` | `td` |
 | `customers-list-state-cell-3` | `td` |
@@ -210,6 +224,16 @@ Present in every logged-in state.
 
 | Test id | Element |
 |---|---|
+| `customers-list-created-cell-1` | `td` |
+| `customers-list-created-cell-2` | `td` |
+| `customers-list-created-cell-3` | `td` |
+| `customers-list-created-cell-4` | `td` |
+| `customers-list-created-cell-5` | `td` |
+| `customers-list-created-cell-6` | `td` |
+| `customers-list-created-cell-7` | `td` |
+| `customers-list-created-cell-8` | `td` |
+| `customers-list-created-cell-9` | `td` |
+| `customers-list-created-cell-10` | `td` |
 | `customers-list-email-cell-1` | `td` |
 | `customers-list-email-cell-2` | `td` |
 | `customers-list-email-cell-3` | `td` |
@@ -249,6 +273,10 @@ Present in every logged-in state.
 | `customers-list-search-button` | `button` |
 | `customers-list-search-form` | `form` |
 | `customers-list-search-input` | `input[type=text]` |
+| `customers-list-sort-created-button` | `button` |
+| `customers-list-sort-email-button` | `button` |
+| `customers-list-sort-name-button` | `button` |
+| `customers-list-sort-text` | `p[role=status]` |
 | `customers-list-state-cell-1` | `td` |
 | `customers-list-state-cell-2` | `td` |
 | `customers-list-state-cell-3` | `td` |
@@ -470,6 +498,11 @@ Present in every logged-in state.
 | `products-list-sku-cell-13` | `td` |
 | `products-list-sku-cell-14` | `td` |
 | `products-list-sku-cell-15` | `td` |
+| `products-list-sort-name-button` | `button` |
+| `products-list-sort-price-button` | `button` |
+| `products-list-sort-sku-button` | `button` |
+| `products-list-sort-stock-button` | `button` |
+| `products-list-sort-text` | `p[role=status]` |
 | `products-list-stock-cell-1` | `td` |
 | `products-list-stock-cell-2` | `td` |
 | `products-list-stock-cell-3` | `td` |
@@ -505,6 +538,11 @@ Present in every logged-in state.
 | `products-list-search-form` | `form` |
 | `products-list-search-input` | `input[type=text]` |
 | `products-list-sku-cell-6` | `td` |
+| `products-list-sort-name-button` | `button` |
+| `products-list-sort-price-button` | `button` |
+| `products-list-sort-sku-button` | `button` |
+| `products-list-sort-stock-button` | `button` |
+| `products-list-sort-text` | `p[role=status]` |
 | `products-list-stock-cell-6` | `td` |
 | `products-list-table` | `table` |
 
@@ -559,6 +597,10 @@ Present in every logged-in state.
 | `orders-list-search-button` | `button` |
 | `orders-list-search-form` | `form` |
 | `orders-list-search-input` | `input[type=text]` |
+| `orders-list-sort-created-button` | `button` |
+| `orders-list-sort-customer-button` | `button` |
+| `orders-list-sort-number-button` | `button` |
+| `orders-list-sort-text` | `p[role=status]` |
 | `orders-list-state-cell-1` | `td` |
 | `orders-list-state-cell-2` | `td` |
 | `orders-list-state-cell-3` | `td` |
@@ -807,6 +849,11 @@ Present in every logged-in state.
 | `invoices-list-search-button` | `button` |
 | `invoices-list-search-form` | `form` |
 | `invoices-list-search-input` | `input[type=text]` |
+| `invoices-list-sort-created-button` | `button` |
+| `invoices-list-sort-customer-button` | `button` |
+| `invoices-list-sort-number-button` | `button` |
+| `invoices-list-sort-text` | `p[role=status]` |
+| `invoices-list-sort-total-button` | `button` |
 | `invoices-list-state-cell-1` | `td` |
 | `invoices-list-state-cell-2` | `td` |
 | `invoices-list-state-cell-3` | `td` |

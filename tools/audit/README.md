@@ -34,6 +34,12 @@ It needs the frontend dependencies installed (it uses the TypeScript compiler fr
 
 A state can have `steps` to reach something that needs an interaction (a confirmation dialog): `"steps": [{ "click": "<test id>", "waitFor": "<test id that must become visible>" }]`; the audit clicks, waits, and then checks the page as it is. A state can have a `viewport` (`{ "width": 390, "height": 844 }`) to be audited as a phone or a tablet, and `"catalog": false` to leave it out of the catalog when it only repeats the ids of another state. Every state also fails when the page scrolls sideways. A state can also have a `title`, the exact document title the page must have.
 
+The sorted lists are audited too: each of the four lists has a
+`<page>-list-sorted` state opened with a sort in the URL (the catalog the
+`customers-list-sort-click` state reaches by clicking a header button and
+waiting for the sort announcement), so `aria-sort`, the direction arrow
+and the announcement live in the light and the dark theme of the audit.
+
 Twelve states audit the pages at 320 CSS pixels (WCAG 2.1 criterion 1.4.10, Reflow: a 1280 px window zoomed to 400 %): `login-narrow`, `home-narrow`, `customers-list-narrow`, `customers-detail-narrow`, `customers-new-narrow`, `products-list-narrow`, `orders-list-narrow`, `orders-new-narrow`, `orders-detail-confirmed-narrow`, `invoices-list-narrow`, `invoices-detail-issued-narrow` and `settings-admin-narrow`, each named `<page>-narrow` with `"viewport": { "width": 320, "height": 568 }` and `"catalog": false`. They repeat the path, user, wait, title and steps of the phone state of the same page (of the desktop state when it has no phone one); the data tables may scroll inside their own `TableScroll` container, the page itself may not.
 
 It prints every state it covered: the 100% goal is measured over those states, so a screen that is not in `states.json` is a gap of the audit. **Add a state for every new screen and every notable state of it** (an empty list, an error, a detail page of a fixed seed record).

@@ -7,6 +7,11 @@
  */
 
 import { apiFetch } from "@/lib/api";
+import {
+  invoiceSortDefaultDirection,
+  type InvoiceSortDirection,
+  type InvoiceSortField,
+} from "./params";
 import type {
   Invoice,
   InvoiceList,
@@ -20,6 +25,12 @@ export type InvoiceListRequest = {
   page: number;
   q?: string;
   status?: InvoiceStatus;
+  /**
+   * The sort of the request. It is only present when the URL state is
+   * not the default (`created_at` descending).
+   */
+  sort?: InvoiceSortField;
+  direction?: InvoiceSortDirection;
 };
 
 /**
@@ -38,6 +49,13 @@ export function buildInvoiceListQuery(
   }
   if (params.status) {
     search.set("status", params.status);
+  }
+  if (params.sort) {
+    search.set("sort", params.sort);
+    search.set(
+      "direction",
+      params.direction ?? invoiceSortDefaultDirection(params.sort),
+    );
   }
   return search;
 }

@@ -61,6 +61,17 @@ describe("buildInvoiceListQuery", () => {
       "/api/invoices?page=1&q=R%26D",
     );
   });
+
+  it("carries the sort only when the request has one, with both parameters", () => {
+    expect(invoiceListUrl({ page: 1 })).toBe("/api/invoices?page=1");
+    expect(
+      invoiceListUrl({ page: 1, sort: "total", direction: "desc" }),
+    ).toBe("/api/invoices?page=1&sort=total&direction=desc");
+    // A sort without a direction takes the default direction of the field.
+    expect(invoiceListUrl({ page: 1, sort: "number" }).split("&")).toContain(
+      "direction=asc",
+    );
+  });
 });
 
 describe("the invoice requests", () => {

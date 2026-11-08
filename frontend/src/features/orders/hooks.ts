@@ -41,9 +41,10 @@ export const PRODUCTS_KEY = ["products"] as const;
 
 /**
  * Key of one list query: `["orders", "list", { page, q, status,
- * customerId }]`. An empty `q` never has one of these keys, so
- * `{ page: 1, q: "" }` and `{ page: 1 }` do not split the cache in two;
- * the same applies to a `customerId` of 0 or null.
+ * customerId, sort, direction }]`. An empty `q` never has one of these
+ * keys, so `{ page: 1, q: "" }` and `{ page: 1 }` do not split the cache
+ * in two; the same applies to a `customerId` of 0 or null, and to the
+ * absent sort values of the default order.
  */
 export function ordersListQueryKey(
   params: OrderListRequest,
@@ -52,12 +53,16 @@ export function ordersListQueryKey(
   q?: string;
   status?: string;
   customerId?: number;
+  sort?: string;
+  direction?: string;
 }] {
   return [ORDERS_LIST_KEY[0], ORDERS_LIST_KEY[1], {
     page: params.page,
     q: params.q || undefined,
     status: params.status || undefined,
     customerId: params.customerId || undefined,
+    sort: params.sort,
+    direction: params.direction,
   }];
 }
 
@@ -124,18 +129,29 @@ export function useOrder(
 /**
  * The whole product catalog, no paging. `enabled: false` skips the
  * request for screens that cannot use it (the catalog is read-only and
- * only the draft editor needs it).
+ * only the draft editor needs it). The catalog screen also reads it
+ * sorted: the sort parameters are part of their own cache entry, so one
+ * request per order the URL asks for, always sharing the invalidation
+ * prefix of `PRODUCTS_KEY`.
  */
 export function useProducts(
-  options: { enabled?: boolean } = {},
+  options: {
+    enabled?: boolean;
+    /** `sort` only from the catalog URL; none is the plain order. */
+    sort?: string;
+    direction?: string;
+  } = {},
 ): UseQueryResult<{ items: Product[] }, ApiRequestError> {
   const queryClient = useQueryClient();
+  const queryKey = options.sort === undefined && options.direction === undefined
+    ? PRODUCTS_KEY
+    : [...PRODUCTS_KEY, { sort: options.sort, direction: options.direction }];
 
   return useQuery<{ items: Product[] }, ApiRequestError>({
-    queryKey: PRODUCTS_KEY,
+    queryKey,
     queryFn: async () => {
       try {
-        return await fetchProducts();
+        return await fetchProducts(options);
       } catch (error) {
         note401(error, queryClient);
         throw error;

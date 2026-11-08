@@ -451,3 +451,110 @@ describe("the states of the catalog", () => {
     expect(screen.queryByTestId("products-list-table")).not.toBeInTheDocument();
   });
 });
+
+describe("the sorting of the catalog", () => {
+  function catalog(): Product[] {
+    // Prices and names in a different order than the ids, so an
+    // ascending sort of one is not the seed id order.
+    return [
+      seededProduct(1, { sku: "KB-100", name: "Teclado USB", price: "59.90", stock: 12 }),
+      seededProduct(2, { sku: "LC-210", name: "Cable HDMI", price: "9.90", stock: 250 }),
+      seededProduct(3, { sku: "MS-310", name: "Monitor IPS", price: "219.00", stock: 8 }),
+    ];
+  }
+
+  /** The /api/products requests recorded so far (url with query). */
+  function catalogRequests(): string[] {
+    return fetchMock.mock.calls
+      .map((call) => String(call[0]))
+      .filter((url) => url.startsWith("/api/products"));
+  }
+
+  it("renders a sorting button with its label in every header", async () => {
+    respondCatalog(catalogOf(catalog()));
+    renderAt("");
+    await waitFor(() => {
+      expect(screen.getByTestId("products-list-table")).toBeInTheDocument();
+    });
+
+    for (const [label, testid] of [
+      ["SKU", "products-list-sort-sku-button"],
+      ["Producto", "products-list-sort-name-button"],
+      ["Precio", "products-list-sort-price-button"],
+      ["Stock", "products-list-sort-stock-button"],
+    ] as Array<[string, string]>) {
+      const button = screen.getByRole("button", { name: label });
+      expect(button).toHaveAttribute("data-testid", testid);
+    }
+
+    // The plain catalog answers ordered by id and no column sorts it:
+    // no header carries aria-sort and Id has no column.
+    for (const cell of screen.queryAllByRole("columnheader")) {
+      expect(cell).toHaveAttribute("scope", "col");
+      expect(cell).not.toHaveAttribute("aria-sort");
+    }
+    expect(screen.getByTestId("products-list-sort-text")).toHaveTextContent(
+      "Ordenado por Id, ascendente",
+    );
+  });
+
+  it("sorts Precio ascending on the first click and flips on the second", async () => {
+    respondCatalog(catalogOf(catalog()));
+    const { rerenderAt } = renderAt("");
+    await waitFor(() => {
+      expect(catalogRequests()).toEqual(["/api/products"]);
+      expect(screen.getByTestId("products-list-table")).toBeInTheDocument();
+    });
+
+    await userEvent.setup().click(screen.getByTestId("products-list-sort-price-button"));
+    expect(state.router.push).toHaveBeenCalledWith(
+      "/products?sort=price&direction=asc",
+    );
+
+    rerenderAt("sort=price&direction=asc");
+    await waitFor(() => {
+      expect(catalogRequests().at(-1)).toBe(
+        "/api/products?sort=price&direction=asc",
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("products-list-table")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("columnheader", { name: "Precio" }),
+    ).toHaveAttribute("aria-sort", "ascending");
+    expect(screen.getByTestId("products-list-sort-price-button"))
+      .toHaveAttribute("data-state", "ascending");
+    expect(screen.getByTestId("products-list-sort-text")).toHaveTextContent(
+      "Ordenado por Precio, ascendente",
+    );
+
+    state.router.push.mockClear();
+    await userEvent.setup().click(screen.getByTestId("products-list-sort-price-button"));
+    expect(state.router.push).toHaveBeenCalledWith(
+      "/products?sort=price&direction=desc",
+    );
+  });
+
+  it("keeps the search term on a sort and falls back on invalid URL values", async () => {
+    respondCatalog(catalogOf(catalog()));
+    const { rerenderAt } = renderAt("q=cable&sort=basket&direction=upwards");
+
+    // The plain catalog order travels without sort parameters; q stays.
+    await waitFor(() => {
+      expect(catalogRequests().at(-1)).toBe("/api/products");
+    });
+    expect(screen.getByTestId("products-list-sort-text")).toHaveTextContent(
+      "Ordenado por Id, ascendente",
+    );
+
+    rerenderAt("q=cable");
+    await waitFor(() => {
+      expect(screen.getByTestId("products-list-table")).toBeInTheDocument();
+    });
+    await userEvent.setup().click(screen.getByTestId("products-list-sort-sku-button"));
+    expect(state.router.push).toHaveBeenCalledWith(
+      "/products?q=cable&sort=sku&direction=asc",
+    );
+  });
+});

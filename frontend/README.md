@@ -439,6 +439,28 @@ checks the phone, tablet and 320 px narrow widths for exactly this, and fails on
 every audited page also fits 320 CSS pixels without sideways scrolling (WCAG 2.1 criterion 1.4.10, Reflow), and only
 its data tables scroll, inside their own `TableScroll`.
 
+## Sorting
+
+The four lists sort through the API (`sort` and `direction` parameter of
+each list route of `docs/SPEC.md`). The column headers of the sortable
+columns are `SortableHeader` (`src/components/ui/SortableHeader.tsx`): a
+`<th scope="col">` carrying `aria-sort="ascending"` or `aria-sort="descending"`
+while the table is sorted by it (no attribute otherwise), with a real
+`<button>` inside (visible text = the column label, a hidden arrow icon
+for the direction) whose test id is `<module>-list-sort-<field>-button`
+(the `created_at` field is written `created`: `customers-list-sort-created-button`).
+The sort state lives in the URL as `?sort=<field>&direction=<asc|desc>`;
+when the list is in its default order (`created_at` descending, and for
+the catalog `id` ascending) both parameters are left out, so the clean
+URL is the plain list. Clicking a new column sorts it with the default
+direction of its field, clicking the sorted column flips the direction;
+either way the list goes back to page 1, keeps the rest of the filters,
+and the API request carries the parameters (omitted on the default).
+An invalid `sort` or `direction` in the URL falls back to the default,
+like an invalid `status` does. Each list also announces its order in a
+visually hidden `role="status"` element `<module>-list-sort-text`
+(text "Ordenado por Nombre, ascendente", updated on every change).
+
 ## Confirmation dialogs
 
 - **`ConfirmDialog`** (`src/components/ui/ConfirmDialog.tsx`) is the one

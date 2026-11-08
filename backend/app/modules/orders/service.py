@@ -7,6 +7,12 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import NoReturn
 
+from app.domain.csv_export import (
+    EXPORT_PAGE_SIZE,
+    CsvExport,
+    csv_export_filename,
+    write_csv,
+)
 from app.domain.money import (
     MAX_TAX_RATE,
     MIN_TAX_RATE,
@@ -20,7 +26,7 @@ from app.domain.orders import (
     OrderAction,
     OrderStatus,
 )
-from app.domain.sorting import parse_sort
+from app.domain.sorting import SortSpec, parse_sort
 from app.errors import ERROR_MESSAGES, NOT_FOUND, ApiError
 from app.infra.clock import Clock
 from app.modules.customers.models import Customer
@@ -44,6 +50,20 @@ MAX_ID = 2_147_483_647
 MAX_QUERY_LENGTH = 100
 ORDER_SORT_FIELDS = ("created_at", "number", "customer")
 PRODUCT_SORT_FIELDS = ("id", "sku", "name", "price", "stock")
+ORDER_COLUMNS = (
+    "id",
+    "number",
+    "status",
+    "customer_id",
+    "customer_name",
+    "subtotal",
+    "tax_rate",
+    "tax",
+    "total",
+    "invoice_id",
+    "created_at",
+    "updated_at",
+)
 
 VALIDATION_DETAIL = "Revisa los datos ingresados."
 VERSION_CONFLICT_MESSAGE = "El registro cambió mientras lo editabas. Recarga e inténtalo de nuevo."
@@ -90,6 +110,9 @@ class OrderSummaryView:
 
     order: Order
     customer_name: str
+    subtotal: Decimal
+    tax_rate: Decimal
+    tax: Decimal
     total: Decimal
 
 
@@ -242,8 +265,61 @@ class OrderService:
         direction: str | None = None,
     ) -> tuple[list[OrderSummaryView], int]:
         """Validate the list parameters and return one page plus the total."""
+        normalized_query, sort_spec = self._list_params(page, query, customer_id, sort, direction)
+        items, total = self._store.list_orders(
+            query=normalized_query,
+            status=status,
+            customer_id=customer_id,
+            page=page,
+            page_size=PAGE_SIZE,
+            sort=sort_spec,
+        )
+        return [self._summary(order, customer_name) for order, customer_name in items], total
+
+    def export_orders(
+        self,
+        query: str | None,
+        status: OrderStatus | None,
+        customer_id: int | None,
+        sort: str | None = None,
+        direction: str | None = None,
+    ) -> CsvExport:
+        """Validate the list filters and render every match as CSV."""
+        normalized_query, sort_spec = self._list_params(None, query, customer_id, sort, direction)
+        summaries = self._all_order_summaries(normalized_query, status, customer_id, sort_spec)
+        rows = [
+            (
+                summary.order.id,
+                summary.order.number,
+                summary.order.status,
+                summary.order.customer_id,
+                summary.customer_name,
+                summary.subtotal,
+                summary.tax_rate,
+                summary.tax,
+                summary.total,
+                summary.order.invoice_id,
+                summary.order.created_at,
+                summary.order.updated_at,
+            )
+            for summary in summaries
+        ]
+        return CsvExport(
+            filename=csv_export_filename("orders", self._clock.now()),
+            text=write_csv(ORDER_COLUMNS, rows),
+        )
+
+    def _list_params(
+        self,
+        page: int | None,
+        query: str | None,
+        customer_id: int | None,
+        sort: str | None,
+        direction: str | None,
+    ) -> tuple[str | None, SortSpec]:
+        """Validate the filters, the sort and (when given) the page."""
         errors: list[dict[str, str]] = []
-        if not 1 <= page <= MAX_PAGE:
+        if page is not None and not 1 <= page <= MAX_PAGE:
             errors.append(_out_of_range("page", 1, MAX_PAGE))
         errors.extend(_query_customer_id_errors(customer_id))
         normalized_query, query_error = _normalize_query(query)
@@ -258,15 +334,31 @@ class OrderService:
             allowed=ORDER_SORT_FIELDS,
             default="created_at",
         )
-        items, total = self._store.list_orders(
-            query=normalized_query,
-            status=status,
-            customer_id=customer_id,
-            page=page,
-            page_size=PAGE_SIZE,
-            sort=sort_spec,
-        )
-        return [self._summary(order, customer_name) for order, customer_name in items], total
+        return normalized_query, sort_spec
+
+    def _all_order_summaries(
+        self,
+        query: str | None,
+        status: OrderStatus | None,
+        customer_id: int | None,
+        sort: SortSpec,
+    ) -> list[OrderSummaryView]:
+        """Read every match page by page, without the list's page limit."""
+        summaries: list[OrderSummaryView] = []
+        page = 1
+        while True:
+            items, _ = self._store.list_orders(
+                query=query,
+                status=status,
+                customer_id=customer_id,
+                page=page,
+                page_size=EXPORT_PAGE_SIZE,
+                sort=sort,
+            )
+            summaries.extend(self._summary(order, customer_name) for order, customer_name in items)
+            if len(items) < EXPORT_PAGE_SIZE:
+                return summaries
+            page += 1
 
     def get(self, id: int) -> OrderView:
         """Return one order with its current customer and totals."""
@@ -455,5 +547,8 @@ class OrderService:
         return OrderSummaryView(
             order=order,
             customer_name=customer_name,
+            subtotal=totals.subtotal,
+            tax_rate=rate,
+            tax=totals.tax,
             total=totals.total,
         )

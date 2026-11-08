@@ -585,7 +585,8 @@ Feature code in `src/features/customers/`, screens under
 Spanish.
 
 - Pages: the list (`/customers`), the create form (`/customers/new`), the
-  detail (`/customers/{id}`) and the edit form (`/customers/{id}/edit`).
+  detail (`/customers/{id}`), the edit form (`/customers/{id}/edit`) and
+  since task 059 the import form (`/customers/import`).
   Create and edit share `src/features/customers/CustomerForm.tsx`.
 - URL parameters of the list (the state lives in the URL so links can be
   shared): `page` (integer up to 1000000, falls back to 1 when invalid or
@@ -620,3 +621,22 @@ Spanish.
 - The edit form captures the `version` when it is initialized or last
   reset ("Recargar datos"), never the one of a later background refetch,
   so an update cannot silently overwrite another user's change.
+- Customers import (task 059): `/customers/import` posts a CSV file as
+  `multipart/form-data` (part `file`; the browser sets the multipart
+  `Content-Type`) to `POST /api/customers/import` through
+  `useImportCustomers()`, which invalidates the list cache on success.
+  The server is the only judge of the file: on 201 the form returns to
+  `data-state="idle"` and `customers-import-result-text` reads
+  "Se importó 1 cliente." / "Se importaron N clientes."; on 422 the alert
+  `customers-import-error-alert` ("El archivo tiene errores. No se
+  importó nada.") precedes `customers-import-errors-table` with one row
+  per entry of `errors[]` (`customers-import-error-row-N`, the cells
+  `-line-cell-N`, `-field-cell-N` and `-message-cell-N`), and a whole-file
+  error shows the line "—" and the field "Archivo". 100 entries carry the
+  note `customers-import-truncated-text`; 413 shows "El archivo es
+  demasiado grande (máximo 100 KB)."; 409 `CUSTOMER_EMAIL_TAKEN` and 403
+  show the API's own message; any other failure the generic one. The form
+  states are `idle`/`loading`/`success`/`error` on
+  `customers-import-form`, with `aria-busy` in flight and the focus on
+  the alert after a failure. The list links to it with
+  `customers-list-import-link` for Admin and Sales only.

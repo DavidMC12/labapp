@@ -183,3 +183,14 @@ def test_is_lock_timeout_recognizes_only_the_lock_not_available_error() -> None:
     assert is_lock_timeout(psycopg.errors.LockNotAvailable("x"))
     assert not is_lock_timeout(OperationalError("s", {}, psycopg.errors.DeadlockDetected("x")))
     assert not is_lock_timeout(ValueError("x"))
+
+
+def test_is_deadlock_recognizes_only_the_deadlock_detected_error() -> None:
+    from sqlalchemy.exc import OperationalError
+
+    from app.infra.db import is_deadlock
+
+    assert is_deadlock(OperationalError("s", {}, psycopg.errors.DeadlockDetected("x")))
+    assert is_deadlock(psycopg.errors.DeadlockDetected("x"))
+    assert not is_deadlock(OperationalError("s", {}, psycopg.errors.LockNotAvailable("x")))
+    assert not is_deadlock(ValueError("x"))

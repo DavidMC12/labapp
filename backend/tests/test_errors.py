@@ -233,7 +233,7 @@ def test_lock_wait_timeout_returns_service_unavailable(app: FastAPI) -> None:
 def test_other_database_errors_stay_internal_errors(app: FastAPI) -> None:
     @app.get("/other-database-error")
     def other_database_error() -> None:
-        raise OperationalError("SELECT 1", {}, psycopg.errors.DeadlockDetected("deadlock"))
+        raise OperationalError("SELECT 1", {}, psycopg.errors.SerializationFailure("retry"))
 
     response = TestClient(app, raise_server_exceptions=False).get("/other-database-error")
 
@@ -242,6 +242,21 @@ def test_other_database_errors_stay_internal_errors(app: FastAPI) -> None:
         status=500,
         code="INTERNAL_ERROR",
         detail="Ocurrió un error inesperado. Inténtalo de nuevo.",
+    )
+
+
+def test_a_deadlock_returns_service_unavailable(app: FastAPI) -> None:
+    @app.get("/deadlock")
+    def deadlock() -> None:
+        raise OperationalError("SELECT 1", {}, psycopg.errors.DeadlockDetected("deadlock detected"))
+
+    response = TestClient(app, raise_server_exceptions=False).get("/deadlock")
+
+    _assert_problem(
+        response,
+        status=503,
+        code="LOCK_TIMEOUT",
+        detail="El recurso está ocupado. Inténtalo de nuevo.",
     )
 
 
@@ -285,7 +300,7 @@ def test_database_errors_do_not_reach_the_server_even_with_the_default_client(
 
     @app.get("/database-error")
     def database_error() -> None:
-        raise OperationalError("SELECT 1", {}, psycopg.errors.DeadlockDetected("deadlock"))
+        raise OperationalError("SELECT 1", {}, psycopg.errors.SerializationFailure("retry"))
 
     response = TestClient(app).get("/database-error")
 

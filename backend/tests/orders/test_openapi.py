@@ -14,7 +14,7 @@ MONEY_FIELDS = {
 
 
 def test_openapi_contains_the_order_schemas(clients: dict[str, TestClient]) -> None:
-    document = clients["sales"].get("/openapi.json").json()
+    document = clients["sales"].get("/api/openapi.json").json()
 
     schemas = document["components"]["schemas"]
     for name in ("Order", "OrderSummary", "OrderLine", "Product"):
@@ -22,7 +22,7 @@ def test_openapi_contains_the_order_schemas(clients: dict[str, TestClient]) -> N
 
 
 def test_every_money_field_is_a_string(clients: dict[str, TestClient]) -> None:
-    schemas = clients["sales"].get("/openapi.json").json()["components"]["schemas"]
+    schemas = clients["sales"].get("/api/openapi.json").json()["components"]["schemas"]
 
     for schema_name, fields in MONEY_FIELDS.items():
         for field in fields:
@@ -33,7 +33,7 @@ def test_every_money_field_is_a_string(clients: dict[str, TestClient]) -> None:
 
 
 def test_openapi_documents_the_order_routes(clients: dict[str, TestClient]) -> None:
-    document = clients["sales"].get("/openapi.json").json()
+    document = clients["sales"].get("/api/openapi.json").json()
 
     for path in (
         "/api/products",

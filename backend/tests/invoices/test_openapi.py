@@ -13,7 +13,7 @@ MONEY_FIELDS = {
 
 
 def test_openapi_contains_the_invoice_schemas(clients: dict[str, TestClient]) -> None:
-    document = clients["finance"].get("/openapi.json").json()
+    document = clients["finance"].get("/api/openapi.json").json()
 
     schemas = document["components"]["schemas"]
     for name in ("Invoice", "InvoiceSummary", "Payment", "PaymentResult"):
@@ -21,7 +21,7 @@ def test_openapi_contains_the_invoice_schemas(clients: dict[str, TestClient]) ->
 
 
 def test_every_invoice_money_field_is_a_string(clients: dict[str, TestClient]) -> None:
-    schemas = clients["finance"].get("/openapi.json").json()["components"]["schemas"]
+    schemas = clients["finance"].get("/api/openapi.json").json()["components"]["schemas"]
 
     for schema_name, fields in MONEY_FIELDS.items():
         for field in fields:
@@ -32,7 +32,7 @@ def test_every_invoice_money_field_is_a_string(clients: dict[str, TestClient]) -
 
 
 def test_openapi_documents_the_invoice_routes(clients: dict[str, TestClient]) -> None:
-    document = clients["finance"].get("/openapi.json").json()
+    document = clients["finance"].get("/api/openapi.json").json()
 
     for path in (
         "/api/invoices",

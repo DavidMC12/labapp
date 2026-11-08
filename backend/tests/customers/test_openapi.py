@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 
 def test_openapi_contains_the_customer_schemas(clients: dict[str, TestClient]) -> None:
-    document = clients["sales"].get("/openapi.json").json()
+    document = clients["sales"].get("/api/openapi.json").json()
 
     schemas = document["components"]["schemas"]
     assert "CustomerOut" in schemas
@@ -16,7 +16,7 @@ def test_openapi_contains_the_customer_schemas(clients: dict[str, TestClient]) -
 
 
 def test_openapi_documents_the_customer_routes(clients: dict[str, TestClient]) -> None:
-    document = clients["sales"].get("/openapi.json").json()
+    document = clients["sales"].get("/api/openapi.json").json()
 
     assert "/api/customers" in document["paths"]
     assert "/api/customers/{id}" in document["paths"]

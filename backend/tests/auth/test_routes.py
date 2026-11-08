@@ -254,7 +254,7 @@ def test_repeated_login_revokes_the_previous_session(
 
 
 def test_openapi_documents_the_auth_contract(client: TestClient) -> None:
-    document = client.get("/openapi.json").json()
+    document = client.get("/api/openapi.json").json()
 
     assert "UserOut" in document["components"]["schemas"]
     assert "401" in document["paths"][LOGIN]["post"]["responses"]

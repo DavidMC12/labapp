@@ -122,6 +122,9 @@ def create_app(
         description=OPENAPI_DESCRIPTION,
         servers=[{"url": "/"}],
         openapi_tags=OPENAPI_TAGS,
+        openapi_url="/api/openapi.json",
+        docs_url="/api/docs",
+        redoc_url=None,
         dependencies=[Depends(origin_guard)],
     )
     app.state.settings = settings

@@ -85,6 +85,14 @@ What a reader can rely on:
   module and `servers` has one relative entry, `{"url": "/"}`, because the web app and the
   API share one origin locally and online.
 
+### OpenAPI contract online
+
+A running server serves the same document at `/api/openapi.json` and the Swagger UI at
+`/api/docs`; both are public, so the contract can be read without a session. "Try it out"
+calls the same-origin `/api/...` routes, so log in on the web app first and the browser
+sends the session cookie. The old `/openapi.json`, `/docs` and `/redoc` paths answer 404:
+the deployment sends only `/api/*` and `/__test__/*` to the API.
+
 ## PostgreSQL
 
 Without `DATABASE_URL` the API stores everything in memory, which is the default for

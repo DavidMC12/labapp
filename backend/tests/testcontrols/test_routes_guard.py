@@ -70,7 +70,7 @@ def test_test_mode_opens_the_controls_without_a_token() -> None:
 def test_the_controls_are_not_in_the_openapi_schema(
     controls_client: TestClient,
 ) -> None:
-    schema = controls_client.get("/openapi.json").json()
+    schema = controls_client.get("/api/openapi.json").json()
 
     assert not any(path.startswith("/__test__") for path in schema["paths"])
 

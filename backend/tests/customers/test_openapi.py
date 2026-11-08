@@ -15,6 +15,16 @@ def test_openapi_contains_the_customer_schemas(clients: dict[str, TestClient]) -
     assert "CustomerPatch" in schemas
 
 
+def test_openapi_documents_the_customer_export(clients: dict[str, TestClient]) -> None:
+    document = clients["sales"].get("/api/openapi.json").json()
+
+    operation = document["paths"]["/api/customers/export"]["get"]
+    assert {"200", "401", "422"} <= set(operation["responses"])
+    response = operation["responses"]["200"]
+    assert response["content"] == {"text/csv": {"schema": {"type": "string"}}}
+    assert set(response["headers"]) == {"Content-Disposition", "Cache-Control"}
+
+
 def test_openapi_documents_the_customer_routes(clients: dict[str, TestClient]) -> None:
     document = clients["sales"].get("/api/openapi.json").json()
 

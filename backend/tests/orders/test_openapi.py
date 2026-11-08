@@ -32,6 +32,16 @@ def test_every_money_field_is_a_string(clients: dict[str, TestClient]) -> None:
             )
 
 
+def test_openapi_documents_the_order_export(clients: dict[str, TestClient]) -> None:
+    document = clients["sales"].get("/api/openapi.json").json()
+
+    operation = document["paths"]["/api/orders/export"]["get"]
+    assert {"200", "401", "422"} <= set(operation["responses"])
+    response = operation["responses"]["200"]
+    assert response["content"] == {"text/csv": {"schema": {"type": "string"}}}
+    assert set(response["headers"]) == {"Content-Disposition", "Cache-Control"}
+
+
 def test_openapi_documents_the_order_routes(clients: dict[str, TestClient]) -> None:
     document = clients["sales"].get("/api/openapi.json").json()
 

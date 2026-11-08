@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CustomerForm } from "./CustomerForm";
@@ -525,5 +525,214 @@ describe("the version conflict of the customer form", () => {
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     // The stale version (captured at init), never the refetched one.
     expect(JSON.parse(init.body as string)).toMatchObject({ version: 3 });
+  });
+});
+
+describe("the customer form optional fields and reload guard", () => {
+  it("sends the optional fields as the trimmed strings when they have values", async () => {
+    fetchMock.mockResolvedValue(jsonResponse(customer, 201));
+    renderForm({ mode: "create" });
+    const user = userEvent.setup();
+
+    await user.type(screen.getByTestId("customers-form-name-input"), "Nueva");
+    await user.type(
+      screen.getByTestId("customers-form-email-input"),
+      "nueva@example.test",
+    );
+    await user.type(screen.getByTestId("customers-form-phone-input"), "  606 123 456 ");
+    await user.type(screen.getByTestId("customers-form-taxid-input"), " B-84 123 ");
+    await user.type(
+      screen.getByTestId("customers-form-address-textarea"),
+      "  Paseo del Prado 15 ",
+    );
+    await user.click(screen.getByTestId("customers-form-submit-button"));
+
+    await waitFor(() => expect(routerMock.replace).toHaveBeenCalledWith("/customers/7"));
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toEqual({
+      name: "Nueva",
+      email: "nueva@example.test",
+      phone: "606 123 456",
+      tax_id: "B-84 123",
+      address: "Paseo del Prado 15",
+    });
+  });
+
+  it("maps a 422 on the phone field and focuses it", async () => {
+    fetchMock.mockResolvedValue(problem({
+      ...VALIDATION_PROBLEM,
+      errors: [
+        { field: "phone", code: "INVALID_FORMAT", message: "El teléfono no es válido." },
+      ],
+    }));
+    renderForm({ mode: "edit", customer, resetSignal: 0, onReload: vi.fn() });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByTestId("customers-form-submit-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-form-phone-error"))
+        .toHaveTextContent("El teléfono no es válido.");
+    });
+    expect(screen.queryByTestId("customers-form-alert")).not.toBeInTheDocument();
+    expect(document.activeElement).toHaveAttribute(
+      "data-testid",
+      "customers-form-phone-input",
+    );
+  });
+
+  it("focuses the ID fiscal field when only it fails on the server", async () => {
+    fetchMock.mockResolvedValue(problem({
+      ...VALIDATION_PROBLEM,
+      errors: [
+        { field: "tax_id", code: "INVALID_FORMAT", message: "El formato no es válido." },
+      ],
+    }));
+    renderForm({ mode: "edit", customer, resetSignal: 0, onReload: vi.fn() });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByTestId("customers-form-submit-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-form-taxid-error"))
+        .toHaveTextContent("El formato no es válido.");
+    });
+    expect(document.activeElement).toHaveAttribute(
+      "data-testid",
+      "customers-form-taxid-input",
+    );
+  });
+
+  it("focuses the address field when only it fails on the server", async () => {
+    fetchMock.mockResolvedValue(problem({
+      ...VALIDATION_PROBLEM,
+      errors: [
+        { field: "address", code: "TOO_LONG", message: "Es demasiado larga." },
+      ],
+    }));
+    renderForm({ mode: "create" });
+    const user = userEvent.setup();
+
+    await user.type(screen.getByTestId("customers-form-name-input"), "Nueva");
+    await user.type(
+      screen.getByTestId("customers-form-email-input"),
+      "nueva@example.test",
+    );
+    await user.click(screen.getByTestId("customers-form-submit-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-form-address-error"))
+        .toHaveTextContent("Es demasiado larga.");
+    });
+    expect(document.activeElement).toHaveAttribute(
+      "data-testid",
+      "customers-form-address-textarea",
+    );
+  });
+
+  it("keeps the first message per field and skips the fields it does not know", async () => {
+    fetchMock.mockResolvedValue(problem({
+      ...VALIDATION_PROBLEM,
+      errors: [
+        { field: "phone", code: "INVALID_FORMAT", message: "Primero." },
+        { field: "phone", code: "TOO_LONG", message: "Segundo." },
+        { field: "unknown_field", code: "UNKNOWN", message: "Otro." },
+      ],
+    }));
+    renderForm({ mode: "create" });
+    const user = userEvent.setup();
+
+    await user.type(screen.getByTestId("customers-form-name-input"), "Nueva");
+    await user.type(
+      screen.getByTestId("customers-form-email-input"),
+      "nueva@example.test",
+    );
+    await user.click(screen.getByTestId("customers-form-submit-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-form-phone-error"))
+        .toHaveTextContent("Primero.");
+    });
+    expect(
+      screen.queryByTestId("customers-form-taxid-error"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("customers-form-address-error"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the detail on the form alert when no 422 entry maps to a field", async () => {
+    fetchMock.mockResolvedValue(problem({
+      ...VALIDATION_PROBLEM,
+      errors: [
+        { field: "unknown_field", code: "UNKNOWN", message: "Otro mensaje." },
+      ],
+    }));
+    renderForm({ mode: "create" });
+    const user = userEvent.setup();
+
+    await user.type(screen.getByTestId("customers-form-name-input"), "Nueva");
+    await user.type(
+      screen.getByTestId("customers-form-email-input"),
+      "nueva@example.test",
+    );
+    await user.click(screen.getByTestId("customers-form-submit-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-form-alert"))
+        .toHaveTextContent(VALIDATION_PROBLEM.detail);
+    });
+    expect(document.activeElement).toHaveAttribute(
+      "data-testid",
+      "customers-form-alert",
+    );
+  });
+
+  it("renders an edit form without a reset signal", () => {
+    renderForm({ mode: "edit", customer, onReload: vi.fn() });
+
+    expect(screen.getByRole("heading", { name: "Editar cliente" }))
+      .toBeInTheDocument();
+    expect(screen.getByTestId("customers-form-name-input"))
+      .toHaveValue("Hotel Horizonte");
+  });
+
+  it("ignores a second reload while the first one is pending", async () => {
+    fetchMock.mockResolvedValue(problem({
+      status: 409,
+      code: "VERSION_CONFLICT",
+      detail: "El registro cambió mientras lo editabas. Recarga e inténtalo de nuevo.",
+    }));
+    let resolveReload!: () => void;
+    const onReload = vi.fn(
+      () => new Promise<void>((resolve) => {
+        resolveReload = resolve;
+      }),
+    );
+    renderForm({ mode: "edit", customer, resetSignal: 0, onReload });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByTestId("customers-form-submit-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-form-reload-button"))
+        .toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId("customers-form-reload-button"));
+    expect(onReload).toHaveBeenCalledTimes(1);
+
+    // The pending reload has the button loading; a submit dispatched
+    // straight to it in the same tick is ignored by the handler guard.
+    fireEvent.click(screen.getByTestId("customers-form-reload-button"));
+    expect(onReload).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("customers-form-reload-button"))
+      .toHaveAttribute("data-state", "loading");
+
+    resolveReload();
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-form-reload-button"))
+        .toHaveAttribute("data-state", "idle");
+    });
+    expect(onReload).toHaveBeenCalledTimes(1);
   });
 });

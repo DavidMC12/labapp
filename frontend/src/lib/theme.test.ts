@@ -41,6 +41,27 @@ describe("readStoredTheme", () => {
 
     expect(readStoredTheme()).toBeNull();
   });
+
+  it("returns null when even the storage object cannot be read", () => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      window,
+      "localStorage",
+    );
+    if (!descriptor) {
+      throw new Error("the window.localStorage property is missing");
+    }
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      get() {
+        throw new Error("blocked");
+      },
+    });
+    try {
+      expect(readStoredTheme()).toBeNull();
+    } finally {
+      Object.defineProperty(window, "localStorage", descriptor);
+    }
+  });
 });
 
 describe("writeStoredTheme", () => {

@@ -1990,3 +1990,198 @@ describe("the Facturar action of the order detail", () => {
     holdMutation = null;
   });
 });
+
+describe("the pending guards and the error routing of the line forms", () => {
+  it("keeps the other mutations silent while the first one is pending", async () => {
+    await renderDraftDetail();
+    await waitForProducts();
+    holdMutation = defer();
+
+    // The add-line request is the one that stays pending.
+    await userEvent.setup().selectOptions(
+      screen.getByTestId("orders-detail-addline-product-select"),
+      "7",
+    );
+    await userEvent
+      .setup()
+      .click(screen.getByTestId("orders-detail-addline-submit-button"));
+    await waitFor(() => expect(mutationCalls()).toHaveLength(1));
+
+    // Submit events dispatched in the same tick to the edit row form and
+    // to the add form, and a click on the line removal, are ignored by
+    // the page guard (the version would race otherwise).
+    fireEvent(
+      screen.getByTestId("orders-detail-line-form-10"),
+      new Event("submit", { bubbles: true, cancelable: true }),
+    );
+    fireEvent(
+      screen.getByTestId("orders-detail-addline-form"),
+      new Event("submit", { bubbles: true, cancelable: true }),
+    );
+    fireEvent.click(screen.getByTestId("orders-detail-line-remove-button-10"));
+    expect(mutationCalls()).toHaveLength(1);
+
+    holdMutation.release(
+      jsonResponse(
+        applyMutation(
+          orderBody,
+          "/api/orders/8/lines",
+          "POST",
+          JSON.stringify({ product_id: 7, quantity: 1, version: 2 }),
+        ),
+      ),
+    );
+    holdMutation = null;
+    await waitFor(() => {
+      expect(screen.getByTestId("orders-detail-line-row-11")).toBeInTheDocument();
+    });
+    expect(mutationCalls()).toHaveLength(1);
+  });
+
+  it("routes a non-field line save failure to the alert and refetches", async () => {
+    await renderDraftDetail();
+    const before = readCount();
+    mutateAnswer = (url, method) =>
+      url.startsWith("/api/orders/8/lines/") && method === "PATCH"
+        ? problemWith(
+            409,
+            "VERSION_CONFLICT",
+            "El pedido cambió mientras lo editabas. Recárgalo e inténtalo de nuevo.",
+          )
+        : null;
+
+    await userEvent
+      .setup()
+      .click(screen.getByTestId("orders-detail-line-save-button-10"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("orders-detail-alert")).toHaveTextContent(
+        "El pedido cambió mientras lo editabas.",
+      );
+    });
+    // The failure routes to the page (the row has no field of its own for
+    // a version conflict), and the order is always refetched.
+    expect(readCount()).toBe(before + 1);
+    mutateAnswer = null;
+  });
+});
+
+describe("the change-customer failures and retry", () => {
+  async function openPicker() {
+    await renderDraftDetail();
+    await userEvent
+      .setup()
+      .click(screen.getByTestId("orders-detail-changecustomer-button"));
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("orders-detail-changecustomer-loading-status"),
+      ).toBeNull();
+    });
+  }
+
+  it("routes a generic change failure to the alert and refetches", async () => {
+    const before = readCount();
+    mutateAnswer = (url, method) =>
+      url === "/api/orders/8" && method === "PATCH"
+        ? problemWith(
+            409,
+            "VERSION_CONFLICT",
+            "El pedido cambió mientras lo editabas. Recárgalo e inténtalo de nuevo.",
+          )
+        : null;
+    await openPicker();
+
+    const user = userEvent.setup();
+    await user.selectOptions(
+      screen.getByTestId("orders-detail-changecustomer-select"),
+      "6",
+    );
+    await user.click(
+      screen.getByTestId("orders-detail-changecustomer-submit-button"),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("orders-detail-alert")).toHaveTextContent(
+        "El pedido cambió mientras lo editabas.",
+      );
+    });
+    expect(readCount()).toBeGreaterThan(before);
+    expect(
+      screen.queryByTestId("orders-detail-changecustomer-error"),
+    ).not.toBeInTheDocument();
+    mutateAnswer = null;
+  });
+
+  it("retries the picker after a failure", async () => {
+    customersStatus = 500;
+    customersBody = problemWith(
+      500,
+      "INTERNAL_ERROR",
+      "Ocurrió un error inesperado. Inténtalo de nuevo.",
+    );
+    await openPicker();
+    expect(
+      screen.getByTestId("orders-detail-changecustomer-error-alert"),
+    ).toHaveTextContent("Ocurrió un error inesperado.");
+
+    customersStatus = 200;
+    customersBody = { items: [changerCustomer], page: 1, page_size: 20, total: 1 };
+    await userEvent
+      .setup()
+      .click(screen.getByTestId("orders-detail-changecustomer-retry-button"));
+
+    await waitFor(() => {
+      const select = screen.getByTestId(
+        "orders-detail-changecustomer-select",
+      ) as HTMLSelectElement;
+      expect(
+        Array.from(select.options).some((option) => option.value === "6"),
+      ).toBe(true);
+    });
+    expect(
+      screen.queryByTestId("orders-detail-changecustomer-error-alert"),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("the add-line product field error", () => {
+  it("maps a 422 on product_id onto the product select", async () => {
+    mutateAnswer = (url, method) =>
+      url === "/api/orders/8/lines" && method === "POST"
+        ? jsonResponse(
+            {
+              type: "about:blank",
+              title: "Unprocessable Content",
+              status: 422,
+              code: "VALIDATION_ERROR",
+              detail: "Revisa los datos ingresados.",
+              errors: [
+                {
+                  field: "product_id",
+                  code: "REFERENCE_NOT_FOUND",
+                  message: "El registro indicado no existe.",
+                },
+              ],
+            },
+            422,
+          )
+        : null;
+    await renderDraftDetail();
+    await waitForProducts();
+
+    const user = userEvent.setup();
+    await user.selectOptions(
+      screen.getByTestId("orders-detail-addline-product-select"),
+      "7",
+    );
+    await user.click(screen.getByTestId("orders-detail-addline-submit-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("orders-detail-addline-product-error"))
+        .toHaveTextContent("El registro indicado no existe.");
+    });
+    expect(screen.queryByTestId("orders-detail-alert")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("orders-detail-addline-quantity-error"))
+      .not.toBeInTheDocument();
+  });
+});

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { installDialogStub } from "@/test/dialog";
@@ -536,5 +536,73 @@ describe("the orders section of the customer detail", () => {
     expect(
       screen.queryByTestId("customers-detail-edit-link"),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("the deactivate dialog of the customer detail", () => {
+  it("closes the dialog with Volver and sends nothing", async () => {
+    customerQueue.push(() => jsonResponse(activeCustomer));
+    renderAt("4");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-detail-deactivate-button"))
+        .toBeInTheDocument();
+    });
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("customers-detail-deactivate-button"));
+
+    const dialog = screen.getByTestId("customers-deactivate-confirm-dialog");
+    expect(dialog).toHaveAttribute("open");
+    await user.click(screen.getByTestId("customers-deactivate-back-button"));
+
+    await waitFor(() => expect(dialog).not.toHaveAttribute("open"));
+    expect(customersCalls().filter((call) => call.url.endsWith("/deactivate")))
+      .toHaveLength(0);
+  });
+
+  it("closes the dialog with Escape and sends nothing", async () => {
+    customerQueue.push(() => jsonResponse(activeCustomer));
+    renderAt("4");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-detail-deactivate-button"))
+        .toBeInTheDocument();
+    });
+    await userEvent.setup().click(
+      screen.getByTestId("customers-detail-deactivate-button"),
+    );
+
+    const dialog = screen.getByTestId("customers-deactivate-confirm-dialog");
+    expect(dialog).toHaveAttribute("open");
+    fireEvent(dialog, new Event("cancel", { cancelable: true }));
+
+    await waitFor(() => expect(dialog).not.toHaveAttribute("open"));
+    expect(customersCalls().filter((call) => call.url.endsWith("/deactivate")))
+      .toHaveLength(0);
+  });
+
+  it("ignores a re-entrant reactivate in the same tick", async () => {
+    customerQueue.push(() => jsonResponse(inactiveCustomer));
+    customerQueue.push(() =>
+      jsonResponse({ ...inactiveCustomer, status: "active", version: 2 }),
+    );
+    renderAt("8");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-detail-reactivate-button"))
+        .toBeInTheDocument();
+    });
+    const button = screen.getByTestId("customers-detail-reactivate-button");
+    fireEvent.click(button);
+    // Without waiting for React: the second handler of the same tick goes
+    // out through the guard, so only one request is sent.
+    fireEvent.click(button);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-detail-state-status"))
+        .toHaveTextContent("Activo");
+    });
+    expect(customersCalls().filter((call) => call.url.endsWith("/reactivate")))
+      .toHaveLength(1);
   });
 });

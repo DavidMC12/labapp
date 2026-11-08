@@ -80,10 +80,18 @@ export function keyboardFailures({
   const failures = [];
 
   // Visible focus (WCAG 2.4.7): the first stop of each tabbable element decides.
-  const seen = new Set();
+  // A stop the walk did not reach by a Tab press (the element a dialog's
+  // showModal gives the focus to, before the walk starts) counts as reached
+  // and answers the trap check, but takes no indicator decision: the focus
+  // did not come from a keyboard walk. When a Tab press reaches the element
+  // later, the press decides.
+  const reached = new Set();
+  const judged = new Set();
   for (const stop of stops) {
-    if (typeof stop.index !== "number" || seen.has(stop.index)) continue;
-    seen.add(stop.index);
+    if (typeof stop.index !== "number") continue;
+    reached.add(stop.index);
+    if (stop.tab === false || judged.has(stop.index)) continue;
+    judged.add(stop.index);
     if (!hasVisibleFocusIndicator(tabbable[stop.index]?.unfocused, stop.focused)) {
       failures.push(`no visible focus indicator on ${stop.label}`);
     }
@@ -108,10 +116,9 @@ export function keyboardFailures({
 
   // The walk against the list: a visible tabbable element the walk never
   // focused is out of the Tab order (or behind something that eats the key).
-  const visited = new Set(stops.map((stop) => stop.index).filter((index) => typeof index === "number"));
   for (const [i, entry] of tabbable.entries()) {
     if (entry.visible === false) continue;
-    if (!visited.has(i)) failures.push(`the tabbable element ${entry.label} was never reached by the walk`);
+    if (!reached.has(i)) failures.push(`the tabbable element ${entry.label} was never reached by the walk`);
   }
 
   return failures;

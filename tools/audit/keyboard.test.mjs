@@ -177,6 +177,33 @@ test("a tabbable element that is not visible (a closed dialog, inert, hidden) ha
   assert.deepEqual(keyboardFailures(state({ tabbable: list, stops: [stop()], presses: 2, leftContent: true })), []);
 });
 
+test("the tabbable element of the opening focus is reached, but takes no indicator decision", () => {
+  // The back button of a confirmation dialog: showModal gives it the focus
+  // (no Tab press), the walk starts on it, and the dialog cycle may end
+  // before a Tab press reaches it again.
+  const list = [
+    { label: "orders-cancel-back-button", visible: true, unfocused: rest },
+    { label: "orders-cancel-confirm-button", visible: true, unfocused: rest },
+  ];
+  const stops = [
+    stop({ index: 0, label: "orders-cancel-back-button", tab: false }),
+    stop({ index: 1, label: "orders-cancel-confirm-button" }),
+  ];
+  assert.deepEqual(keyboardFailures(state({ tabbable: list, stops, presses: 2, leftContent: true })), []);
+  // A leave element with tab: false behaves like one that was never focused...
+  const noIndicator = styled({ outlineStyle: "none", outlineWidth: "0px", outlineColor: "rgba(0, 0, 0, 0)" });
+  const invisibleRing = [
+    { label: "programmatically-focused", visible: true, unfocused: noIndicator },
+  ];
+  const alone = [stop({ index: 0, label: "programmatically-focused", tab: false, focused: noIndicator })];
+  assert.deepEqual(keyboardFailures(state({ tabbable: invisibleRing, stops: alone, presses: 0, leftContent: true })), []);
+  // ...except that its element still has to be reached by a Tab press.
+  const withPresses = [alone[0], stop({ index: 0, label: "programmatically-focused", tab: true, focused: noIndicator })];
+  assert.deepEqual(keyboardFailures(state({ tabbable: invisibleRing, stops: withPresses, presses: 2, leftContent: true })), [
+    "no visible focus indicator on programmatically-focused",
+  ]);
+});
+
 test("an element the list does not know (the chrome of the browser) only serves the stop conditions", () => {
   assert.deepEqual(
     keyboardFailures(state({ tabbable: tabbable(), stops: [stop(), { ...stop(), index: null, label: "nextjs-portal" }], presses: 3, leftContent: true })),

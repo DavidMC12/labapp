@@ -69,12 +69,15 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  document.title = "LabApp";
   vi.unstubAllGlobals();
 });
 
 describe("login page structure", () => {
   it("renders heading, fields, submit button and demo box", () => {
     renderLoginPage();
+
+    expect(document.title).toBe("Iniciar sesión · LabApp");
 
     expect(
       screen.getByRole("heading", { name: "Iniciar sesión" }),

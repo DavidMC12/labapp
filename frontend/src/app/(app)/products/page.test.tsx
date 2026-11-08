@@ -114,10 +114,18 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  document.title = "LabApp";
   vi.unstubAllGlobals();
 });
 
 describe("the products catalog structure", () => {
+  it("titles the document from the moment the page mounts", async () => {
+    renderAt("");
+
+    // Even while the catalog request is in the air, the tab answers.
+    expect(document.title).toBe("Productos · LabApp");
+  });
+
   it("renders the heading, the search form and the catalog table", async () => {
     // The API returns the catalog ordered by id (SEED order), so the
     // rows appear in the answer order.

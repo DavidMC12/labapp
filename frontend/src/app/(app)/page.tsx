@@ -3,6 +3,7 @@
 import { Button, Link } from "@/components/ui";
 import { useMe } from "@/features/auth/hooks";
 import { roleLabel } from "@/features/auth/types";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import {
   formatSummaryCount,
 } from "@/features/summary/format";
@@ -110,6 +111,7 @@ function SummarySection({ group }: { group: SummaryGroup }) {
  * lists); the page keeps no count of its own.
  */
 export default function HomePage() {
+  useDocumentTitle("Resumen");
   const me = useMe();
   const summary = useSummary();
   const user = me.data;

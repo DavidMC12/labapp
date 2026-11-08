@@ -7,6 +7,7 @@ import { useLogin } from "@/features/auth/hooks";
 import { DEMO_PASSWORD_TEXT, DEMO_USERS } from "@/features/auth/demo";
 import { roleLabel } from "@/features/auth/types";
 import { ApiRequestError, INTERNAL_ERROR_DETAIL } from "@/lib/api";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 
@@ -22,6 +23,8 @@ type LoginFieldErrors = Partial<Record<LoginField, string>>;
  * here and the default export wraps it.
  */
 export default function LoginPage() {
+  useDocumentTitle("Iniciar sesión");
+
   return (
     <Suspense
       fallback={

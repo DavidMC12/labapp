@@ -527,7 +527,8 @@ second the oldest sessions are evicted, so the per-IP limit is what makes that i
 
 `app/modules/customers/` implements the customer API under `/api/customers`.
 
-- `routes.py` — the six endpoints, all plain `def`. Reads need a session; writes need the
+- `routes.py` — the seven endpoints; all are plain `def` except the import, which is
+  `async` because it reads an `UploadFile`. Reads need a session; writes need the
   customer-management permission.
 - `service.py` — validation, paging, literal search parameters and the translation of the
   repository exceptions to problem responses.
@@ -568,6 +569,26 @@ curl -i -b /tmp/labapp-cookies -X PATCH \
   -H 'Content-Type: application/json' \
   -d '{"name":"Nuevo Cliente S.A.","version":1}' \
   localhost:8000/api/customers/11
+```
+
+### Customer import
+
+`POST /api/customers/import` creates the customers of a CSV file from one
+`multipart/form-data` part named `file`, all or nothing. The file is UTF-8 (an optional byte
+order mark is ignored), its name ends in `.csv` (any case), and it uses a comma separator
+with RFC 4180 quoting and CRLF or LF line ends. The header names `name`, `email`, `phone`,
+`tax_id` and `address` at most once, and `name` and `email` are required. The following
+non-blank lines are 1 to 200 data rows; each one follows the creation rules, an empty
+optional value is stored as `null`, and the email is trimmed and lowercased. While any row
+is invalid the answer is 422 `VALIDATION_ERROR` with every error in file order (at most 100
+entries, `rows[N]` names the physical line), and nothing is created. Otherwise the answer is
+201 `{created, items}` and an email taken between the validation and the insert is 409
+`CUSTOMER_EMAIL_TAKEN`. The whole request shares the 100 KB body limit.
+
+```bash
+curl -i -b /tmp/labapp-cookies \
+  -F 'file=@customers.csv;type=text/csv' \
+  localhost:8000/api/customers/import
 ```
 
 ## Orders

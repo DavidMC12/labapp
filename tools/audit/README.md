@@ -41,17 +41,21 @@ A state can have `steps` to reach something that needs an interaction (a confirm
 
 The keyboard walk (`--no-keyboard` skips it, for a quick run): after the state is ready, the audit takes the
 unfocused computed-style snapshot of every tabbable element in one pass, then presses the Tab key through them with
-real keystrokes, up to 60 presses or until the focus leaves the page content (the browser chrome, `document.body`
-again, or the first element of the walk). Each stop records the focused element (its `data-testid`, or the tag plus
-the accessible name), whether it is inside the same document, its visibility and its focused computed style. The
-summary line says how many Tab stops were walked in total. The element a dialog's `showModal()` gives the focus to
-counts as reached from the start, but takes no visible-focus decision: the focus did not come from a Tab press, and
-a ring there is not what `:focus-visible` asks for. Elements that are not tabbable (the alert that receives the
-focus programmatically, `tabindex="-1"`) are out; a scrollable region with `tabindex="0"` (the project's
-`TableScroll`) is in. The walk has limits it declares: it does not judge the Tab **order** (only that every visible
-tabbable element is reached), and it judges the focus indicator by computed-style **difference**, not by contrast —
-the contrast of the focus ring is a matter for axe (wcag2aa `color-contrast`) and the design tokens
-(`tokens.test.ts`).
+real keystrokes, up to 60 presses or until the focus has left the page content (the browser chrome, which reports
+`document.body`) and is back inside the content on the first element of the walk again. Chromium resumes the content
+from its own tab-order start after a visit to the chrome, so one pass out is not proof of reachability yet; the walk
+presses on through the chrome phase and the second pass walks the order from the beginning. Each press that puts the
+focus on an element of the page is a stop; the presses on the chrome, or on a tool element of the dev server (the
+Next.js devtools), are out of the walk and out of the count. Every stop records the focused element (its
+`data-testid`, or the tag plus the accessible name), whether it is inside the same document, its visibility and its
+focused computed style. The summary line says how many Tab stops were walked in total. The element a dialog's
+`showModal()` gives the focus to counts as reached from the start, but takes no visible-focus decision: the focus
+did not come from a Tab press, and a ring there is not what `:focus-visible` asks for. Elements that are not
+tabbable (the alert that receives the focus programmatically, `tabindex="-1"`) are out; a scrollable region with
+`tabindex="0"` (the project's `TableScroll`) is in. The walk has limits it declares: it does not judge the Tab
+**order** (only that every visible tabbable element is reached), and it judges the focus indicator by
+computed-style **difference**, not by contrast — the contrast of the focus ring is a matter for axe (wcag2aa
+`color-contrast`) and the design tokens (`tokens.test.ts`).
 
 The sorted lists are audited too: each of the four lists has a
 `<page>-list-sorted` state opened with a sort in the URL (the catalog the

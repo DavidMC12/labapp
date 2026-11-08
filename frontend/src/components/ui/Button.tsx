@@ -1,7 +1,7 @@
-import type { ButtonHTMLAttributes } from "react";
+import type { ButtonHTMLAttributes, Ref } from "react";
 import type { TestId } from "@/lib/testid";
 
-type ButtonVariant = "primary" | "secondary" | "rail";
+type ButtonVariant = "primary" | "secondary" | "rail" | "danger";
 
 /**
  * The variants of the "Libro mayor" theme. `primary` is the default: an
@@ -14,6 +14,10 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary: "bg-accent text-accent-ink hover:bg-accent-hover",
   secondary: "bg-transparent text-accent border border-accent hover:bg-ok-bg",
   rail: "bg-transparent text-rail-ink border border-transparent hover:bg-rail-hover",
+  // The destructive confirmations ("Sí, cancelar pedido"): the danger
+  // chip of the theme, the same pair the alerts use, with an inverted
+  // hover of the same two tokens.
+  danger: "bg-danger-bg text-danger hover:bg-danger hover:text-danger-bg",
 };
 
 const BASE_CLASSES: string = [
@@ -34,6 +38,8 @@ type ButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "type"> & {
   testId: TestId;
   loading?: boolean;
   variant?: ButtonVariant;
+  /** React 19 forwards `ref` as a prop. */
+  ref?: Ref<HTMLButtonElement>;
 };
 
 /**
@@ -48,10 +54,12 @@ export function Button({
   disabled,
   variant = "primary",
   className,
+  ref,
   ...rest
 }: ButtonProps) {
   return (
     <button
+      ref={ref}
       {...rest}
       type={type}
       data-testid={testId}

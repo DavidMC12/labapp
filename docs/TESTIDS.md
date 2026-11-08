@@ -281,6 +281,11 @@ Present in every logged-in state.
 
 | Test id | Element |
 |---|---|
+| `customers-deactivate-back-button` | `button` |
+| `customers-deactivate-confirm-button` | `button` |
+| `customers-deactivate-confirm-dialog` | `dialog` |
+| `customers-deactivate-message-text` | `p` |
+| `customers-deactivate-title-heading` | `h2` |
 | `customers-detail-address-text` | `dd` |
 | `customers-detail-back-link` | `a` |
 | `customers-detail-deactivate-button` | `button` |
@@ -300,6 +305,11 @@ Present in every logged-in state.
 
 | Test id | Element |
 |---|---|
+| `customers-deactivate-back-button` | `button` |
+| `customers-deactivate-confirm-button` | `button` |
+| `customers-deactivate-confirm-dialog` | `dialog` |
+| `customers-deactivate-message-text` | `p` |
+| `customers-deactivate-title-heading` | `h2` |
 | `customers-detail-address-text` | `dd` |
 | `customers-detail-back-link` | `a` |
 | `customers-detail-edit-link` | `a` |
@@ -310,6 +320,30 @@ Present in every logged-in state.
 | `customers-detail-orders-link` | `a` |
 | `customers-detail-phone-text` | `dd` |
 | `customers-detail-reactivate-button` | `button` |
+| `customers-detail-state-status` | `dd` |
+| `customers-detail-taxid-text` | `dd` |
+
+## customers-deactivate-dialog
+
+`/customers/2`, logged in as `sales@labapp.test`. Page title: `Cliente Beta Comercial Ltda. · LabApp`.
+
+| Test id | Element |
+|---|---|
+| `customers-deactivate-back-button` | `button` |
+| `customers-deactivate-confirm-button` | `button` |
+| `customers-deactivate-confirm-dialog` | `dialog` |
+| `customers-deactivate-message-text` | `p` |
+| `customers-deactivate-title-heading` | `h2` |
+| `customers-detail-address-text` | `dd` |
+| `customers-detail-back-link` | `a` |
+| `customers-detail-deactivate-button` | `button` |
+| `customers-detail-edit-link` | `a` |
+| `customers-detail-email-text` | `dd` |
+| `customers-detail-heading` | `h1` |
+| `customers-detail-name-text` | `dd` |
+| `customers-detail-orders-heading` | `h2` |
+| `customers-detail-orders-link` | `a` |
+| `customers-detail-phone-text` | `dd` |
 | `customers-detail-state-status` | `dd` |
 | `customers-detail-taxid-text` | `dd` |
 
@@ -559,6 +593,11 @@ Present in every logged-in state.
 
 | Test id | Element |
 |---|---|
+| `orders-cancel-back-button` | `button` |
+| `orders-cancel-confirm-button` | `button` |
+| `orders-cancel-confirm-dialog` | `dialog` |
+| `orders-cancel-message-text` | `p` |
+| `orders-cancel-title-heading` | `h2` |
 | `orders-detail-addline-form` | `form` |
 | `orders-detail-addline-heading` | `h2` |
 | `orders-detail-addline-product-select` | `select` |
@@ -596,12 +635,48 @@ Present in every logged-in state.
 | `orders-detail-total-text` | `span` |
 | `orders-detail-updated-text` | `dd` |
 
+## orders-cancel-dialog
+
+`/orders/3`, logged in as `sales@labapp.test`. Page title: `Pedido PED-0003 · LabApp`.
+
+| Test id | Element |
+|---|---|
+| `orders-cancel-back-button` | `button` |
+| `orders-cancel-confirm-button` | `button` |
+| `orders-cancel-confirm-dialog` | `dialog` |
+| `orders-cancel-message-text` | `p` |
+| `orders-cancel-title-heading` | `h2` |
+| `orders-detail-back-link` | `a` |
+| `orders-detail-cancel-button` | `button` |
+| `orders-detail-created-text` | `dd` |
+| `orders-detail-customer-link` | `a` |
+| `orders-detail-heading` | `h1` |
+| `orders-detail-invoice-link` | `a` |
+| `orders-detail-line-price-cell-4` | `td` |
+| `orders-detail-line-product-cell-4` | `td` |
+| `orders-detail-line-quantity-cell-4` | `td` |
+| `orders-detail-line-row-4` | `tr` |
+| `orders-detail-line-total-cell-4` | `td` |
+| `orders-detail-lines-heading` | `h2` |
+| `orders-detail-lines-table` | `table` |
+| `orders-detail-state-status` | `span` |
+| `orders-detail-subtotal-text` | `span` |
+| `orders-detail-tax-text` | `span` |
+| `orders-detail-taxrate-text` | `span` |
+| `orders-detail-total-text` | `span` |
+| `orders-detail-updated-text` | `dd` |
+
 ## orders-detail-confirmed
 
 `/orders/3`, logged in as `sales@labapp.test`. Page title: `Pedido PED-0003 · LabApp`.
 
 | Test id | Element |
 |---|---|
+| `orders-cancel-back-button` | `button` |
+| `orders-cancel-confirm-button` | `button` |
+| `orders-cancel-confirm-dialog` | `dialog` |
+| `orders-cancel-message-text` | `p` |
+| `orders-cancel-title-heading` | `h2` |
 | `orders-detail-back-link` | `a` |
 | `orders-detail-cancel-button` | `button` |
 | `orders-detail-created-text` | `dd` |
@@ -628,6 +703,11 @@ Present in every logged-in state.
 
 | Test id | Element |
 |---|---|
+| `orders-cancel-back-button` | `button` |
+| `orders-cancel-confirm-button` | `button` |
+| `orders-cancel-confirm-dialog` | `dialog` |
+| `orders-cancel-message-text` | `p` |
+| `orders-cancel-title-heading` | `h2` |
 | `orders-detail-back-link` | `a` |
 | `orders-detail-created-text` | `dd` |
 | `orders-detail-customer-link` | `a` |
@@ -653,6 +733,11 @@ Present in every logged-in state.
 
 | Test id | Element |
 |---|---|
+| `orders-cancel-back-button` | `button` |
+| `orders-cancel-confirm-button` | `button` |
+| `orders-cancel-confirm-dialog` | `dialog` |
+| `orders-cancel-message-text` | `p` |
+| `orders-cancel-title-heading` | `h2` |
 | `orders-detail-back-link` | `a` |
 | `orders-detail-created-text` | `dd` |
 | `orders-detail-customer-link` | `a` |

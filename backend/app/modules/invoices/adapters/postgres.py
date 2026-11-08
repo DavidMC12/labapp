@@ -521,7 +521,9 @@ class PostgresInvoiceStore:
                 index_elements=[idempotency_keys.c.invoice_id, idempotency_keys.c.key]
             )
         )
-        if connection.execute(claim).rowcount:
+        # RETURNING tells a claim that inserted from one that hit the conflict: with this driver
+        # ``rowcount`` of the statement is -1, which is truthy.
+        if connection.execute(claim.returning(idempotency_keys.c.key)).first() is not None:
             return None
 
         stored = (

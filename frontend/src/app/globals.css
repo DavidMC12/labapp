@@ -175,4 +175,13 @@
   .ledger-row:hover {
     background-color: color-mix(in srgb, var(--ink) 4%, transparent);
   }
+
+  /*
+   * The backdrop of the confirmation dialogs (the only part of the
+   * control the tokens style): a dim ground of the ink over the page,
+   * readable in both themes like the rest of the theme.
+   */
+  dialog::backdrop {
+    background-color: color-mix(in srgb, var(--ink) 40%, transparent);
+  }
 }

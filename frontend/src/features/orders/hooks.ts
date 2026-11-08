@@ -7,6 +7,7 @@
  */
 
 import {
+  keepPreviousData,
   useMutation,
   useQuery,
   useQueryClient,
@@ -102,6 +103,10 @@ export function useOrders(
         throw error;
       }
     },
+    // A new page, sort or filter keeps the previous data on screen while
+    // it loads, so the table never disappears and the header button the
+    // keyboard focused stays the active element.
+    placeholderData: keepPreviousData,
     retry: false,
   });
 }
@@ -157,6 +162,10 @@ export function useProducts(
         throw error;
       }
     },
+    // A sorted URL change keeps the previous catalog on screen while it
+    // loads, so the table never disappears and the header button the
+    // keyboard focused stays the active element.
+    placeholderData: keepPreviousData,
     retry: false,
     enabled: options.enabled ?? true,
   });

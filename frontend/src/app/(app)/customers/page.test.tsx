@@ -815,3 +815,140 @@ describe("the customers list export link", () => {
     expect(state.router.replace).not.toHaveBeenCalled();
   });
 });
+
+describe("the previous data of the customers list while the next request loads", () => {
+  /** Swaps the mock so the request of the next URL stays pending. */
+  function deferNext(url: string): () => void {
+    let release: (response: Response) => void = () => {};
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      if (String(input) === url) {
+        return new Promise<Response>((resolve) => {
+          release = resolve;
+        });
+      }
+      if (String(input) === "/api/auth/me") {
+        return jsonResponse(meUser);
+      }
+      return jsonResponse(listBody ?? listPageOf([]), listStatus);
+    });
+    return () => release(jsonResponse(listPageOf([seededCustomer(1)])));
+  }
+
+  it("still shows the loading text on the first load, with no table region", async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      if (String(input) === "/api/customers?page=1") {
+        return new Promise<Response>(() => {});
+      }
+      if (String(input) === "/api/auth/me") {
+        return jsonResponse(meUser);
+      }
+      return jsonResponse({}, 404);
+    });
+    renderAt("");
+
+    const status = screen.getByTestId("customers-list-loading-status");
+    expect(status).toHaveTextContent("Cargando…");
+    expect(status).toHaveAttribute("aria-busy", "true");
+    expect(screen.queryByTestId("customers-list-scroll-region"))
+      .not.toBeInTheDocument();
+  });
+
+  it("keeps the previous rows, region busy and sorted header focused while the sort loads", async () => {
+    respondList(listPageOf([seededCustomer(1), seededCustomer(2), seededCustomer(3)]));
+    const { rerenderAt } = renderAt("");
+    await waitFor(() => expect(listRequests()).toEqual(["/api/customers?page=1"]));
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-list-table")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("customers-list-scroll-region"))
+      .not.toHaveAttribute("aria-busy");
+
+    const button = screen.getByTestId("customers-list-sort-name-button");
+    await userEvent.setup().click(button);
+    expect(state.router.push).toHaveBeenCalledWith(
+      "/customers?page=1&sort=name&direction=asc",
+    );
+
+    // Following the navigation, the sorted request stays pending: the
+    // previous rows stay on screen and the region announces the wait.
+    const release = deferNext("/api/customers?page=1&sort=name&direction=asc");
+    rerenderAt("page=1&sort=name&direction=asc");
+    await waitFor(() => {
+      expect(listRequests().at(-1))
+        .toBe("/api/customers?page=1&sort=name&direction=asc");
+    });
+    const region = screen.getByTestId("customers-list-scroll-region");
+    await waitFor(() => {
+      expect(region).toHaveAttribute("aria-busy", "true");
+    });
+    expect(screen.getByTestId("customers-list-table")).toBeInTheDocument();
+    // The click left the button focused and it must stay there.
+    expect(button).toHaveFocus();
+
+    release();
+    await waitFor(() => {
+      expect(region).not.toHaveAttribute("aria-busy");
+    });
+    expect(button).toHaveFocus();
+  });
+
+  it("keeps the focus on Siguiente while the page request loads", async () => {
+    respondList(listPageOf([seededCustomer(1), seededCustomer(2)], 25));
+    const { rerenderAt } = renderAt("");
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-list-table")).toBeInTheDocument();
+    });
+
+    const next = screen.getByTestId("customers-list-next-button");
+    await userEvent.setup().click(next);
+    expect(state.router.push).toHaveBeenCalledWith("/customers?page=2");
+
+    const release = deferNext("/api/customers?page=2");
+    rerenderAt("page=2");
+    await waitFor(() => {
+      expect(listRequests().at(-1)).toBe("/api/customers?page=2");
+    });
+    const region = screen.getByTestId("customers-list-scroll-region");
+    await waitFor(() => {
+      expect(region).toHaveAttribute("aria-busy", "true");
+    });
+    expect(next).toHaveFocus();
+
+    release();
+    await waitFor(() => {
+      expect(region).not.toHaveAttribute("aria-busy");
+    });
+    expect(next).toHaveFocus();
+  });
+
+  it("keeps the focus on the search input through the filter request", async () => {
+    respondList(listPageOf([seededCustomer(1), seededCustomer(2)]));
+    const { rerenderAt } = renderAt("");
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-list-table")).toBeInTheDocument();
+    });
+
+    const input = screen.getByTestId("customers-list-search-input");
+    await userEvent.setup().type(input, "beta{Enter}");
+    expect(state.router.push).toHaveBeenCalledWith("/customers?page=1&q=beta");
+
+    const release = deferNext("/api/customers?page=1&q=beta");
+    rerenderAt("page=1&q=beta");
+    await waitFor(() => {
+      expect(listRequests().at(-1)).toBe("/api/customers?page=1&q=beta");
+    });
+    const region = screen.getByTestId("customers-list-scroll-region");
+    await waitFor(() => {
+      expect(region).toHaveAttribute("aria-busy", "true");
+    });
+    // The form with the input stays mounted: the focus paid to the filter
+    // is never thrown away by the data behind it.
+    expect(input).toHaveFocus();
+
+    release();
+    await waitFor(() => {
+      expect(region).not.toHaveAttribute("aria-busy");
+    });
+    expect(input).toHaveFocus();
+  });
+});

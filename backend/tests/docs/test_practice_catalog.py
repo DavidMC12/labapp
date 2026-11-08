@@ -10,6 +10,7 @@ document.
 from __future__ import annotations
 
 import ast
+import json
 import re
 from dataclasses import dataclass
 
@@ -21,6 +22,7 @@ CODE_PATTERN = re.compile(r"[A-Z][A-Z0-9_]{2,}")
 CODE_IN_BACKTICKS = re.compile(r"`([^`]+)`")
 QUOTED = re.compile(r'"([^"]*)"')
 AFTER_MESSAGE_LABEL = re.compile(r'\b(?:message|detail)\b(?:\s*["\']?\s*:)?\s*"([^"]*)"')
+METHOD_PATH = re.compile(r"\b(GET|POST|PATCH|PUT|DELETE)\s+(/[^\s`]+)")
 
 # Code-shaped tokens in backticks that are not error codes. Keep this list
 # short and explained: every other token must be a code of the SPEC or of the
@@ -176,6 +178,81 @@ def check_messages(rows: list[support.PracticeRow]) -> list[Violation]:
     ]
 
 
+def _segments(path: str) -> list[str]:
+    return path.strip("/").split("/")
+
+
+def resolve_operation(
+    method: str, path: str, paths: dict[str, dict[str, object]]
+) -> tuple[str, dict[str, object]] | None:
+    """Find the operation of a request path, preferring an exact literal path.
+
+    A literal id such as ``/api/customers/11`` matches ``/api/customers/{id}``,
+    while a declared literal such as ``/api/customers/export`` matches only
+    itself: an exact path never falls back to a template.
+    """
+    exact = paths.get(path)
+    if exact is not None:
+        operation = exact.get(method.lower())
+        if operation is None:
+            return None
+        return path, operation
+
+    requested = _segments(path)
+    matches: list[tuple[str, dict[str, object]]] = []
+    for template, operations in paths.items():
+        operation = operations.get(method.lower())
+        if operation is None:
+            continue
+        candidate = _segments(template)
+        if len(candidate) != len(requested):
+            continue
+        if all(
+            literal == value or (literal.startswith("{") and literal.endswith("}") and bool(value))
+            for literal, value in zip(candidate, requested, strict=True)
+        ):
+            matches.append((template, operation))
+    if len(matches) == 1:
+        return matches[0]
+    return None
+
+
+def _openapi_paths() -> dict[str, dict[str, object]]:
+    document = json.loads(support.OPENAPI_PATH.read_text(encoding="utf-8"))
+    return document["paths"]
+
+
+def _method_paths(row: support.PracticeRow) -> list[tuple[str, str]]:
+    found = []
+    for method, path in METHOD_PATH.findall(row.steps):
+        found.append((method, path.split("?", 1)[0].rstrip(".,;:)")))
+    return found
+
+
+def check_endpoints(rows: list[support.PracticeRow]) -> list[Violation]:
+    paths = _openapi_paths()
+    controls = support.test_control_endpoints()
+    violations: list[Violation] = []
+    for row in rows:
+        for method, path in _method_paths(row):
+            if path == "/api/health":
+                continue
+            if path.startswith("/__test__"):
+                if (method, path) not in controls:
+                    violations.append(
+                        Violation(row.id, f"the test control {method} {path} is not documented")
+                    )
+                continue
+            if resolve_operation(method, path, paths) is None:
+                violations.append(
+                    Violation(
+                        row.id,
+                        f"the endpoint {method} {path} is not in the OpenAPI document",
+                    )
+                )
+    return violations
+
+
 def test_the_catalog_has_at_least_a_hundred_scenario_rows() -> None:
     assert len(support.practice_rows()) >= 100
 
@@ -215,3 +292,31 @@ def test_every_quoted_code_exists() -> None:
 def test_every_quoted_spanish_message_exists() -> None:
     violations = check_messages(support.practice_rows())
     assert violations == [], _report(violations)
+
+
+def test_every_endpoint_exists() -> None:
+    violations = check_endpoints(support.practice_rows())
+    assert violations == [], _report(violations)
+
+
+def test_a_literal_id_matches_only_its_template() -> None:
+    paths = _openapi_paths()
+    assert resolve_operation("GET", "/api/customers/11", paths) == (
+        "/api/customers/{id}",
+        paths["/api/customers/{id}"]["get"],
+    )
+    assert resolve_operation("PATCH", "/api/orders/8/lines/8", paths) == (
+        "/api/orders/{id}/lines/{line_id}",
+        paths["/api/orders/{id}/lines/{line_id}"]["patch"],
+    )
+    assert resolve_operation("GET", "/api/customers/11/nope", paths) is None
+    assert resolve_operation("POST", "/api/customers/11", paths) is None
+
+
+def test_a_declared_literal_path_does_not_fall_back_to_a_template() -> None:
+    paths = _openapi_paths()
+    assert resolve_operation("GET", "/api/customers/export", paths) == (
+        "/api/customers/export",
+        paths["/api/customers/export"]["get"],
+    )
+    assert resolve_operation("DELETE", "/api/customers/export", paths) is None

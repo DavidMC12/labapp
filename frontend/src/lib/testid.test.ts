@@ -47,6 +47,11 @@ describe("isValidTestId", () => {
     expect(isValidTestId("home-customers-active-loading-status")).toBe(true);
   });
 
+  it("accepts the region kind of a scroll container", () => {
+    expect(isValidTestId("orders-list-scroll-region")).toBe(true);
+    expect(isValidTestId("invoices-detail-payments-scroll-region")).toBe(true);
+  });
+
   it("rejects an unknown kind", () => {
     expect(isValidTestId("app-list-thing")).toBe(false);
   });

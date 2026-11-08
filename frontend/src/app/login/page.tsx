@@ -7,8 +7,8 @@ import { useLogin } from "@/features/auth/hooks";
 import { DEMO_PASSWORD_TEXT, DEMO_USERS } from "@/features/auth/demo";
 import { roleLabel } from "@/features/auth/types";
 import { ApiRequestError, INTERNAL_ERROR_DETAIL } from "@/lib/api";
-import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
 
 const REQUIRED_MESSAGE = "Este campo es obligatorio.";
 
@@ -16,9 +16,41 @@ type LoginField = "email" | "password";
 
 type LoginFieldErrors = Partial<Record<LoginField, string>>;
 
+/**
+ * The url can only be read inside a Suspense boundary (`useSearchParams`
+ * falls back to the static shell of the page below it), so the form lives
+ * here and the default export wraps it.
+ */
 export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <p
+          role="status"
+          data-testid="auth-login-loading-status"
+          aria-busy="true"
+          className="min-h-screen p-4 text-muted"
+        >
+          Cargando…
+        </p>
+      }
+    >
+      <LoginPageContent />
+    </Suspense>
+  );
+}
+
+function LoginPageContent() {
   const router = useRouter();
   const login = useLogin();
+  const searchParams = useSearchParams();
+
+  // The reason of the visit comes from the url of the redirect of the
+  // shell (`/login?expired=1`); a login that succeeds resolves it, so the
+  // notice must not show up again after that.
+  const [showExpiredNotice, setShowExpiredNotice] = useState(
+    () => searchParams.get("expired") === "1",
+  );
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -92,6 +124,8 @@ export default function LoginPage() {
     submittingRef.current = true;
     try {
       await login.mutateAsync({ email: trimmedEmail, password });
+      // The expired-session notice is resolved once the session is back.
+      setShowExpiredNotice(false);
       // The login page must not stay in the history.
       router.replace("/");
     } catch (error) {
@@ -165,6 +199,14 @@ export default function LoginPage() {
                 tabIndex={-1}
               >
                 {formError}
+              </Alert>
+            </div>
+          ) : null}
+
+          {showExpiredNotice ? (
+            <div className="mt-3">
+              <Alert testId="auth-login-expired-alert">
+                Tu sesión expiró. Inicia sesión de nuevo.
               </Alert>
             </div>
           ) : null}

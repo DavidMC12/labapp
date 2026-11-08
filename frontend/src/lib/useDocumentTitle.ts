@@ -31,26 +31,28 @@ let desiredTitle = "LabApp";
 let mountedHooks = 0;
 let titleObserver: MutationObserver | null = null;
 
-/** Puts the document back on the title the mounted hooks want. */
+/**
+ * Puts the document back on the title the mounted hooks want. It runs
+ * from the one shared observer below; the check is the whole work, so
+ * the cacophony of head mutations a navigation carries costs nothing.
+ */
 function assertDesiredTitle(): void {
   if (document.title !== desiredTitle) {
     document.title = desiredTitle;
   }
 }
 
-/** Creates the one observer at the first mount, when a title element exists. */
+/** Creates the one observer at the first mount. */
 function ensureTitleObserver(): void {
-  if (titleObserver !== null) {
+  if (titleObserver !== null || mountedHooks === 0) {
     return;
   }
-  const titleElement = document.head?.querySelector("title");
-  if (!titleElement) {
-    // Nothing to observe (a test environment without a document head);
-    // a later mount creates it.
-    return;
-  }
+  // The target is the head, never the title element: a navigation may
+  // replace the title element entirely (a childList mutation of the
+  // head), and an observer pinned to the replaced node would miss every
+  // write to the new one.
   titleObserver = new MutationObserver(assertDesiredTitle);
-  titleObserver.observe(titleElement, {
+  titleObserver.observe(document.head, {
     childList: true,
     subtree: true,
     characterData: true,

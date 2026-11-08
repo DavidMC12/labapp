@@ -23,6 +23,8 @@ It needs the frontend dependencies installed (it uses the TypeScript compiler fr
 - a `data-testid` is used twice on the page, or does not match the grammar;
 - axe-core reports a **serious or critical** violation of WCAG 2.0 or 2.1 level A or AA (lesser ones are printed as warnings).
 
+A state can have `steps` to reach something that needs an interaction (a confirmation dialog): `"steps": [{ "click": "<test id>", "waitFor": "<test id that must become visible>" }]`; the audit clicks, waits, and then checks the page as it is. A state can also have a `title`, the exact document title the page must have.
+
 It prints every state it covered: the 100% goal is measured over those states, so a screen that is not in `states.json` is a gap of the audit. **Add a state for every new screen and every notable state of it** (an empty list, an error, a detail page of a fixed seed record).
 
 ```bash

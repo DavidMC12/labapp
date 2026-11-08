@@ -6,7 +6,7 @@ Status: v0.1, approved. Business rules are in [SPEC.md](SPEC.md); the testabilit
 
 - **Modular monolith.** One backend, one frontend, one database. Modules are separated by folders and explicit interfaces, not by network calls.
 - **Rules live in the backend only.** The frontend renders screens and calls the API. It never decides a business rule.
-- **The OpenAPI document is the contract.** FastAPI generates it; the typed frontend client is generated from it; CI fails if the generated files drift.
+- **The OpenAPI document is the contract.** FastAPI generates `docs/openapi.json`, which is committed and checked in CI; the typed frontend client is not generated from it yet.
 - **Deterministic by design.** Reset, seed, a controllable clock and fault injection exist for tests and are off unless explicitly enabled.
 
 ## Components

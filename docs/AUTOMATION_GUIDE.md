@@ -367,6 +367,47 @@ The same error shape for both wrong email and wrong password is deliberate: acco
 
 Other problem bodies carry extra members at the top level: `shortages[]` on a 409 `INSUFFICIENT_STOCK`, `payment_id` and `reason` on a 402 `PAYMENT_DECLINED` or a 503 `PAYMENT_GATEWAY_UNAVAILABLE`, and `retry_after` on a 429 `RATE_LIMITED` (the same seconds the `Retry-After` header carries). The stable codes and their messages are catalogued in [SPEC section 7](SPEC.md#7-errors-and-validation-order); a test should assert the `code`, not the wording, which may change. Every response — success or error — carries an `X-Request-Id` header; send your own (1–64 characters of `[A-Za-z0-9._-]`) to have it echoed into logs.
 
+### The headers of every API answer
+
+Two headers travel on **every** response of the API — a request whose path starts with `/api/` or `/__test__/` — whatever its status: the guards' problem answers, the 404 of an unknown path, a 413 body-too-large and a 429 rate-limit answer included ([SPEC section 8](SPEC.md#8-formats-and-conventions)):
+
+| Header | Value | Why a test can lean on it |
+|---|---|---|
+| `X-Content-Type-Options` | `nosniff` | no answer is ever sniffed into a different type |
+| `Cache-Control` | `no-store` | the API's answers depend on the session or the data, so a shared cache must never keep them |
+
+One exception with two paths: `GET /api/openapi.json` (the committed contract) and `GET /api/docs` (the Swagger page) carry **only** `nosniff`, without `no-store` — they are static documents a cache may keep. `GET /api/health` follows the general rule (it carries both), and a response that sets its own `Cache-Control` keeps it (today every route that sets one says `no-store`). The export files add `Content-Disposition` to this base, [section 12](#12-orders-and-invoices-through-the-api).
+
+The full set, asserted on a success (200) and on a 401, run against a local API:
+
+```bash
+BASE=http://127.0.0.1:8000; J=/tmp/labapp-cookies
+curl -s -i -b $J "$BASE/api/customers" | grep -iE '^(HTTP|x-content-type|cache-control|content-type)'
+# 200: content-type: application/json, plus nosniff and no-store
+curl -s -i        "$BASE/api/customers" | grep -iE '^(HTTP|x-content-type|cache-control)'
+# 401 (no cookie jar): the guards answer through the same middleware, same two headers
+curl -s -i -b $J "$BASE/api/openapi.json" | grep -iE '^(HTTP|x-content-type|cache-control)'
+# 200: nosniff, and no cache-control — the second exception is /api/docs, same shape
+```
+
+```ts
+// Illustrative, not run in CI. The browser context of the suite is logged in
+// (section 10); a fresh context is not.
+const base = "http://127.0.0.1:8000";
+const ok = await request.get(`${base}/api/customers`);
+expect(ok.status()).toBe(200);
+expect(ok.headers()["x-content-type-options"]).toBe("nosniff");
+expect(ok.headers()["cache-control"]).toBe("no-store");
+
+const anon = await request.newContext();
+const denied = await anon.get(`${base}/api/customers`);
+expect(denied.status()).toBe(401);
+expect(denied.headers()["x-content-type-options"]).toBe("nosniff");
+expect(denied.headers()["cache-control"]).toBe("no-store");
+```
+
+The web pages have their own set — `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` and `Cross-Origin-Opener-Policy: same-origin`, plus `Content-Security-Policy` in production only — applied by `frontend/next.config.ts`. The API paths take no part in it: the pattern that applies those headers explicitly excludes `/api/*` and `/__test__/*`, so an API answer never carries the web app's policy, and the browser never mixes the two.
+
 ## 11. The test controls
 
 Seven endpoints under `/__test__` let a script arrange the world instead of assuming it: reset and seed own the data, the clock owns time, the faults own failure. They answer without a session, they are not in [openapi.json](openapi.json), and they are guarded by the test token.

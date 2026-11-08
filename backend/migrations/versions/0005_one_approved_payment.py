@@ -22,8 +22,26 @@ down_revision: str | None = "0004"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
+DUPLICATES_QUERY = (
+    "SELECT invoice_id FROM payments WHERE status = 'approved' "
+    "GROUP BY invoice_id HAVING count(*) > 1 ORDER BY invoice_id"
+)
+
+
+def _refuse_duplicates() -> None:
+    """Fail with a readable message before the index build hides the cause."""
+    rows = op.get_bind().execute(sa.text(DUPLICATES_QUERY))
+    invoice_ids = [row[0] for row in rows]
+    if invoice_ids:
+        listed = ", ".join(str(identifier) for identifier in invoice_ids)
+        raise RuntimeError(
+            "Cannot create the one-approved-payment index: invoices with more than one "
+            f"approved payment: {listed}. Resolve them before migrating."
+        )
+
 
 def upgrade() -> None:
+    _refuse_duplicates()
     op.create_index(
         "uq_payments_one_approved_per_invoice",
         "payments",

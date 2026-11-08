@@ -5,6 +5,8 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
+import pytest
+
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 MIGRATIONS_DIR = BACKEND_DIR / "migrations" / "versions"
 REVISION_1_PATH = MIGRATIONS_DIR / "0001_initial.py"
@@ -40,12 +42,28 @@ def test_the_revision_chain_reaches_the_payment_status_index() -> None:
     assert callable(fifth.downgrade)  # type: ignore[attr-defined]
 
 
+class _FakeBind:
+    """Record the preflight statement and answer with the given invoice ids."""
+
+    def __init__(self, duplicate_invoice_ids: list[int]) -> None:
+        self.rows = [(identifier,) for identifier in duplicate_invoice_ids]
+        self.statements: list[str] = []
+
+    def execute(self, statement: object) -> list[tuple[int]]:
+        self.statements.append(str(statement))
+        return self.rows
+
+
 class _RecordingOp:
     """Record the statements of the migration without touching a database."""
 
-    def __init__(self) -> None:
+    def __init__(self, duplicate_invoice_ids: list[int] | None = None) -> None:
         self.created: list[tuple[str, str, list[str], bool, str | None]] = []
         self.dropped: list[tuple[str, str]] = []
+        self.bind = _FakeBind(duplicate_invoice_ids or [])
+
+    def get_bind(self) -> _FakeBind:
+        return self.bind
 
     def create_index(
         self,
@@ -80,3 +98,17 @@ def test_the_migration_adds_and_drops_the_partial_unique_index() -> None:
         )
     ]
     assert recorder.dropped == [("uq_payments_one_approved_per_invoice", "payments")]
+
+
+def test_the_migration_refuses_invoices_with_two_approved_payments() -> None:
+    migration = _load_revision(REVISION_5_PATH, "migration_0005")
+    recorder = _RecordingOp([3, 7])
+    migration.op = recorder  # type: ignore[attr-defined]
+
+    with pytest.raises(RuntimeError) as error:
+        migration.upgrade()  # type: ignore[attr-defined]
+
+    assert "3, 7" in str(error.value)
+    assert "Resolve them before migrating" in str(error.value)
+    assert recorder.created == []
+    assert "status = 'approved'" in recorder.bind.statements[0]

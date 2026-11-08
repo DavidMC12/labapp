@@ -46,8 +46,14 @@ describe("the login theme pieces", () => {
     );
   });
 
-  it("keeps the new text ids valid test ids", () => {
-    for (const id of ["auth-login-tagline-text", "auth-login-notice-text"]) {
+  it("keeps the new ids of the page valid test ids", () => {
+    for (const id of [
+      "auth-login-tagline-text",
+      "auth-login-notice-text",
+      "auth-login-api-text",
+      "auth-login-api-docs-link",
+      "auth-login-api-contract-link",
+    ]) {
       expect(isValidTestId(id), id).toBe(true);
     }
   });

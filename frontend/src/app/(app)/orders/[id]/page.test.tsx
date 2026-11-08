@@ -2143,3 +2143,45 @@ describe("the change-customer failures and retry", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe("the add-line product field error", () => {
+  it("maps a 422 on product_id onto the product select", async () => {
+    mutateAnswer = (url, method) =>
+      url === "/api/orders/8/lines" && method === "POST"
+        ? jsonResponse(
+            {
+              type: "about:blank",
+              title: "Unprocessable Content",
+              status: 422,
+              code: "VALIDATION_ERROR",
+              detail: "Revisa los datos ingresados.",
+              errors: [
+                {
+                  field: "product_id",
+                  code: "REFERENCE_NOT_FOUND",
+                  message: "El registro indicado no existe.",
+                },
+              ],
+            },
+            422,
+          )
+        : null;
+    await renderDraftDetail();
+    await waitForProducts();
+
+    const user = userEvent.setup();
+    await user.selectOptions(
+      screen.getByTestId("orders-detail-addline-product-select"),
+      "7",
+    );
+    await user.click(screen.getByTestId("orders-detail-addline-submit-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("orders-detail-addline-product-error"))
+        .toHaveTextContent("El registro indicado no existe.");
+    });
+    expect(screen.queryByTestId("orders-detail-alert")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("orders-detail-addline-quantity-error"))
+      .not.toBeInTheDocument();
+  });
+});

@@ -21,6 +21,15 @@ It needs the frontend dependencies installed (it uses the TypeScript compiler fr
 
 - an interactive element (`a[href]`, `button`, `input` other than `hidden`, `select`, `textarea`, `summary`, a `tabindex` of 0 or more, or one of the listed roles) is visible and has no `data-testid`;
 - a `data-testid` is used twice on the page, or does not match the grammar;
+- a document, script, stylesheet, image or font that the page loads answers 4xx or 5xx (one failure per response; a
+  `Fetch` or `XHR` response is ignored, because the API of an error state answers 4xx on purpose). A state that is a
+  404 page on purpose declares `"expectStatus": <status>` for its main document (200 by default), so the page itself
+  does not fail the check;
+- the page declares no site icon while `/favicon.ico` answers 4xx or 5xx, or the icon it declares (the `icon.svg`
+  file convention of Next.js, which adds the `link rel="icon"`) answers 4xx or 5xx. A real browser loads the declared
+  icon and asks for `/favicon.ico` when there is none; headless Chrome makes no favicon request of its own (measured,
+  and it reports the declared one as an untracked `Other` response), so the audit fetches the browser's address
+  itself;
 - axe-core reports a **serious or critical** violation of WCAG 2.0 or 2.1 level A or AA (lesser ones are printed as warnings).
 
 A state can have `steps` to reach something that needs an interaction (a confirmation dialog): `"steps": [{ "click": "<test id>", "waitFor": "<test id that must become visible>" }]`; the audit clicks, waits, and then checks the page as it is. A state can have a `viewport` (`{ "width": 390, "height": 844 }`) to be audited as a phone or a tablet, and `"catalog": false` to leave it out of the catalog when it only repeats the ids of another state. Every state also fails when the page scrolls sideways. A state can also have a `title`, the exact document title the page must have.

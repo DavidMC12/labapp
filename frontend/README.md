@@ -55,6 +55,10 @@ The test id contract implemented here is defined in `docs/TESTABILITY.md`.
   `suppressHydrationWarning` because the script may add the attribute
   before hydration. The selector reads the real choice only after
   hydration, so the server and the client markup match.
+The site icon is `src/app/icon.svg`, the accent square of the light palette carrying the pale double rule of the
+"Libro mayor" theme: Next.js serves it at `/icon.svg` by the file convention and adds the `<link rel="icon">` on its
+own (`icon.test.ts` keeps the file a plain, small SVG).
+
 - Typography: IBM Plex Sans (body) and IBM Plex Serif (headings, brand),
   loaded in the root `layout.tsx` with `next/font/google` and exposed as
   `--font-plex-sans` / `--font-plex-serif`.

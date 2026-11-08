@@ -383,6 +383,8 @@ class InvoiceStoreContract:
         attempt_at = NOW + timedelta(hours=24)
 
         fresh = _pay(store, 1, "key-new", "fp-new", card_last4="0002", now=attempt_at)
+        # At NOW the old key would still be inside its lifetime unless it was deleted.
+        assert store.find_key(1, "key-old", NOW) is None
         assert store.find_key(1, "key-old", attempt_at) is None
         assert store.find_key(1, "key-young", attempt_at) is not None
 

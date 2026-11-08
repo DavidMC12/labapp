@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from sqlalchemy import Connection, insert
+from sqlalchemy import Connection, func, insert, select
 from sqlalchemy.exc import IntegrityError
 
 from app.modules.invoices.adapters.postgres import PostgresInvoiceStore
@@ -109,3 +109,44 @@ def test_an_unknown_payment_method_is_rejected(
         insert(payments).values(**_payment_values(method="crypto")),
         "ck_payments_method",
     )
+
+
+def test_a_second_approved_payment_for_an_invoice_is_rejected(
+    db: Connection, postgres_invoice_store: PostgresInvoiceStore
+) -> None:
+    db.execute(insert(payments).values(**_payment_values()))
+
+    _rejects(
+        db,
+        insert(payments).values(**_payment_values()),
+        "uq_payments_one_approved_per_invoice",
+    )
+
+
+def test_declined_and_failed_payments_are_allowed_next_to_an_approved_one(
+    db: Connection, postgres_invoice_store: PostgresInvoiceStore
+) -> None:
+    db.execute(
+        insert(payments).values(
+            [
+                _payment_values(),
+                _payment_values(
+                    status="declined",
+                    card_last4="0002",
+                    reason="CARD_DECLINED",
+                ),
+                _payment_values(
+                    status="failed",
+                    card_last4="0003",
+                    reason="GATEWAY_UNAVAILABLE",
+                ),
+            ]
+        )
+    )
+
+    approved = db.execute(
+        select(func.count())
+        .select_from(payments)
+        .where(payments.c.invoice_id == 1, payments.c.status == "approved")
+    ).scalar_one()
+    assert approved == 1

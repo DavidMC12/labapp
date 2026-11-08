@@ -139,6 +139,11 @@ def test_the_invoice_indexes_are_named() -> None:
         _index_ddl("payments", "ix_payments_invoice_id")
         == "CREATE INDEX ix_payments_invoice_id ON payments (invoice_id)"
     )
+    assert (
+        _index_ddl("payments", "uq_payments_one_approved_per_invoice")
+        == "CREATE UNIQUE INDEX uq_payments_one_approved_per_invoice "
+        "ON payments (invoice_id) WHERE status = 'approved'"
+    )
 
 
 def test_invoice_number_sequence_starts_at_one() -> None:

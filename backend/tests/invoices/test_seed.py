@@ -80,6 +80,16 @@ def test_every_seeded_payment_equals_its_invoice_total() -> None:
         assert payment.amount == invoices[payment.invoice_id].total
 
 
+def test_no_seeded_invoice_has_two_approved_payments() -> None:
+    approved = [
+        payment.invoice_id
+        for payment in seed_payments()
+        if payment.status == PaymentStatus.APPROVED
+    ]
+
+    assert len(approved) == len(set(approved))
+
+
 def test_the_seed_links_the_orders_without_changing_them(seeded_store) -> None:
     orders, _ = seeded_store
 

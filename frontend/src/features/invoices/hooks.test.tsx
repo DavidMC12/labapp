@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import type { UseMutationResult } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ME_QUERY_KEY } from "@/features/auth/hooks";
+import { SESSION_EXPIRED_QUERY_KEY } from "@/features/auth/session";
 import { ORDERS_LIST_KEY, orderDetailKey } from "@/features/orders/hooks";
 import type { ApiRequestError } from "@/lib/api";
 import {
@@ -349,5 +350,27 @@ describe("useRegisterPayment", () => {
     });
 
     expect(queryClient.getQueryData(ME_QUERY_KEY)).toBeNull();
+  });
+
+  it("writes both session keys on a 401 SESSION_EXPIRED", async () => {
+    const { queryClient } = createWrapper();
+    queryClient.setQueryData(ME_QUERY_KEY, { name: "Admin Demo" });
+    fetchMock.mockResolvedValueOnce(
+      problemWith(
+        401,
+        "SESSION_EXPIRED",
+        "Tu sesión expiró. Inicia sesión de nuevo.",
+      ),
+    );
+
+    await runMutation(queryClient, useRegisterPayment, {
+      invoiceId: 1,
+      body,
+      idempotencyKey: "key-expired",
+      version: 1,
+    });
+
+    expect(queryClient.getQueryData(ME_QUERY_KEY)).toBeNull();
+    expect(queryClient.getQueryData(SESSION_EXPIRED_QUERY_KEY)).toBe(true);
   });
 });

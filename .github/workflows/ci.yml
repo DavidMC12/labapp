@@ -86,8 +86,8 @@ jobs:
           node --test tools/audit/testid-audit.test.mjs tools/audit/browser-audit.test.mjs
           node tools/audit/testid-audit.mjs
 
-      - name: Tests
-        run: pnpm test
+      - name: Tests with coverage (the floor of the coverage configuration must hold)
+        run: pnpm test:coverage
 
       - name: Build
         run: pnpm build

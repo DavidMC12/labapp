@@ -9,12 +9,14 @@ import {
   SortableHeader,
   type SortableHeaderState,
   TableScroll,
+  TEXT_LINK_CLASSES,
 } from "@/components/ui";
 import { useMe } from "@/features/auth/hooks";
 import { useCustomers } from "@/features/customers/hooks";
 import {
   customerSortDefaultDirection,
   customerSortLabel,
+  customersExportUrl,
   flipCustomerSortDirection,
   isDefaultCustomerSort,
   parseCustomerListParams,
@@ -234,6 +236,25 @@ function CustomersListContent() {
           Buscar
         </Button>
       </form>
+
+      {/*
+       * The download of every customer the applied filters select: a
+       * plain anchor (the API serves the file, the client router must
+       * not touch it) with the state of the URL, never the text still
+       * in the inputs. It renders in every state of the request, even
+       * empty or error: an empty filter exports a file with the header
+       * only. The DOM order keeps it right after the filter controls.
+       */}
+      <p className="mt-3">
+        <a
+          data-testid="customers-list-export-link"
+          download
+          href={customersExportUrl(params)}
+          className={TEXT_LINK_CLASSES}
+        >
+          Exportar CSV
+        </a>
+      </p>
 
       {list.isPending ? (
         <p

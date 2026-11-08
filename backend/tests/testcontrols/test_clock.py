@@ -36,7 +36,13 @@ class RecordingStore:
     def set(self, seconds: float, *, connection: Connection | None = None) -> None:
         self.seconds = seconds
 
-    def advance(self, seconds: float, *, connection: Connection | None = None) -> float:
+    def advance(
+        self,
+        seconds: float,
+        *,
+        limit: float = 315_360_000.0,
+        connection: Connection | None = None,
+    ) -> float | None:
         self.seconds += seconds
         return self.seconds
 
@@ -92,3 +98,15 @@ def test_an_enabled_controlled_clock_prefers_the_request_value() -> None:
     assert store.reads == 0
     assert clock.now() == NOW + timedelta(seconds=3600)
     assert store.reads == 1
+
+
+def test_the_in_memory_store_refuses_an_advance_outside_the_limit() -> None:
+    clock = OffsetClock(FixedClock(NOW))
+    store = InMemoryClockOffsetStore(clock)
+
+    assert store.advance(10, limit=10) == 10
+    assert store.advance(1, limit=10) is None
+    assert store.get() == 10.0
+
+    assert store.advance(-21, limit=10) is None
+    assert store.advance(-20, limit=10) == -10

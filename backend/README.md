@@ -41,8 +41,8 @@ echoed; values must match `^[A-Za-z0-9._-]{1,64}$`, otherwise a new UUID4 is gen
 
 Without `DATABASE_URL` the API stores everything in memory, which is the default for
 tests. When it is set, the app builds one engine and uses the PostgreSQL adapters for
-users, sessions, customers and orders; the in-memory adapters remain the test doubles.
-Creating the app and serving `GET /api/health` never opens a connection.
+users, sessions, customers, orders, invoices and payments; the in-memory adapters remain
+the test doubles. Creating the app and serving `GET /api/health` never opens a connection.
 
 - `DATABASE_URL` — the runtime connection string. It must point at the provider's
   pooler. A blank value means "no database".
@@ -63,9 +63,10 @@ uv run python -m app.cli seed
 ```
 
 `seed` adds the four users only when the `users` table is empty, the ten customers only
-when the `customers` table is empty, and the 15 products, 7 orders and the tax rate when
-both `products` and `orders` are empty; running it twice changes nothing. Startup never
-seeds.
+when the `customers` table is empty, the 15 products, 7 orders and the tax rate when both
+`products` and `orders` are empty, and the three invoices plus four payments when
+`invoices` is empty (after the orders, so the links exist); running it twice changes
+nothing. Startup never seeds.
 
 The adapters follow two rules:
 
@@ -85,6 +86,29 @@ the customer and every product, checks stock against the locked rows, decrements
 freezes the tax rate and sets the status atomically; cancelling a confirmed order returns
 the stock; both cancels store the current rate. `replace_all` moves the identity sequences
 and `order_number_seq` after the highest ids and numbers.
+
+Invoices, invoice lines, payments and idempotency keys use the `invoices`,
+`invoice_lines`, `payments` and `idempotency_keys` tables. Invoice numbers come from
+`invoice_number_seq`. `orders.invoice_id` has a foreign key to `invoices` that only the
+migration declares (`fk_orders_invoice_id_invoices`): together with
+`invoices.order_id -> orders` it is a cycle, and `ON DELETE SET NULL` lets `replace_all`
+empty one table before the other. Every invoice mutation is one transaction and locks the
+order row `FOR UPDATE` first, then the invoice row with `FOR NO KEY UPDATE`, then the
+customer row `FOR SHARE` when the snapshot needs it. `FOR NO KEY UPDATE` is required:
+a plain `FOR UPDATE` conflicts with the `FOR KEY SHARE` lock that inserting a payment or
+an idempotency key takes on the invoice, and two payments that claimed their keys before
+locking would deadlock. Cancelling a confirmed order locks its invoice the same way and
+voids it before returning the stock, in the order transaction.
+
+`register_payment` claims the idempotency key before the locks: it deletes an expired row
+of the same `(invoice_id, key)` (24 hours with the injected clock) and inserts the
+placeholder row `status_code = 0` / `response = '{}'` with `ON CONFLICT DO NOTHING`. The
+second concurrent request waits on that unique row, then replays the committed response
+when the fingerprint matches or raises `IDEMPOTENCY_KEY_REUSED` when it does not. A
+request rejected after the claim (stale version, not payable, amount mismatch) rolls the
+transaction back, claim included, so it does not consume the key. An approved payment,
+the invoice becoming `paid` and the order becoming `paid` commit together; a declined or
+failed attempt commits the payment row and the key and answers 402 or 503.
 
 Database errors (`DBAPIError` and the bare `psycopg.Error`) have their own handler. It logs
 the exception class, the SQLSTATE, the request id and the stack frames, never the driver
@@ -410,7 +434,8 @@ A PostgreSQL adapter must guarantee the same behaviour as the in-memory one:
 - Only the last four digits of a card are ever stored; the number and the CVC
   never reach the store or a response.
 
-This module is in memory in task 019; task 021 wires the PostgreSQL adapter.
+This module runs in memory only when `DATABASE_URL` is unset; task 021 wires
+`PostgresInvoiceStore` when it is set.
 
 ```bash
 # Log in as finance and keep the session cookie.

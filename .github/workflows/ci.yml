@@ -54,10 +54,12 @@ jobs:
       - name: Ruff format check
         run: uv run ruff format --check .
 
-      - name: Tests (unit and PostgreSQL integration)
+      - name: Tests (unit and PostgreSQL integration) with coverage
         env:
           TEST_DATABASE_URL: postgresql+psycopg://labapp:labapp-ci-only@127.0.0.1:5432/labapp_test
-        run: uv run pytest -q -W error --durations=10
+        # The coverage floor of pyproject.toml fails the run. The integration tests raise the
+        # number above that floor; the report prints it, and only the floor gates the run.
+        run: uv run pytest -q -W error --durations=10 --cov=app --cov-report=term
 
   frontend:
     runs-on: ubuntu-latest

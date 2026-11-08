@@ -25,13 +25,14 @@ Present in every logged-in state.
 | `app-nav-orders-link` | `a` |
 | `app-nav-products-link` | `a` |
 | `app-nav-settings-link` | `a` |
+| `app-skip-link` | `a` |
 | `app-theme-select` | `select` |
 | `app-user-name-text` | `p` |
 | `app-user-role-text` | `p` |
 
 ## login
 
-`/login`, no session.
+`/login`, no session. Page title: `Iniciar sesión · LabApp`.
 
 | Test id | Element |
 |---|---|
@@ -47,13 +48,14 @@ Present in every logged-in state.
 | `auth-login-heading` | `h1` |
 | `auth-login-notice-text` | `p` |
 | `auth-login-password-input` | `input[type=password]` |
+| `auth-login-skip-link` | `a` |
 | `auth-login-submit-button` | `button` |
 | `auth-login-tagline-text` | `p` |
 | `auth-login-theme-select` | `select` |
 
 ## login-expired
 
-`/login?expired=1`, no session.
+`/login?expired=1`, no session. Page title: `Iniciar sesión · LabApp`.
 
 | Test id | Element |
 |---|---|
@@ -70,13 +72,14 @@ Present in every logged-in state.
 | `auth-login-heading` | `h1` |
 | `auth-login-notice-text` | `p` |
 | `auth-login-password-input` | `input[type=password]` |
+| `auth-login-skip-link` | `a` |
 | `auth-login-submit-button` | `button` |
 | `auth-login-tagline-text` | `p` |
 | `auth-login-theme-select` | `select` |
 
 ## not-found
 
-`/no-such-page`, no session.
+`/no-such-page`, no session. Page title: `Página no encontrada · LabApp`.
 
 | Test id | Element |
 |---|---|
@@ -85,7 +88,7 @@ Present in every logged-in state.
 
 ## home
 
-`/`, logged in as `sales@labapp.test`.
+`/`, logged in as `sales@labapp.test`. Page title: `Resumen · LabApp`.
 
 | Test id | Element |
 |---|---|
@@ -117,7 +120,7 @@ Present in every logged-in state.
 
 ## customers-list
 
-`/customers`, logged in as `sales@labapp.test`.
+`/customers`, logged in as `sales@labapp.test`. Page title: `Clientes · LabApp`.
 
 | Test id | Element |
 |---|---|
@@ -196,7 +199,7 @@ Present in every logged-in state.
 
 ## customers-list-readonly
 
-`/customers`, logged in as `readonly@labapp.test`.
+`/customers`, logged in as `readonly@labapp.test`. Page title: `Clientes · LabApp`.
 
 | Test id | Element |
 |---|---|
@@ -274,7 +277,7 @@ Present in every logged-in state.
 
 ## customers-detail
 
-`/customers/2`, logged in as `sales@labapp.test`.
+`/customers/2`, logged in as `sales@labapp.test`. Page title: `Cliente Beta Comercial Ltda. · LabApp`.
 
 | Test id | Element |
 |---|---|
@@ -293,7 +296,7 @@ Present in every logged-in state.
 
 ## customers-detail-inactive
 
-`/customers/5`, logged in as `sales@labapp.test`.
+`/customers/5`, logged in as `sales@labapp.test`. Page title: `Cliente Estudio Épsilon · LabApp`.
 
 | Test id | Element |
 |---|---|
@@ -312,7 +315,7 @@ Present in every logged-in state.
 
 ## customers-new
 
-`/customers/new`, logged in as `sales@labapp.test`.
+`/customers/new`, logged in as `sales@labapp.test`. Page title: `Nuevo cliente · LabApp`.
 
 | Test id | Element |
 |---|---|
@@ -328,7 +331,7 @@ Present in every logged-in state.
 
 ## customers-edit
 
-`/customers/2/edit`, logged in as `sales@labapp.test`.
+`/customers/2/edit`, logged in as `sales@labapp.test`. Page title: `Editar cliente · LabApp`.
 
 | Test id | Element |
 |---|---|
@@ -344,7 +347,7 @@ Present in every logged-in state.
 
 ## customers-not-found
 
-`/customers/999`, logged in as `sales@labapp.test`.
+`/customers/999`, logged in as `sales@labapp.test`. Page title: `Clientes · LabApp`.
 
 | Test id | Element |
 |---|---|
@@ -353,7 +356,7 @@ Present in every logged-in state.
 
 ## products-list
 
-`/products`, logged in as `readonly@labapp.test`.
+`/products`, logged in as `readonly@labapp.test`. Page title: `Productos · LabApp`.
 
 | Test id | Element |
 |---|---|
@@ -443,7 +446,7 @@ Present in every logged-in state.
 
 ## products-search
 
-`/products?q=cable`, logged in as `sales@labapp.test`.
+`/products?q=cable`, logged in as `sales@labapp.test`. Page title: `Productos · LabApp`.
 
 | Test id | Element |
 |---|---|
@@ -461,7 +464,7 @@ Present in every logged-in state.
 
 ## orders-list
 
-`/orders`, logged in as `sales@labapp.test`.
+`/orders`, logged in as `sales@labapp.test`. Page title: `Pedidos · LabApp`.
 
 | Test id | Element |
 |---|---|
@@ -536,7 +539,7 @@ Present in every logged-in state.
 
 ## orders-new
 
-`/orders/new`, logged in as `sales@labapp.test`.
+`/orders/new`, logged in as `sales@labapp.test`. Page title: `Nuevo pedido · LabApp`.
 
 | Test id | Element |
 |---|---|
@@ -552,7 +555,7 @@ Present in every logged-in state.
 
 ## orders-detail-draft
 
-`/orders/1`, logged in as `sales@labapp.test`.
+`/orders/1`, logged in as `sales@labapp.test`. Page title: `Pedido PED-0001 · LabApp`.
 
 | Test id | Element |
 |---|---|
@@ -595,7 +598,7 @@ Present in every logged-in state.
 
 ## orders-detail-confirmed
 
-`/orders/3`, logged in as `sales@labapp.test`.
+`/orders/3`, logged in as `sales@labapp.test`. Page title: `Pedido PED-0003 · LabApp`.
 
 | Test id | Element |
 |---|---|
@@ -621,7 +624,7 @@ Present in every logged-in state.
 
 ## orders-detail-shipped
 
-`/orders/5`, logged in as `sales@labapp.test`.
+`/orders/5`, logged in as `sales@labapp.test`. Page title: `Pedido PED-0005 · LabApp`.
 
 | Test id | Element |
 |---|---|
@@ -646,7 +649,7 @@ Present in every logged-in state.
 
 ## orders-detail-cancelled
 
-`/orders/6`, logged in as `sales@labapp.test`.
+`/orders/6`, logged in as `sales@labapp.test`. Page title: `Pedido PED-0006 · LabApp`.
 
 | Test id | Element |
 |---|---|
@@ -670,7 +673,7 @@ Present in every logged-in state.
 
 ## invoices-list
 
-`/invoices`, logged in as `finance@labapp.test`.
+`/invoices`, logged in as `finance@labapp.test`. Page title: `Facturas · LabApp`.
 
 | Test id | Element |
 |---|---|
@@ -715,7 +718,7 @@ Present in every logged-in state.
 
 ## invoices-detail-issued
 
-`/invoices/1`, logged in as `finance@labapp.test`.
+`/invoices/1`, logged in as `finance@labapp.test`. Page title: `Factura FAC-0001 · LabApp`.
 
 | Test id | Element |
 |---|---|
@@ -761,7 +764,7 @@ Present in every logged-in state.
 
 ## invoices-detail-paid
 
-`/invoices/2`, logged in as `finance@labapp.test`.
+`/invoices/2`, logged in as `finance@labapp.test`. Page title: `Factura FAC-0002 · LabApp`.
 
 | Test id | Element |
 |---|---|
@@ -795,7 +798,7 @@ Present in every logged-in state.
 
 ## invoices-detail-readonly
 
-`/invoices/1`, logged in as `readonly@labapp.test`.
+`/invoices/1`, logged in as `readonly@labapp.test`. Page title: `Factura FAC-0001 · LabApp`.
 
 | Test id | Element |
 |---|---|
@@ -833,7 +836,7 @@ Present in every logged-in state.
 
 ## settings-admin
 
-`/settings`, logged in as `admin@labapp.test`.
+`/settings`, logged in as `admin@labapp.test`. Page title: `Configuración · LabApp`.
 
 | Test id | Element |
 |---|---|
@@ -846,7 +849,7 @@ Present in every logged-in state.
 
 ## settings-readonly
 
-`/settings`, logged in as `sales@labapp.test`.
+`/settings`, logged in as `sales@labapp.test`. Page title: `Configuración · LabApp`.
 
 | Test id | Element |
 |---|---|

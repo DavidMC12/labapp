@@ -1,6 +1,6 @@
 # Automation guide
 
-LabApp is a small order-to-cash ERP (customers, orders, invoices, payments) built to be automated: it is the application a QA engineer drives with Playwright when learning the suite. This is **part 1: the web UI** — how to start it, how to locate everything, what the screens contain, and how the three core flows behave. Part 2 (the test controls — reset, seed, clock, faults — and the HTTP API contract) follows after those parts exist.
+LabApp is a small order-to-cash ERP (customers, orders, invoices, payments) built to be automated: it is the application a QA engineer drives with Playwright when learning the suite. This is **part 1: the web UI** — how to start it, how to locate everything, what the screens contain, how the three core flows behave and how a customer CSV is uploaded. Part 2, below, covers the HTTP API and the test controls.
 
 Every id, URL, label and message here was read from the code and the documents ([TESTABILITY](TESTABILITY.md), [TESTIDS](TESTIDS.md), [SEED](SEED.md), [SPEC section 2–6 and 8](SPEC.md)). The generated catalog [TESTIDS.md](TESTIDS.md) is the source for ids; this guide links it instead of copying it.
 
@@ -28,6 +28,7 @@ Password for all four: `Demo-LabApp-2026!`. What each role can do ([SPEC section
 |---|---|---|---|---|
 | View customers, products, orders, invoices, payments | yes | yes | yes | yes |
 | Create, edit, deactivate and reactivate customers | yes | yes | no | no |
+| Import customers from a CSV file | yes | yes | no | no |
 | Create and edit Draft orders; confirm, cancel, ship | yes | yes | no | no |
 | Create invoices and register payments | yes | no | yes | no |
 | Change the tax rate | yes | no | no | no |
@@ -76,6 +77,7 @@ One row per screen. "Who" is who gets the screen's main function; every logged-i
 | Customer detail | `/customers/{id}` | view: all; deactivate/reactivate: Admin, Sales | `Cliente {name} · LabApp` | `customers-detail-heading` | — (definition card) |
 | Customer new | `/customers/new` | Admin, Sales (others get the permission alert) | `Nuevo cliente · LabApp` | `customers-form-heading` | `customers-customer-form` |
 | Customer edit | `/customers/{id}/edit` | Admin, Sales (others get the permission alert) | `Editar cliente · LabApp` | `customers-form-heading` | `customers-customer-form` |
+| Customers import | `/customers/import` | Admin, Sales (others get the permission alert) | `Importar clientes · LabApp` | `customers-import-heading` | `customers-import-form` |
 | Orders list | `/orders` | view: all; create: Admin, Sales | `Pedidos · LabApp` | `orders-list-heading` | `orders-list-table` |
 | Order new | `/orders/new` | Admin, Sales (others get the permission alert) | `Nuevo pedido · LabApp` | `orders-form-heading` | `orders-customer-form` |
 | Order detail | `/orders/{id}` | view: all; transitions: Admin, Sales; invoice: Admin, Finance | `Pedido {number} · LabApp` | `orders-detail-heading` | `orders-detail-lines-table` |
@@ -143,6 +145,115 @@ await page.getByTestId("customers-form-email-input").fill("prueba@example.test")
 await page.getByTestId("customers-form-submit-button").click();
 await expect(page.getByTestId("customers-detail-heading")).toHaveText(name);
 await expect(page.getByTestId("customers-detail-state-status")).toHaveText("Activo");
+```
+
+### Import customers from a CSV file (Admin or Sales)
+
+The list puts **Importar CSV** next to **Nuevo cliente** for the two roles that manage customers. Finance and Read-only see no link; opening `/customers/import` answers the same permission notice as the other write screens (`customers-import-forbidden-alert`, `No tienes permiso para realizar esta acción.`) and renders no form. The page is one form: choose a file, press **Importar**, read the answer. The server judges the file; the screen repeats no CSV rule.
+
+| What | Id | Element or text |
+|---|---|---|
+| The link on the list | `customers-list-import-link` | `<a>` "Importar CSV", Admin and Sales only |
+| The heading | `customers-import-heading` | `<h1>`, "Importar clientes" |
+| The help text | `customers-import-help-text` | `<p>`: the five columns, 200 rows and about 100 KB |
+| The file input | `customers-import-file-input` | `input[type=file]`, `accept=".csv,text/csv"`, labelled "Archivo CSV"; the server answers, not a field error |
+| The submit button | `customers-import-submit-button` | `<button type="submit">` "Importar"; disabled without a file and while sending |
+| The back link | `customers-import-back-link` | `<a>` to `/customers`, "Volver a clientes" |
+| The form | `customers-import-form` | `<form>`, carries `data-state` and `aria-busy` |
+| The result text | `customers-import-result-text` | `role="status"`: "Se importó 1 cliente." or "Se importaron N clientes." |
+| The list link | `customers-import-list-link` | `<a>` to `/customers`, "Ver clientes"; rendered after a success |
+| The alert | `customers-import-error-alert` | `<p role="alert">`, focusable; receives the focus after a failure |
+| The errors table | `customers-import-errors-table` | one row per entry of `errors[]` |
+| Its scroll region | `customers-import-errors-region` | the focusable wrapper (kind `region`) of the table |
+| An error row | `customers-import-error-row-N` | the N-th entry, in the API's order |
+| Its line cell | `customers-import-error-line-cell-N` | the line number, or `—` for a whole-file error |
+| Its field cell | `customers-import-error-field-cell-N` | a Spanish label: `Nombre`, `Email`, `Teléfono`, `ID fiscal`, `Dirección`, `Archivo` or `Fila completa` |
+| Its message cell | `customers-import-error-message-cell-N` | the message exactly as the API sends it |
+| The truncation note | `customers-import-truncated-text` | only when `errors[]` has 100 entries: "Se muestran los primeros 100 errores." |
+| The page loading line | `customers-import-loading-status` | `role="status"`, `Cargando…` while the session (`/api/auth/me`) is in flight |
+| The permission notice | `customers-import-forbidden-alert` | `role="alert"` for Finance and Read-only |
+
+**The four states.** The form carries `data-state`, and `aria-busy="true"` while the request is in flight:
+
+| State | When | What a test sees |
+|---|---|---|
+| `idle` | On arrival, and again when a new file is chosen | The submit button is disabled until the input holds a file |
+| `loading` | From the submit until the answer | `aria-busy="true"`; the button is disabled and its own `data-state` is `loading`, but its label stays "Importar" |
+| `success` | The 201 answer | The result text and the list link appear; the file input is emptied and the button disabled again. The form **stays** in `success` until another file is chosen |
+| `error` | Any other answer | The alert appears and takes the focus; the chosen file stays, so a retry is one click. The form stays in `error` until another file is chosen |
+
+The alert text depends on the answer: a rejected file (422) gets the fixed sentence "El archivo tiene errores. No se importó nada." followed by the table; a 413 gets "El archivo es demasiado grande (máximo 100 KB)." and no table; a 403 or 409 shows the API's `detail`; anything else (a network failure included) gets "Ocurrió un error inesperado. Inténtalo de nuevo.". A 422 with a whole-file entry shows `—` under Línea and `Archivo` under Campo; a whole-row entry (`rows[N]`) shows `Fila completa` under Campo.
+
+**The traps.**
+
+- The input is a native file control: clicking the browser's "Choose file" button opens an operating-system dialog and blocks the test. Set the files on the input instead; no file on disk is needed.
+- The rows are in the API's order, and the line is the **line of the file**, not the row number: the header is line 1, blank lines count, and a quoted field with a line break covers two lines.
+- A rejected file creates nothing. Assert the list (its `total`, or the absence of the rows) after a rejection, not only the table.
+- Permission is a page decision as well as a server one: Finance and Read-only get the notice and no form, and the API answers them 403 before reading the file.
+
+```ts
+// Illustrative, not run in CI. A good file: the form ends in success.
+const csv = "name,email\nAna Uno,ana.uno@example.test\n";
+const form = page.getByTestId("customers-import-form");
+await page.getByTestId("customers-list-import-link").click();
+await expect(form).toHaveAttribute("data-state", "idle");
+await expect(page.getByTestId("customers-import-submit-button")).toBeDisabled();
+await page.getByTestId("customers-import-file-input").setInputFiles({
+  name: "clientes.csv",
+  mimeType: "text/csv",
+  buffer: Buffer.from(csv),
+});
+await page.getByTestId("customers-import-submit-button").click();
+await expect(form).toHaveAttribute("data-state", "success");
+await expect(page.getByTestId("customers-import-result-text"))
+  .toHaveText("Se importó 1 cliente.");
+await expect(page.getByTestId("customers-import-list-link"))
+  .toHaveAttribute("href", "/customers");
+await expect(page.getByTestId("customers-import-file-input")).toHaveValue("");
+await expect(page.getByTestId("customers-import-submit-button")).toBeDisabled();
+```
+
+```ts
+// Illustrative, not run in CI. A rejected file: two rows, two errors.
+const bad = "name,email\nA,short@example.test\nValid Name,not-an-email\n";
+const form = page.getByTestId("customers-import-form");
+await page.getByTestId("customers-import-file-input").setInputFiles({
+  name: "clientes.csv",
+  mimeType: "text/csv",
+  buffer: Buffer.from(bad),
+});
+await page.getByTestId("customers-import-submit-button").click();
+await expect(form).toHaveAttribute("data-state", "error");
+const alert = page.getByTestId("customers-import-error-alert");
+await expect(alert).toHaveText("El archivo tiene errores. No se importó nada.");
+await expect(alert).toBeFocused();
+await expect(page.getByTestId("customers-import-error-row-2")).toBeVisible();
+await expect(page.getByTestId("customers-import-error-line-cell-1")).toHaveText("2");
+await expect(page.getByTestId("customers-import-error-field-cell-1")).toHaveText("Nombre");
+await expect(page.getByTestId("customers-import-error-message-cell-1"))
+  .toHaveText("Debe tener al menos 2 caracteres.");
+await expect(page.getByTestId("customers-import-error-line-cell-2")).toHaveText("3");
+await expect(page.getByTestId("customers-import-error-field-cell-2")).toHaveText("Email");
+await expect(page.getByTestId("customers-import-error-message-cell-2"))
+  .toHaveText("El formato no es válido.");
+```
+
+A file above the limit is made in memory too: a buffer of 120 KB is safely above the 100 KB body limit, which covers the whole multipart body. The page answers with the 413 alert and no table:
+
+```ts
+// Illustrative, not run in CI. 120 KB of CSV: the header plus one padded row.
+const big = "name,email\nBig One,big@example.test," + "x".repeat(120 * 1024) + "\n";
+const form = page.getByTestId("customers-import-form");
+await page.getByTestId("customers-import-file-input").setInputFiles({
+  name: "big120k.csv",
+  mimeType: "text/csv",
+  buffer: Buffer.from(big),
+});
+await page.getByTestId("customers-import-submit-button").click();
+await expect(form).toHaveAttribute("data-state", "error");
+await expect(page.getByTestId("customers-import-error-alert"))
+  .toHaveText("El archivo es demasiado grande (máximo 100 KB).");
+await expect(page.getByTestId("customers-import-errors-table")).toHaveCount(0);
 ```
 
 ### Flow 2 — build, confirm and cancel an order (Admin or Sales)
@@ -320,13 +431,13 @@ Each item below was verified in the code and the documents.
 
 ## 9. What is next
 
-Part 1 covered the web UI; **part 2** (the next sections of this document) covers the other half: the HTTP API under `/api` (section 10) and the test-only controls — reset, seed, clock, faults (section 11) — with recipes for the three flows over `curl` (section 12), how to isolate a run (section 13) and the online demo (section 14). The same sections teach the machinery the four lists gained since part 1 was drafted: their `sort` and `direction` parameters and their CSV downloads (section 12) and the headers every API answer carries (section 10). Before writing API tests, read in this order: [SPEC.md](SPEC.md) sections 2–3 (roles, sessions, the origin rule), 5–6 (orders, invoices and payments) and 7–9 (errors, formats, the seed contract); [openapi.json](openapi.json), the committed contract of every endpoint; and [backend/README.md](../backend/README.md) if you want the controls explained from the server side.
+Part 1 covered the web UI, including the one file upload: the customers import (section 5). **Part 2** (the next sections of this document) covers the other half: the HTTP API under `/api` (section 10) and the test-only controls — reset, seed, clock, faults (section 11) — with recipes for the three flows over `curl` (section 12), the customers import over HTTP (section 12), how to isolate a run (section 13) and the online demo (section 14). The same sections teach the machinery the four lists gained since part 1 was drafted: their `sort` and `direction` parameters, their CSV downloads and the customers CSV import (section 12) and the headers every API answer carries (section 10). Before writing API tests, read in this order: [SPEC.md](SPEC.md) sections 2–3 (roles, sessions, the origin rule), [4](SPEC.md#4-customers-flow-1) (customers, including the import rule), 5–6 (orders, invoices and payments) and 7–9 (errors, formats, the seed contract); [openapi.json](openapi.json), the committed contract of every endpoint; and [backend/README.md](../backend/README.md) if you want the controls explained from the server side.
 
 ---
 
 # Part 2: the HTTP API and the test controls
 
-Driving the UI is only half of what makes LabApp easy to automate. The other half is HTTP: every screenshot has an endpoint behind it, and the seed, reset, clock and faults exist so a test can arrange the world it needs. These sections cover the base path and authentication (with the headers every API answer carries), the committed contract, the seven test-control endpoints with recipes, the three core flows over `curl`, the `sort` and `direction` parameters and the CSV downloads of the four lists, the versioning and idempotency machinery, and how to isolate a run from other visitors of the demo.
+Driving the UI is only half of what makes LabApp easy to automate. The other half is HTTP: every screenshot has an endpoint behind it, and the seed, reset, clock and faults exist so a test can arrange the world it needs. These sections cover the base path and authentication (with the headers every API answer carries), the committed contract, the seven test-control endpoints with recipes, the three core flows over `curl`, the `sort` and `direction` parameters and the CSV downloads of the four lists, the customers CSV import and its round trip with the export, the versioning and idempotency machinery, and how to isolate a run from other visitors of the demo.
 
 Every endpoint, status code, header, field and message below was read from the backend code, [SPEC.md](SPEC.md) and the committed contract [openapi.json](openapi.json); each `curl` recipe was verified against the local server that `mise run dev` starts.
 
@@ -809,6 +920,144 @@ expect(data.length).toBe(10);         // the list's total, not one page
 expect(data[0][1]).toBe("Joyería Júpiter"); // the same order the UI shows
 ```
 
+### Upload customers from a CSV file
+
+`POST /api/customers/import` creates the customers of one CSV file, all or nothing: any bad row rejects the whole file and nothing is stored. The request is `multipart/form-data` with one file part named **`file`**; the browser sets its own multipart `Content-Type` with the boundary. Admin and Sales only (403 for the other roles, checked before the file is read), a session (401), and the origin rule of the writes ([section 10](#10-where-the-api-is)): a browser sends `Origin`; `curl` and Playwright `request` send none, which is always allowed, and one that is present must match the application origin or the answer is 403 `CSRF_ORIGIN_MISMATCH` before any file is read.
+
+The good file, with the cookie jar of [section 10](#10-where-the-api-is) (after a reset, so the first new customer is 11):
+
+```bash
+BASE=http://127.0.0.1:8000; J=/tmp/labapp-cookies
+printf 'name,email\nAna Uno,ana.uno@example.test\n' > customers.csv
+curl -s -i -b $J -F 'file=@customers.csv;type=text/csv' "$BASE/api/customers/import"
+# 201 Created; X-Content-Type-Options: nosniff, Cache-Control: no-store, X-Request-Id
+# {"created":1,"items":[{"id":11,"name":"Ana Uno","email":"ana.uno@example.test",
+#   "phone":null,"tax_id":null,"address":null,"status":"active","version":1,
+#   "created_at":"…","updated_at":"…"}]}
+```
+
+A file with two bad rows is rejected whole, and the answer lists both errors in file order:
+
+```bash
+printf 'name,email,phone\nA,short@example.test,+1 555 01\nValid Name,not-an-email,\n' > bad.csv
+curl -s -b $J -F 'file=@bad.csv;type=text/csv' "$BASE/api/customers/import"
+# 422 {"type":"about:blank","title":"Unprocessable Content","status":422,
+#      "code":"VALIDATION_ERROR","detail":"Revisa los datos ingresados.",
+#      "errors":[{"field":"rows[2].name","code":"TOO_SHORT",
+#                 "message":"Debe tener al menos 2 caracteres."},
+#                {"field":"rows[3].email","code":"INVALID_FORMAT",
+#                 "message":"El formato no es válido."}]}
+```
+
+Nothing was created: the rejected file leaves the list as it was — `"total": 10` on a fresh seed, 11 if the good upload above already ran. The same upload from Playwright, which needs no file on disk (illustrative, not run in CI; the `request` fixture shares the browser's cookies):
+
+```ts
+// Illustrative, not run in CI.
+const base = "http://127.0.0.1:8000";
+const csv = "name,email\nAna Uno,ana.uno@example.test\n";
+const res = await request.post(`${base}/api/customers/import`, {
+  multipart: {
+    file: { name: "customers.csv", mimeType: "text/csv", buffer: Buffer.from(csv) },
+  },
+});
+expect(res.status()).toBe(201);
+const { created, items } = await res.json();
+expect(created).toBe(1);
+expect(items[0].email).toBe("ana.uno@example.test");
+```
+
+**The answers.** The endpoint shares the shapes and the headers of the rest of the API ([section 10](#10-where-the-api-is)):
+
+| HTTP | Body | When |
+|---|---|---|
+| 201 | `{created, items}` | every row is valid; `created` is the number of rows and `items` are the `Customer` objects in file order, with consecutive ids |
+| 401 | `UNAUTHENTICATED` | no session |
+| 403 | `FORBIDDEN` | Finance or Read-only; the permission is checked before the multipart body is read |
+| 413 | `PAYLOAD_TOO_LARGE` | the whole multipart body is above about 100 KB |
+| 422 | `VALIDATION_ERROR` with `errors[]` | the file, the header or a row is invalid (the entries below) |
+| 409 | `CUSTOMER_EMAIL_TAKEN` | another request took one of the emails between validation and insert; nothing is created |
+
+| Entry | Code | When |
+|---|---|---|
+| `file` | `REQUIRED` | the part `file` is missing or empty |
+| `file` | `INVALID_FORMAT` | the file is not UTF-8, its name does not end in `.csv`, it is not parseable CSV, or the header is invalid |
+| `file` | `OUT_OF_RANGE` | fewer than 1 or more than 200 data rows: "El valor debe estar entre 1 y 200." |
+| `rows[N]` | `INVALID_FORMAT` | a row has more or fewer cells than the header |
+| `rows[N].<column>` | the field codes | a column fails the creation rule; the email duplicate of the seed or of an earlier row is `CUSTOMER_EMAIL_TAKEN` |
+
+**The limits.** All of them are enforced by the server, so a test can provoke each one:
+
+- The file is UTF-8; a leading byte order mark is ignored. Its name ends in `.csv` in any case. The separator is the comma, quoting is RFC 4180, line ends are CRLF or LF, and blank lines are ignored.
+- The first line is the header: the columns are `name`, `email`, `phone`, `tax_id` and `address`, case-sensitive, each at most once; `name` and `email` must be present.
+- There are 1 to 200 data rows. Each one follows the creation rules of a customer (trimming, lengths, formats); an empty optional value is stored as `null`, and the email is trimmed and lowercased. Values are stored as the file gives them after trimming: the import does not remove a leading single quote.
+- Any error rejects the file: nothing is created, the answer lists every error in file order, and the list stops at **100 entries**.
+- The request size limit covers the whole multipart body, the file and the multipart overhead included, so a file of about 100 KB already answers 413.
+
+**The line numbers.** `N` is the physical line in the file, not the position of the data row: the header is line 1, a blank line counts, and a quoted field with a line break covers as many lines as it spans. The header, a blank line, a row whose quoted `address` spans lines 3 and 4, a blank line and a bad row on line 6:
+
+```bash
+printf 'name,email,address\n\nGamma Tres,gamma.tres@example.test,"Linea uno\nLinea dos"\n\nA,bad-line@example.test,Calle\n' > lines.csv
+curl -s -b $J -F 'file=@lines.csv;type=text/csv' "$BASE/api/customers/import"
+# 422 {"code":"VALIDATION_ERROR", ...,
+#      "errors":[{"field":"rows[6].name","code":"TOO_SHORT",
+#                 "message":"Debe tener al menos 2 caracteres."}]}
+```
+
+### Round trip: export, reshape and import
+
+The export is not an import file: it carries `id` and `status`, columns the import does not accept. Its `name` and `email` are exactly what the import needs, which makes a short round trip that ties the download and the upload together. On a fresh seed the exported emails are already taken, so the first upload is a lesson in duplicates; renaming them makes it succeed.
+
+```bash
+BASE=http://127.0.0.1:8000; J=/tmp/labapp-cookies
+curl -s -X POST "$BASE/__test__/reset" >/dev/null
+curl -s -c $J -H 'Content-Type: application/json' \
+  -d '{"email":"sales@labapp.test","password":"Demo-LabApp-2026!"}' \
+  "$BASE/api/auth/login" >/dev/null
+curl -s -b $J -o export.csv "$BASE/api/customers/export"
+python3 - <<'PY'
+import csv
+with open("export.csv", newline="") as source:
+    rows = list(csv.DictReader(source))
+with open("keep.csv", "w", newline="") as out:
+    writer = csv.writer(out, lineterminator="\n")
+    writer.writerow(["name", "email"])
+    for row in rows:
+        writer.writerow([row["name"], row["email"]])
+PY
+```
+
+`keep.csv` holds the ten seeded customers in the export's order (`Joyería Júpiter` first) and two columns. Uploaded as it is:
+
+```bash
+curl -s -b $J -F 'file=@keep.csv;type=text/csv' "$BASE/api/customers/import" \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["code"]); print([e["field"] for e in d["errors"]]); print({e["code"] for e in d["errors"]})'
+# VALIDATION_ERROR
+# ['rows[2].email', 'rows[3].email', 'rows[4].email', 'rows[5].email', 'rows[6].email',
+#  'rows[7].email', 'rows[8].email', 'rows[9].email', 'rows[10].email', 'rows[11].email']
+# {'CUSTOMER_EMAIL_TAKEN'}
+```
+
+Ten entries, one per seeded customer, and nothing is created. Add a suffix to every email and upload again:
+
+```bash
+python3 - <<'PY'
+import csv
+with open("keep.csv", newline="") as source:
+    rows = list(csv.DictReader(source))
+with open("renamed.csv", "w", newline="") as out:
+    writer = csv.writer(out, lineterminator="\n")
+    writer.writerow(["name", "email"])
+    for row in rows:
+        local, domain = row["email"].split("@")
+        writer.writerow([row["name"], f"{local}+copy@{domain}"])
+PY
+curl -s -b $J -F 'file=@renamed.csv;type=text/csv' "$BASE/api/customers/import" \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["created"], [i["id"] for i in d["items"]], [i["email"] for i in d["items"]][:2])'
+# 10 [11, 12, 13, 14, 15, 16, 17, 18, 19, 20] ['joyeria+copy@example.test', 'iberica+copy@example.test']
+```
+
+The list now has 20 customers; a reset puts the ten back ([section 11](#11-the-test-controls)). Only `name` and `email` were kept, so `phone`, `tax_id` and `address` arrive `null`: the round trip copies the identity of each customer, not its whole record.
+
 ## 13. Isolating tests
 
 A test that assumes a clean world will eventually meet someone else's data. The reset controls give three patterns; choose one per project and keep it.
@@ -842,11 +1091,10 @@ Three extra facts about the online world ([docs/DEPLOYMENT.md](DEPLOYMENT.md)):
 ## 15. What to read next
 
 - [openapi.json](openapi.json) — the committed contract; import it into your HTTP client instead of re-typing requests. The command that regenerates it when the API changes is `cd backend && uv run python -m app.cli openapi --output ../docs/openapi.json`.
-- [SPEC.md](SPEC.md) — sections [3](SPEC.md#3-authentication-and-sessions) (sessions, the origin rule, the rate limits), [5](SPEC.md#5-orders-flow-2) (orders and concurrency), [6](SPEC.md#6-invoices-and-payments-flow-3) (invoices, payments, idempotency), [7](SPEC.md#7-errors-and-validation-order) (the stable error codes) and [9](SPEC.md#9-seed-data) (what a reset and a seed restore).
-- In this guide, the machinery of the four lists: [Sort the four lists](#sort-the-four-lists) (the UI side); [Sorting the lists: sort and direction](#sorting-the-lists-sort-and-direction) and [Download the lists as CSV](#download-the-lists-as-csv) in section 12, and [The headers of every API answer](#the-headers-of-every-api-answer) in section 10.
+- [SPEC.md](SPEC.md) — sections [3](SPEC.md#3-authentication-and-sessions) (sessions, the origin rule, the rate limits), [4](SPEC.md#4-customers-flow-1) (customers and the import rule, all or nothing), [5](SPEC.md#5-orders-flow-2) (orders and concurrency), [6](SPEC.md#6-invoices-and-payments-flow-3) (invoices, payments, idempotency), [7](SPEC.md#7-errors-and-validation-order) (the stable error codes) and [9](SPEC.md#9-seed-data) (what a reset and a seed restore).
+- In this guide, the machinery of the four lists and the upload: [Sort the four lists](#sort-the-four-lists) and [Import customers from a CSV file](#import-customers-from-a-csv-file-admin-or-sales) (the UI side); [Sorting the lists: sort and direction](#sorting-the-lists-sort-and-direction), [Download the lists as CSV](#download-the-lists-as-csv), [Upload customers from a CSV file](#upload-customers-from-a-csv-file) and [Round trip: export, reshape and import](#round-trip-export-reshape-and-import) in section 12, and [The headers of every API answer](#the-headers-of-every-api-answer) in section 10.
 - [SEED.md](SEED.md) — the exact data every recipe above leans on.
 - [backend/README.md](../backend/README.md) — the same controls from the implementer's side ("Test controls", "Request controls", "OpenAPI contract").
 - [DEPLOYMENT.md](DEPLOYMENT.md) and [DEVELOPMENT.md](DEVELOPMENT.md) — where the demo lives and how to start the stack locally.
 - Part 1 of this guide, for the UI side of the same flows.
-
-- [PRACTICE.md](PRACTICE.md) — the catalog of practice scenarios: what to test, row by row, with the exact expected result from the specification, so every recipe of this guide has a scenario to land on.
+- [PRACTICE.md](PRACTICE.md) — the catalog of practice scenarios: what to test, row by row, with the exact expected result from the specification, so every recipe of this guide has a scenario to land on. Its [area J](PRACTICE.md#j-customers-import-file-upload) is the file upload in 30 rows, from a clean import to the export uploaded back.

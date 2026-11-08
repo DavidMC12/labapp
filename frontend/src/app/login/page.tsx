@@ -147,145 +147,170 @@ function LoginPageContent() {
   const isSubmitting = login.isPending;
 
   return (
-    <div className="min-h-screen md:grid md:grid-cols-2">
+    <>
       {/*
-       * The rail panel of the login: the brand and the theme's sentence.
-       * Hidden below 768px, where the form takes the whole width.
+       * The first focusable element of the page (WCAG 2.4.1 bypass
+       * blocks): hidden until it receives focus, then a solid chip. It
+       * jumps to the main landmark of the login, which the other list
+       * screens reach through the shell's own link.
        */}
-      <aside className="hidden bg-rail text-rail-ink md:flex md:flex-col md:justify-between md:p-10">
-        <div>
-          <p className="flex items-center gap-2 font-serif text-lg font-semibold">
-            <LedgerMark />
-            LabApp
-          </p>
-        </div>
-        <div className="max-w-[420px]">
-          <p
-            data-testid="auth-login-tagline-text"
-            className="font-serif text-[32px] leading-[1.2]"
-          >
-            Del pedido al cobro, sin perder el hilo.
-          </p>
-          <p
-            data-testid="auth-login-notice-text"
-            className="mt-3 text-[13px] text-rail-muted"
-          >
-            Demostración pública. Los datos se reinician cada noche.
-          </p>
-        </div>
-      </aside>
-
-      {/*
-       * The form column: heading, error alert, form and demo users.
-       */}
-      <div className="flex min-w-0 items-center justify-center px-4 py-10 md:px-10">
-        <div className="w-full max-w-[440px]">
-          {/*
-           * The theme selector sits at the top right of the form column,
-           * above the heading.
-           */}
-          <div className="flex justify-end">
-            <div className="w-40">
-              <ThemeSelect testId="auth-login-theme-select" id="auth-login-theme" />
-            </div>
+      <a
+        href="#main-content"
+        data-testid="auth-login-skip-link"
+        className={[
+          "sr-only focus:not-sr-only",
+          "focus:fixed focus:left-2 focus:top-2 focus:z-50",
+          "focus:rounded-md focus:bg-surface focus:px-3 focus:py-2",
+          "focus:font-medium focus:text-ink",
+        ].join(" ")}
+      >
+        Saltar al contenido
+      </a>
+      {/* The main landmark the login page did not have. */}
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="min-h-screen md:grid md:grid-cols-2"
+      >
+        {/*
+         * The rail panel of the login: the brand and the theme's sentence.
+         * Hidden below 768px, where the form takes the whole width.
+         */}
+        <aside className="hidden bg-rail text-rail-ink md:flex md:flex-col md:justify-between md:p-10">
+          <div>
+            <p className="flex items-center gap-2 font-serif text-lg font-semibold">
+              <LedgerMark />
+              LabApp
+            </p>
           </div>
-          <h1 data-testid="auth-login-heading">Iniciar sesión</h1>
-
-          {formError ? (
-            <div className="mt-3">
-              <Alert
-                ref={formAlertRef}
-                testId="auth-login-form-alert"
-                tabIndex={-1}
-              >
-                {formError}
-              </Alert>
-            </div>
-          ) : null}
-
-          {showExpiredNotice ? (
-            <div className="mt-3">
-              <Alert testId="auth-login-expired-alert">
-                Tu sesión expiró. Inicia sesión de nuevo.
-              </Alert>
-            </div>
-          ) : null}
-
-          <form
-            data-testid="auth-login-form"
-            noValidate
-            onSubmit={handleSubmit}
-            className="mt-6 flex flex-col gap-4"
-          >
-            <Input
-              ref={emailRef}
-              id="auth-login-email"
-              testId="auth-login-email-input"
-              label="Email"
-              type="email"
-              autoComplete="username"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              error={fieldErrors.email}
-            />
-            <Input
-              ref={passwordRef}
-              id="auth-login-password"
-              testId="auth-login-password-input"
-              label="Contraseña"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              error={fieldErrors.password}
-            />
-            <Button
-              testId="auth-login-submit-button"
-              type="submit"
-              loading={isSubmitting}
-              className="w-full"
-            >
-              {isSubmitting ? "Ingresando…" : "Ingresar"}
-            </Button>
-          </form>
-
-          <section
-            aria-labelledby="auth-login-demo-title"
-            className="mt-8 rounded-lg border border-line bg-surface p-5"
-          >
+          <div className="max-w-[420px]">
             <p
-              id="auth-login-demo-title"
-              data-testid="auth-login-demo-title-text"
-              className="text-[13px] font-semibold"
+              data-testid="auth-login-tagline-text"
+              className="font-serif text-[32px] leading-[1.2]"
             >
-              Usuarios de demostración
+              Del pedido al cobro, sin perder el hilo.
             </p>
-            <ul
-              data-testid="auth-login-demo-list"
-              className="mt-2 divide-y divide-line"
+            <p
+              data-testid="auth-login-notice-text"
+              className="mt-3 text-[13px] text-rail-muted"
             >
-              {DEMO_USERS.map((user) => (
-                <li
-                  key={user.email}
-                  data-testid={user.testId}
-                  className="flex items-baseline justify-between gap-3 py-1.5"
+              Demostración pública. Los datos se reinician cada noche.
+            </p>
+          </div>
+        </aside>
+
+        {/*
+         * The form column: heading, error alert, form and demo users.
+         */}
+        <div className="flex min-w-0 items-center justify-center px-4 py-10 md:px-10">
+          <div className="w-full max-w-[440px]">
+            {/*
+             * The theme selector sits at the top right of the form column,
+             * above the heading.
+             */}
+            <div className="flex justify-end">
+              <div className="w-40">
+                <ThemeSelect testId="auth-login-theme-select" id="auth-login-theme" />
+              </div>
+            </div>
+            <h1 data-testid="auth-login-heading">Iniciar sesión</h1>
+
+            {formError ? (
+              <div className="mt-3">
+                <Alert
+                  ref={formAlertRef}
+                  testId="auth-login-form-alert"
+                  tabIndex={-1}
                 >
-                  <span className="text-ink">{user.email}</span>
-                  <span className="text-[13px] text-muted">
-                    {roleLabel(user.role)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <p
-              data-testid="auth-login-demo-password-text"
-              className="mt-3 text-[13px] text-muted"
+                  {formError}
+                </Alert>
+              </div>
+            ) : null}
+
+            {showExpiredNotice ? (
+              <div className="mt-3">
+                <Alert testId="auth-login-expired-alert">
+                  Tu sesión expiró. Inicia sesión de nuevo.
+                </Alert>
+              </div>
+            ) : null}
+
+            <form
+              data-testid="auth-login-form"
+              noValidate
+              onSubmit={handleSubmit}
+              className="mt-6 flex flex-col gap-4"
             >
-              {DEMO_PASSWORD_TEXT}
-            </p>
-          </section>
+              <Input
+                ref={emailRef}
+                id="auth-login-email"
+                testId="auth-login-email-input"
+                label="Email"
+                type="email"
+                autoComplete="username"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                error={fieldErrors.email}
+              />
+              <Input
+                ref={passwordRef}
+                id="auth-login-password"
+                testId="auth-login-password-input"
+                label="Contraseña"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                error={fieldErrors.password}
+              />
+              <Button
+                testId="auth-login-submit-button"
+                type="submit"
+                loading={isSubmitting}
+                className="w-full"
+              >
+                {isSubmitting ? "Ingresando…" : "Ingresar"}
+              </Button>
+            </form>
+
+            <section
+              aria-labelledby="auth-login-demo-title"
+              className="mt-8 rounded-lg border border-line bg-surface p-5"
+            >
+              <p
+                id="auth-login-demo-title"
+                data-testid="auth-login-demo-title-text"
+                className="text-[13px] font-semibold"
+              >
+                Usuarios de demostración
+              </p>
+              <ul
+                data-testid="auth-login-demo-list"
+                className="mt-2 divide-y divide-line"
+              >
+                {DEMO_USERS.map((user) => (
+                  <li
+                    key={user.email}
+                    data-testid={user.testId}
+                    className="flex items-baseline justify-between gap-3 py-1.5"
+                  >
+                    <span className="text-ink">{user.email}</span>
+                    <span className="text-[13px] text-muted">
+                      {roleLabel(user.role)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p
+                data-testid="auth-login-demo-password-text"
+                className="mt-3 text-[13px] text-muted"
+              >
+                {DEMO_PASSWORD_TEXT}
+              </p>
+            </section>
+          </div>
         </div>
-      </div>
-    </div>
+      </main>
+    </>
   );
 }

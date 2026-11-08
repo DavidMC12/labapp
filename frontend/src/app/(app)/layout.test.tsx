@@ -2,8 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import AppLayout from "./layout";
-import { ME_QUERY_KEY } from "@/features/auth/hooks";
+import AppLayout from "./layout";import { ME_QUERY_KEY } from "@/features/auth/hooks";
 import { SESSION_EXPIRED_QUERY_KEY } from "@/features/auth/session";
 
 const { routerMock } = vi.hoisted(() => ({
@@ -249,6 +248,54 @@ describe("app shell session", () => {
       ).toHaveAttribute("href", "/invoices");
     });
   }
+});
+
+describe("the skip link and the landmarks of the shell", () => {
+  beforeEach(async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(userPayload("admin", "admin@labapp.test"), 200,
+        "application/json"),
+    );
+  });
+
+  it("puts the skip link first in the tab order, with the target ready", async () => {
+    renderShell();
+    await waitFor(() => {
+      expect(screen.getByTestId("app-user-name-text")).toBeInTheDocument();
+    });
+
+    const skipLink = screen.getByTestId("app-skip-link");
+    expect(skipLink).toHaveTextContent("Saltar al contenido");
+    expect(skipLink).toHaveAttribute("href", "#main-content");
+
+    // First focusable element: the first Tab of a fresh page reaches it.
+    const user = userEvent.setup();
+    await user.tab();
+    expect(document.activeElement).toBe(skipLink);
+
+    // The screen content is one heading further, not the brand or the nav.
+    await user.tab();
+    expect(document.activeElement).not.toBe(skipLink);
+    expect(document.activeElement).toHaveAttribute("data-testid",
+      "app-nav-home-link");
+  });
+
+  it("gives the main landmark the id the link points at", async () => {
+    renderShell();
+    await waitFor(() => {
+      expect(screen.getByTestId("app-user-name-text")).toBeInTheDocument();
+    });
+
+    const main = document.querySelector("main");
+    expect(main).not.toBeNull();
+    expect(main).toHaveAttribute("id", "main-content");
+    expect(main).toHaveAttribute("tabindex", "-1");
+
+    // The shell keeps its navigation landmark.
+    expect(
+      screen.getByRole("navigation", { name: "Principal" }),
+    ).toBeInTheDocument();
+  });
 });
 
 describe("app shell logout", () => {

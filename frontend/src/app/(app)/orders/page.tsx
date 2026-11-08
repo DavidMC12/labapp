@@ -8,6 +8,7 @@ import { parseOrderListParams } from "@/features/orders/params";
 import { canEditOrders } from "@/features/orders/permissions";
 import { orderStatusLabel } from "@/features/orders/types";
 import { ApiRequestError, INTERNAL_ERROR_DETAIL } from "@/lib/api";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { formatDate, formatMoney } from "@/lib/format";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
@@ -397,6 +398,8 @@ function lastPage(total: number, pageSize: number): number {
 }
 
 export default function OrdersPage() {
+  useDocumentTitle("Pedidos");
+
   return (
     <Suspense
       fallback={

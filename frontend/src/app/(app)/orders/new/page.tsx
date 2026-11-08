@@ -6,6 +6,7 @@ import { useCustomers } from "@/features/customers/hooks";
 import { useCreateOrder } from "@/features/orders/hooks";
 import { canEditOrders } from "@/features/orders/permissions";
 import { ApiRequestError, INTERNAL_ERROR_DETAIL } from "@/lib/api";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
@@ -16,6 +17,7 @@ import { useEffect, useRef, useState } from "react";
  * the one that submits.
  */
 export default function CustomerCreatePage() {
+  useDocumentTitle("Nuevo pedido");
   const me = useMe();
   const router = useRouter();
   const create = useCreateOrder();

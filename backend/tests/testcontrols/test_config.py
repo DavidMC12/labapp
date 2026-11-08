@@ -48,6 +48,8 @@ def test_test_mode_is_allowed_outside_a_vercel_deployment(
     monkeypatch: pytest.MonkeyPatch,
     deployment: str | None,
 ) -> None:
+    monkeypatch.delenv("AWS_LAMBDA_FUNCTION_NAME", raising=False)
+    monkeypatch.delenv("VERCEL", raising=False)
     if deployment is None:
         monkeypatch.delenv("VERCEL_ENV", raising=False)
     else:

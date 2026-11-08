@@ -50,6 +50,38 @@ Present in every logged-in state.
 | `auth-login-tagline-text` | `p` |
 | `auth-login-theme-select` | `select` |
 
+## login-expired
+
+`/login?expired=1`, no session.
+
+| Test id | Element |
+|---|---|
+| `auth-login-demo-item-1` | `li` |
+| `auth-login-demo-item-2` | `li` |
+| `auth-login-demo-item-3` | `li` |
+| `auth-login-demo-item-4` | `li` |
+| `auth-login-demo-list` | `ul` |
+| `auth-login-demo-password-text` | `p` |
+| `auth-login-demo-title-text` | `p` |
+| `auth-login-email-input` | `input[type=email]` |
+| `auth-login-expired-alert` | `p[role=alert]` |
+| `auth-login-form` | `form` |
+| `auth-login-heading` | `h1` |
+| `auth-login-notice-text` | `p` |
+| `auth-login-password-input` | `input[type=password]` |
+| `auth-login-submit-button` | `button` |
+| `auth-login-tagline-text` | `p` |
+| `auth-login-theme-select` | `select` |
+
+## not-found
+
+`/no-such-page`, no session.
+
+| Test id | Element |
+|---|---|
+| `app-notfound-heading` | `h1` |
+| `app-notfound-home-link` | `a` |
+
 ## home
 
 `/`, logged in as `sales@labapp.test`.

@@ -3,6 +3,8 @@
   "password": "Demo-LabApp-2026!",
   "states": [
     { "name": "login", "path": "/login", "user": null, "waitFor": "auth-login-form" },
+    { "name": "login-expired", "path": "/login?expired=1", "user": null, "waitFor": "auth-login-expired-alert" },
+    { "name": "not-found", "path": "/no-such-page", "user": null, "waitFor": "app-notfound-heading" },
     { "name": "home", "path": "/", "user": "sales@labapp.test", "waitFor": "home-customers-active-count-text" },
     { "name": "customers-list", "path": "/customers", "user": "sales@labapp.test", "waitFor": "customers-list-table" },
     { "name": "customers-list-readonly", "path": "/customers", "user": "readonly@labapp.test", "waitFor": "customers-list-table" },

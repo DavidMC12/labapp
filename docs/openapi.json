@@ -2676,171 +2676,51 @@
             }
           },
           "401": {
-            "description": "Authentication failed.",
+            "description": "There is no session or it expired. Codes: `UNAUTHENTICATED`, `SESSION_EXPIRED`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
-          "403": {
-            "description": "Permission denied.",
+          "429": {
+            "description": "Too many requests. Code: `RATE_LIMITED`; the answer carries `Retry-After`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
-          "404": {
-            "description": "Invoice or order not found.",
+          "500": {
+            "description": "Unexpected server error. Code: `INTERNAL_ERROR`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
-          "409": {
-            "description": "Version or state conflict.",
+          "503": {
+            "description": "The service or a database lock is busy. Code: `LOCK_TIMEOUT`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "422": {
-            "description": "Validation error.",
+            "description": "The query parameters are invalid. Code: `VALIDATION_ERROR` (with `errors[]`).",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -2884,171 +2764,61 @@
             }
           },
           "401": {
-            "description": "Authentication failed.",
+            "description": "There is no session or it expired. Codes: `UNAUTHENTICATED`, `SESSION_EXPIRED`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
-          "403": {
-            "description": "Permission denied.",
+          "429": {
+            "description": "Too many requests. Code: `RATE_LIMITED`; the answer carries `Retry-After`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error. Code: `INTERNAL_ERROR`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service or a database lock is busy. Code: `LOCK_TIMEOUT`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "404": {
-            "description": "Invoice or order not found.",
+            "description": "The invoice does not exist. Code: `NOT_FOUND`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Version or state conflict.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "422": {
-            "description": "Validation error.",
+            "description": "The id is not an integer. Code: `VALIDATION_ERROR` (with `errors[]`).",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -3108,171 +2878,81 @@
             }
           },
           "401": {
-            "description": "Authentication failed.",
+            "description": "There is no session or it expired. Codes: `UNAUTHENTICATED`, `SESSION_EXPIRED`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "403": {
-            "description": "Permission denied.",
+            "description": "The Origin is not allowed or the role lacks the permission. Codes: `CSRF_ORIGIN_MISMATCH`, `FORBIDDEN`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests. Code: `RATE_LIMITED`; the answer carries `Retry-After`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error. Code: `INTERNAL_ERROR`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service or a database lock is busy. Code: `LOCK_TIMEOUT`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "404": {
-            "description": "Invoice or order not found.",
+            "description": "The order does not exist. Code: `NOT_FOUND`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "409": {
-            "description": "Version or state conflict.",
+            "description": "The version is stale, the order already has an invoice or it is not confirmed. Codes: `VERSION_CONFLICT`, `INVOICE_ALREADY_EXISTS`, `ORDER_NOT_INVOICEABLE`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "422": {
-            "description": "Validation error.",
+            "description": "The id or the If-Match header is invalid, or the customer has no tax id. Codes: `VALIDATION_ERROR` (with `errors[]`), `CUSTOMER_TAX_ID_REQUIRED`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -3341,85 +3021,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "title": "PaymentCreate",
-                "$defs": {
-                  "PaymentCard": {
-                    "description": "The card object of a card payment.",
-                    "properties": {
-                      "number": {
-                        "description": "The card number. Spaces are allowed and ignored.",
-                        "title": "Number",
-                        "type": "string"
-                      },
-                      "expiry": {
-                        "description": "The expiry date as `MM/YY`.",
-                        "title": "Expiry",
-                        "type": "string"
-                      },
-                      "cvc": {
-                        "description": "The three-digit security code.",
-                        "title": "Cvc",
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "number",
-                      "expiry",
-                      "cvc"
-                    ],
-                    "title": "PaymentCard",
-                    "type": "object"
-                  }
-                },
-                "additionalProperties": false,
-                "description": "The documented shape of the payment body.\n\n`method` and `amount` are always required. With `method: card`, `card` is required\nand `reference` is not used. With `method: transfer`, `reference` is required and\n`card` is not used. With `method: cash`, neither `card` nor `reference` is used.\n\nThe route receives the raw JSON body so that the idempotency replay can be decided\nbefore validation; this model only documents the contract in OpenAPI.",
-                "properties": {
-                  "method": {
-                    "description": "`card`, `transfer` or `cash`.",
-                    "enum": [
-                      "card",
-                      "transfer",
-                      "cash"
-                    ],
-                    "title": "Method",
-                    "type": "string"
-                  },
-                  "amount": {
-                    "description": "The amount, as a string with at most two decimals.",
-                    "example": "121.00",
-                    "pattern": "^[0-9]{1,10}(\\.[0-9]{1,2})?$",
-                    "title": "Amount",
-                    "type": "string"
-                  },
-                  "card": {
-                    "anyOf": [
-                      {
-                        "$ref": "#/$defs/PaymentCard"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "description": "Required with `method: card`; not used with another method."
-                  },
-                  "reference": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "description": "Required with `method: transfer`; not used with another method.",
-                    "title": "Reference"
-                  }
-                },
-                "required": [
-                  "method",
-                  "amount"
-                ],
-                "type": "object"
+                "$ref": "#/components/schemas/PaymentCreate"
               }
             }
           }
@@ -3435,294 +3037,112 @@
               }
             }
           },
-          "401": {
-            "description": "Authentication failed.",
+          "400": {
+            "description": "The request body is not valid JSON. Code: `MALFORMED_JSON`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The request body exceeds 100 KB. Code: `PAYLOAD_TOO_LARGE`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "There is no session or it expired. Codes: `UNAUTHENTICATED`, `SESSION_EXPIRED`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "403": {
-            "description": "Permission denied.",
+            "description": "The Origin is not allowed or the role lacks the permission. Codes: `CSRF_ORIGIN_MISMATCH`, `FORBIDDEN`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
-          "404": {
-            "description": "Invoice or order not found.",
+          "429": {
+            "description": "Too many requests. Code: `RATE_LIMITED`; the answer carries `Retry-After`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
-          "409": {
-            "description": "Version or state conflict.",
+          "500": {
+            "description": "Unexpected server error. Code: `INTERNAL_ERROR`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation error.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "402": {
-            "description": "The gateway declined the payment.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "allOf": [
-                    {
-                      "type": "object",
-                      "required": [
-                        "type",
-                        "title",
-                        "status",
-                        "code",
-                        "detail"
-                      ],
-                      "properties": {
-                        "type": {
-                          "type": "string"
-                        },
-                        "title": {
-                          "type": "string"
-                        },
-                        "status": {
-                          "type": "integer"
-                        },
-                        "code": {
-                          "type": "string"
-                        },
-                        "detail": {
-                          "type": "string"
-                        }
-                      }
-                    }
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    },
-                    "payment_id": {
-                      "type": "integer"
-                    },
-                    "reason": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "503": {
-            "description": "The gateway is unavailable.",
+            "description": "The service or a database lock is busy. Codes: `LOCK_TIMEOUT`, `PAYMENT_GATEWAY_UNAVAILABLE`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "allOf": [
-                    {
-                      "type": "object",
-                      "required": [
-                        "type",
-                        "title",
-                        "status",
-                        "code",
-                        "detail"
-                      ],
-                      "properties": {
-                        "type": {
-                          "type": "string"
-                        },
-                        "title": {
-                          "type": "string"
-                        },
-                        "status": {
-                          "type": "integer"
-                        },
-                        "code": {
-                          "type": "string"
-                        },
-                        "detail": {
-                          "type": "string"
-                        }
-                      }
-                    }
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    },
-                    "payment_id": {
-                      "type": "integer"
-                    },
-                    "reason": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "402": {
+            "description": "The gateway declined the payment. Code: `PAYMENT_DECLINED`; the body carries `payment_id` and `reason`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The invoice does not exist. Code: `NOT_FOUND`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The version is stale or the invoice does not accept payments. Codes: `VERSION_CONFLICT`, `INVOICE_NOT_PAYABLE`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The body, the Idempotency-Key header or the If-Match header is invalid, the key was reused, the amount differs from the total, or a card or transfer field is invalid. Codes: `VALIDATION_ERROR` (with `errors[]`), `IDEMPOTENCY_KEY_REQUIRED`, `IDEMPOTENCY_KEY_REUSED`, `PAYMENT_AMOUNT_MISMATCH`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }

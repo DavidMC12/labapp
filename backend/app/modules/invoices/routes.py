@@ -19,77 +19,61 @@ from app.modules.invoices.models import Invoice, InvoiceStatus
 from app.modules.invoices.service import MAX_ID, PAGE_SIZE, InvoiceService
 from app.modules.orders.dependencies import get_order
 from app.modules.orders.service import OrderView
+from app.openapi import component_ref, documented_responses
 
 router = APIRouter(prefix="/api", tags=["invoices"])
 
 _DIGITS = re.compile(r"[0-9]+")
 
-_PROBLEM_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "required": ["type", "title", "status", "code", "detail"],
-    "properties": {
-        "type": {"type": "string"},
-        "title": {"type": "string"},
-        "status": {"type": "integer"},
-        "code": {"type": "string"},
-        "detail": {"type": "string"},
+_LIST_RESPONSES = documented_responses(
+    method="GET",
+    extra={422: "The query parameters are invalid. Code: `VALIDATION_ERROR` (with `errors[]`)."},
+)
+_READ_RESPONSES = documented_responses(
+    method="GET",
+    extra={
+        404: "The invoice does not exist. Code: `NOT_FOUND`.",
+        422: "The id is not an integer. Code: `VALIDATION_ERROR` (with `errors[]`).",
     },
-}
-
-_PAYMENT_PROBLEM_SCHEMA: dict[str, Any] = {
-    "allOf": [_PROBLEM_SCHEMA],
-    "properties": {
-        "type": {"type": "string"},
-        "title": {"type": "string"},
-        "status": {"type": "integer"},
-        "code": {"type": "string"},
-        "detail": {"type": "string"},
-        "payment_id": {"type": "integer"},
-        "reason": {"type": "string"},
+)
+_ISSUE_RESPONSES = documented_responses(
+    method="POST",
+    permission=True,
+    extra={
+        404: "The order does not exist. Code: `NOT_FOUND`.",
+        409: "The version is stale, the order already has an invoice or it is not "
+        "confirmed. Codes: `VERSION_CONFLICT`, `INVOICE_ALREADY_EXISTS`, "
+        "`ORDER_NOT_INVOICEABLE`.",
+        422: "The id or the If-Match header is invalid, or the customer has no tax "
+        "id. Codes: `VALIDATION_ERROR` (with `errors[]`), "
+        "`CUSTOMER_TAX_ID_REQUIRED`.",
     },
-}
-
-_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
-    401: {
-        "description": "Authentication failed.",
-        "content": {"application/problem+json": {"schema": _PROBLEM_SCHEMA}},
+)
+_PAYMENT_RESPONSES = documented_responses(
+    method="POST",
+    body=True,
+    permission=True,
+    unavailable=("LOCK_TIMEOUT", "PAYMENT_GATEWAY_UNAVAILABLE"),
+    extra={
+        402: "The gateway declined the payment. Code: `PAYMENT_DECLINED`; the body "
+        "carries `payment_id` and `reason`.",
+        404: "The invoice does not exist. Code: `NOT_FOUND`.",
+        409: "The version is stale or the invoice does not accept payments. Codes: "
+        "`VERSION_CONFLICT`, `INVOICE_NOT_PAYABLE`.",
+        422: "The body, the Idempotency-Key header or the If-Match header is "
+        "invalid, the key was reused, the amount differs from the total, or a card "
+        "or transfer field is invalid. Codes: `VALIDATION_ERROR` (with "
+        "`errors[]`), `IDEMPOTENCY_KEY_REQUIRED`, `IDEMPOTENCY_KEY_REUSED`, "
+        "`PAYMENT_AMOUNT_MISMATCH`.",
     },
-    403: {
-        "description": "Permission denied.",
-        "content": {"application/problem+json": {"schema": _PROBLEM_SCHEMA}},
-    },
-    404: {
-        "description": "Invoice or order not found.",
-        "content": {"application/problem+json": {"schema": _PROBLEM_SCHEMA}},
-    },
-    409: {
-        "description": "Version or state conflict.",
-        "content": {"application/problem+json": {"schema": _PROBLEM_SCHEMA}},
-    },
-    422: {
-        "description": "Validation error.",
-        "content": {"application/problem+json": {"schema": _PROBLEM_SCHEMA}},
-    },
-}
-
-_PAYMENT_RESPONSES: dict[int | str, dict[str, Any]] = {
-    **_ERROR_RESPONSES,
-    402: {
-        "description": "The gateway declined the payment.",
-        "content": {"application/problem+json": {"schema": _PAYMENT_PROBLEM_SCHEMA}},
-    },
-    503: {
-        "description": "The gateway is unavailable.",
-        "content": {"application/problem+json": {"schema": _PAYMENT_PROBLEM_SCHEMA}},
-    },
-}
+)
 
 _PAYMENT_BODY = {
     "requestBody": {
         "required": True,
         "content": {
             "application/json": {
-                "schema": schemas.PaymentCreate.model_json_schema(),
+                "schema": {"$ref": component_ref("PaymentCreate")},
             }
         },
     }
@@ -144,7 +128,7 @@ def _summary_out(invoice: Invoice) -> schemas.InvoiceSummary:
     )
 
 
-@router.get("/invoices", response_model=schemas.InvoiceListOut, responses=_ERROR_RESPONSES)
+@router.get("/invoices", response_model=schemas.InvoiceListOut, responses=_LIST_RESPONSES)
 def list_invoices(
     user: Annotated[User, Depends(get_current_user)],
     service: Annotated[InvoiceService, Depends(get_service)],
@@ -163,7 +147,7 @@ def list_invoices(
     )
 
 
-@router.get("/invoices/{id}", response_model=schemas.Invoice, responses=_ERROR_RESPONSES)
+@router.get("/invoices/{id}", response_model=schemas.Invoice, responses=_READ_RESPONSES)
 def read_invoice(
     response: Response,
     user: Annotated[User, Depends(get_current_user)],
@@ -179,7 +163,7 @@ def read_invoice(
     "/orders/{id}/invoice",
     status_code=http_status.HTTP_201_CREATED,
     response_model=schemas.Invoice,
-    responses=_ERROR_RESPONSES,
+    responses=_ISSUE_RESPONSES,
 )
 def issue_invoice(
     response: Response,

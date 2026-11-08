@@ -211,6 +211,7 @@ def install_openapi(app: FastAPI) -> None:
         document = original()
         _add_components(document)
         _apply_security(document)
+        _use_component_request_bodies(document)
         app.openapi_schema = document
         return document
 
@@ -246,3 +247,16 @@ def _apply_security(document: dict[str, Any]) -> None:
             if (method.upper(), path) in PUBLIC_OPERATIONS:
                 continue
             operation["security"] = [{SECURITY_SCHEME_NAME: []}]
+
+
+def _use_component_request_bodies(document: dict[str, Any]) -> None:
+    """Keep only the reference when a body is documented with a named schema."""
+    for operations in document.get("paths", {}).values():
+        for operation in operations.values():
+            request_body = operation.get("requestBody")
+            if not request_body:
+                continue
+            for media in request_body.get("content", {}).values():
+                schema = media.get("schema")
+                if isinstance(schema, dict) and "$ref" in schema:
+                    media["schema"] = {"$ref": schema["$ref"]}

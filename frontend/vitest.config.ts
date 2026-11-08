@@ -28,6 +28,15 @@ export default defineConfig({
         "./next-env.d.ts",
       ],
       reporter: ["text-summary", "lcov"],
+      // The floor of task 034: the achieved percentages rounded down by
+      // two points. A change must not lower it; raise these numbers with
+      // the numbers of the run that did.
+      thresholds: {
+        lines: 95,
+        statements: 95,
+        functions: 97,
+        branches: 90,
+      },
     },
   },
 });

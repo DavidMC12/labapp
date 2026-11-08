@@ -575,6 +575,24 @@ def test_removing_a_line_parses_if_match(clients: dict[str, TestClient]) -> None
     )
 
 
+@pytest.mark.parametrize("value", ['1"2', "2147483648"])
+def test_if_match_rejects_a_quote_in_the_middle_and_a_version_above_the_limit(
+    clients: dict[str, TestClient],
+    value: str,
+) -> None:
+    order = _draft_with_line(clients["sales"])
+    url = f"/api/orders/{order['id']}/lines/{order['lines'][0]['id']}"
+
+    response = clients["sales"].delete(url, headers={"If-Match": value})
+
+    assert_field_error(
+        response,
+        field="If-Match",
+        code="INVALID_FORMAT",
+        message="El formato no es válido.",
+    )
+
+
 @pytest.mark.parametrize("role", ["admin", "sales"])
 def test_admin_and_sales_can_edit(clients: dict[str, TestClient], role: str) -> None:
     assert (

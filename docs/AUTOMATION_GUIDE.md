@@ -227,19 +227,20 @@ Every sortable column header of the four lists is a real `<button>` inside `aria
 
 **What a click does.** The first click sorts the column with the default direction of its field (`created_at` descending, every other field ascending — the API's defaults, section 12), and a second click on the sorted column flips the direction. There is **no unsorted state**: the plain list *is* the default sort (`created_at` descending; the products catalog, `id` ascending), and both URL parameters are left out of it. Either kind of click returns the list to page 1 and keeps every other filter.
 
-**What to assert.** The sorted column announces itself in three places, and the click is over when the data lands:
+**What to assert.** Three places carry the sort state, and the click is over when the data lands:
 
 | Where | Attribute | Values |
 |---|---|---|
-| the `<th>` (`aria-sort`) | `aria-sort` | `ascending` / `descending` when the table is sorted by it, no attribute otherwise |
-| the button | `data-state` | `ascending` / `descending` when sorted, no attribute otherwise |
+| the `<th>` (`aria-sort`) | `aria-sort` | `ascending` / `descending` while the table is sorted by it, **no attribute otherwise** |
+| the button | `data-state` | `ascending` / `descending` when sorted, **the literal `none` otherwise** — it never disappears |
 | the hidden status | text | `Ordenado por {label}, {ascendente\|descendente}` (e.g. `Ordenado por Nombre, ascendente`) in `*-list-sort-text`, a visually hidden `role="status"` paragraph |
 
-The sort lives in the URL next to the filters: `?page=1&sort=name&direction=asc`. A list loaded directly from that URL arrives sorted (the API request carries the parameters), and an invalid `sort` or `direction` in the URL falls back to the default, like an invalid `status` does. Every change updates the URL, the `aria-sort`, the `data-state` and the hidden status together.
+The sort lives in the URL next to the filters: `?page=1&sort=name&direction=asc`. A list loaded directly from that URL arrives sorted (the API request carries the parameters), and an invalid `sort` or `direction` in the URL falls back to the default, like an invalid `status` does. Every change updates the URL, the `aria-sort`, the `data-state` and the hidden status together; only the `aria-sort` of the `<th>` vanishes when the column is not the sorted one — the button's `data-state="none"` is always there.
 
 ```ts
 // Illustrative, not run in CI.
 const th = page.getByTestId("customers-list-sort-name-button").locator("..");
+const otherTh = page.getByTestId("customers-list-sort-email-button").locator("..");
 await page.getByTestId("customers-list-sort-name-button").click();
 await expect(th).toHaveAttribute("aria-sort", "ascending");
 await expect(th.getByTestId("customers-list-sort-name-button"))
@@ -247,6 +248,10 @@ await expect(th.getByTestId("customers-list-sort-name-button"))
 await expect(page).toHaveURL(/sort=name&direction=asc/);
 await expect(page.getByTestId("customers-list-sort-text"))
   .toHaveText("Ordenado por Nombre, ascendente");
+// a column nothing sorts by: no aria-sort on its th, data-state "none" on its button
+await expect(otherTh).not.toHaveAttribute("aria-sort", /.*/);
+await expect(otherTh.getByTestId("customers-list-sort-email-button"))
+  .toHaveAttribute("data-state", "none");
 ```
 
 **The order of the rows.** The attribute says which column is sorted; a test that wants to be sure about the array order reads one column's cells and compares with the expected order. Every cell carries the record id as its suffix (`customers-list-name-cell-1` is customer 1), so a locator prefix reaches all the rows:

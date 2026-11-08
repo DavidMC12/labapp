@@ -268,7 +268,7 @@ Each item below was verified in the code and the documents.
 
 ## 9. What is next
 
-Part 1 covered the web UI; this guide continues below with **part 2**: the HTTP API and the test-only controls (reset, seed, the controllable clock and fault injection).
+Part 1 covered the web UI; **part 2** (the next sections of this document) covers the other half: the HTTP API under `/api` (section 10) and the test-only controls — reset, seed, clock, faults (section 11) — with recipes for the three flows over `curl` (section 12), how to isolate a run (section 13) and the online demo (section 14). Before writing API tests, read in this order: [SPEC.md](SPEC.md) sections 2–3 (roles, sessions, the origin rule), 5–6 (orders, invoices and payments) and 7–9 (errors, formats, the seed contract); [openapi.json](openapi.json), the committed contract of every endpoint; and [backend/README.md](../backend/README.md) if you want the controls explained from the server side.
 
 ---
 

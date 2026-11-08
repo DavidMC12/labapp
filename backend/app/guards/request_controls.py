@@ -3,24 +3,41 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Awaitable, Callable
 
+import psycopg
+from sqlalchemy.exc import DBAPIError
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.config import Settings
-from app.errors import get_request_id, problem_response
+from app.errors import (
+    ERROR_MESSAGES,
+    INTERNAL_ERROR,
+    LOCK_TIMEOUT,
+    get_request_id,
+    problem_response,
+)
 from app.infra.clock import clock_offset
+from app.infra.db import is_lock_timeout
 from app.modules.testcontrols.controls import RequestControls
 
 INJECTED_FAULT = "INJECTED_FAULT"
 INJECTED_FAULT_DETAIL = "Falla inyectada para pruebas."
 _MAX_LATENCY_MS = 10_000
 
+logger = logging.getLogger(__name__)
+
 
 def _is_test_path(path: str) -> bool:
     return path == "/__test__" or path.startswith("/__test__/")
+
+
+def _sqlstate(error: BaseException) -> str | None:
+    original = getattr(error, "orig", None)
+    return getattr(original, "sqlstate", None) or getattr(error, "sqlstate", None)
 
 
 class RequestControlsMiddleware:
@@ -55,14 +72,18 @@ class RequestControlsMiddleware:
             await self.app(scope, receive, send)
             return
 
-        if self.controls.uses_threadpool:
-            offset, decision = await run_in_threadpool(
-                self.controls.load_request_controls,
-                method,
-                path,
-            )
-        else:
-            offset, decision = self.controls.load_request_controls(method, path)
+        try:
+            if self.controls.uses_threadpool:
+                offset, decision = await run_in_threadpool(
+                    self.controls.load_request_controls,
+                    method,
+                    path,
+                )
+            else:
+                offset, decision = self.controls.load_request_controls(method, path)
+        except (DBAPIError, psycopg.Error) as error:
+            await self._database_error(scope, receive, send, error)
+            return
 
         token = clock_offset.set(offset)
         try:
@@ -81,3 +102,41 @@ class RequestControlsMiddleware:
             await self.app(scope, receive, send)
         finally:
             clock_offset.reset(token)
+
+    async def _database_error(
+        self,
+        scope: Scope,
+        receive: Receive,
+        send: Send,
+        error: BaseException,
+    ) -> None:
+        """Render a database failure without letting the driver message escape."""
+        request_id = get_request_id(Request(scope))
+        sqlstate = _sqlstate(error) or "unknown"
+        if is_lock_timeout(error):
+            logger.warning(
+                "Request controls lock timeout %s (SQLSTATE %s) on request %s",
+                type(error).__name__,
+                sqlstate,
+                request_id,
+            )
+            response = problem_response(
+                request_id,
+                status=503,
+                code=LOCK_TIMEOUT,
+                detail=ERROR_MESSAGES[LOCK_TIMEOUT],
+            )
+        else:
+            logger.error(
+                "Request controls database error %s (SQLSTATE %s) on request %s",
+                type(error).__name__,
+                sqlstate,
+                request_id,
+            )
+            response = problem_response(
+                request_id,
+                status=500,
+                code=INTERNAL_ERROR,
+                detail=ERROR_MESSAGES[INTERNAL_ERROR],
+            )
+        await response(scope, receive, send)

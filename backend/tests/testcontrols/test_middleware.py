@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import logging
+
+import psycopg
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import DBAPIError
 
 from app.config import Settings
 from app.guards.request_controls import RequestControlsMiddleware
@@ -34,6 +39,24 @@ class SpyControls:
     ) -> tuple[float, FaultDecision | None]:
         self.calls += 1
         return self.inner.load_request_controls(method, path)
+
+
+class FailingControls:
+    """Raise the stored error while loading the request controls."""
+
+    def __init__(self, error: BaseException) -> None:
+        self.error = error
+
+    @property
+    def uses_threadpool(self) -> bool:
+        return False
+
+    def load_request_controls(
+        self,
+        method: str,
+        path: str,
+    ) -> tuple[float, FaultDecision | None]:
+        raise self.error
 
 
 class Sleeper:
@@ -71,6 +94,7 @@ def _build(
     *,
     test_mode: bool = True,
     test_token: str = "",
+    controls: object | None = None,
 ) -> tuple[
     TestClient,
     SpyControls,
@@ -92,7 +116,7 @@ def _build(
     middleware = RequestControlsMiddleware(
         _inner_app(hits),
         settings=settings,
-        controls=spy,
+        controls=controls if controls is not None else spy,  # type: ignore[arg-type]
         sleep=sleeper,
     )
     return TestClient(middleware), spy, clock_store, fault_store, sleeper, hits
@@ -163,3 +187,59 @@ def test_it_sets_the_context_value_for_the_request_only() -> None:
     assert response.status_code == 200
     assert response.json() == {"offset": 90.0}
     assert clock_offset.get() is None
+
+
+def test_a_lock_timeout_answers_503_without_the_driver_message(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    error = DBAPIError("select", {}, psycopg.errors.LockNotAvailable("relation secret_table"))
+    client, *_ = _build(controls=FailingControls(error))
+
+    with caplog.at_level(logging.WARNING):
+        response = client.get("/api/echo")
+
+    assert response.status_code == 503
+    assert response.json()["code"] == "LOCK_TIMEOUT"
+    assert response.headers["content-type"] == "application/problem+json"
+    assert "DBAPIError" in caplog.text
+    assert "55P03" in caplog.text
+    assert response.headers["X-Request-Id"] in caplog.text
+    assert "secret_table" not in caplog.text
+
+
+def test_another_database_error_answers_500_without_the_driver_message(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    error = DBAPIError(
+        "select",
+        {},
+        psycopg.errors.UndefinedTable("relation secret_table does not exist"),
+    )
+    client, *_ = _build(controls=FailingControls(error))
+
+    with caplog.at_level(logging.ERROR):
+        response = client.get("/api/echo")
+
+    assert response.status_code == 500
+    assert response.json()["code"] == "INTERNAL_ERROR"
+    assert response.headers["content-type"] == "application/problem+json"
+    assert "DBAPIError" in caplog.text
+    assert "42P01" in caplog.text
+    assert response.headers["X-Request-Id"] in caplog.text
+    assert "secret_table" not in caplog.text
+
+
+def test_a_plain_driver_error_is_also_contained(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    error = psycopg.OperationalError("connection secret")
+    client, *_ = _build(controls=FailingControls(error))
+
+    with caplog.at_level(logging.ERROR):
+        response = client.get("/api/echo")
+
+    assert response.status_code == 500
+    assert response.json()["code"] == "INTERNAL_ERROR"
+    assert "OperationalError" in caplog.text
+    assert "unknown" in caplog.text
+    assert "connection secret" not in caplog.text

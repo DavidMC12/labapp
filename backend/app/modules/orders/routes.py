@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import re
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Header, Response
 from fastapi import status as http_status
 
 from app.domain.orders import OrderAction, OrderStatus
 from app.domain.permissions import Action
+from app.domain.sorting import SortDirection
 from app.errors import ApiError
 from app.modules.auth.dependencies import get_current_user, require_action
 from app.modules.auth.models import User
@@ -27,6 +28,9 @@ from app.modules.orders.service import (
 from app.openapi import documented_responses
 
 router = APIRouter(prefix="/api", tags=["orders"])
+
+ProductSortField = Literal["id", "sku", "name", "price", "stock"]
+OrderSortField = Literal["created_at", "number", "customer"]
 
 _READ_RESPONSES = documented_responses(method="GET")
 _LIST_RESPONSES = documented_responses(
@@ -233,10 +237,12 @@ def _summary_out(view: OrderSummaryView) -> schemas.OrderSummary:
 def list_products(
     user: Annotated[User, Depends(get_current_user)],
     service: Annotated[OrderService, Depends(get_service)],
+    sort: ProductSortField | None = None,
+    direction: SortDirection | None = None,
 ) -> schemas.ProductListOut:
-    """Return the whole catalog ordered by id."""
+    """Return the whole catalog following the requested sort."""
     return schemas.ProductListOut(
-        items=[_product_out(product) for product in service.list_products()]
+        items=[_product_out(product) for product in service.list_products(sort, direction)]
     )
 
 
@@ -271,9 +277,11 @@ def list_orders(
     q: str | None = None,
     status: OrderStatus | None = None,
     customer_id: int | None = None,
+    sort: OrderSortField | None = None,
+    direction: SortDirection | None = None,
 ) -> schemas.OrderListOut:
     """List orders with literal, accent-insensitive search."""
-    items, total = service.list_orders(page, q, status, customer_id)
+    items, total = service.list_orders(page, q, status, customer_id, sort, direction)
     return schemas.OrderListOut(
         items=[_summary_out(item) for item in items],
         page=page,

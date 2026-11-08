@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import Protocol
 
 from app.domain.orders import OrderAction, OrderStatus
+from app.domain.sorting import SortSpec
 from app.modules.orders.models import Order, Product
 
 
@@ -50,8 +51,11 @@ class OrderStore(Protocol):
     error propagate unchanged.
     """
 
-    def list_products(self) -> list[Product]:
-        """Return every product ordered by id."""
+    def list_products(self, *, sort: SortSpec | None = None) -> list[Product]:
+        """Return every product following ``sort`` (ordered by id when absent).
+
+        Ties are broken by id in the same direction.
+        """
         ...
 
     def get_product(self, id: int) -> Product | None:
@@ -78,11 +82,13 @@ class OrderStore(Protocol):
         customer_id: int | None,
         page: int,
         page_size: int,
+        sort: SortSpec | None = None,
     ) -> tuple[list[tuple[Order, str]], int]:
         """Return one page of orders and the total number of matches.
 
         Each item is the order together with the **current** name of its customer.
-        Results are ordered by ``created_at`` descending, then ``id`` descending.
+        Results follow ``sort`` (``created_at`` descending when it is absent),
+        with ties broken by id in the same direction.
         ``query`` is already trimmed and non-empty when given. It is literal text
         (``%``, ``_`` and ``\\`` have no special meaning), matched as a contains
         against the order number or the customer's current name on the

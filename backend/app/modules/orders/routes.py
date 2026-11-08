@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Response
 from fastapi import status as http_status
@@ -24,43 +24,112 @@ from app.modules.orders.service import (
     OrderSummaryView,
     OrderView,
 )
+from app.openapi import documented_responses
 
 router = APIRouter(prefix="/api", tags=["orders"])
 
-_PROBLEM_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "required": ["type", "title", "status", "code", "detail"],
-    "properties": {
-        "type": {"type": "string"},
-        "title": {"type": "string"},
-        "status": {"type": "integer"},
-        "code": {"type": "string"},
-        "detail": {"type": "string"},
+_READ_RESPONSES = documented_responses(method="GET")
+_LIST_RESPONSES = documented_responses(
+    method="GET",
+    extra={422: "The query parameters are invalid. Code: `VALIDATION_ERROR` (with `errors[]`)."},
+)
+_SETTINGS_PATCH_RESPONSES = documented_responses(
+    method="PATCH",
+    body=True,
+    permission=True,
+    extra={422: "The body is invalid. Code: `VALIDATION_ERROR` (with `errors[]`)."},
+)
+_CREATE_RESPONSES = documented_responses(
+    method="POST",
+    body=True,
+    permission=True,
+    extra={
+        422: "The body is invalid or the customer is inactive. Codes: "
+        "`VALIDATION_ERROR` (with `errors[]`), `CUSTOMER_INACTIVE`."
     },
-}
-
-_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
-    401: {
-        "description": "Authentication failed.",
-        "content": {"application/problem+json": {"schema": _PROBLEM_SCHEMA}},
+)
+_ORDER_READ_RESPONSES = documented_responses(
+    method="GET",
+    extra={
+        404: "The order does not exist. Code: `NOT_FOUND`.",
+        422: "The id is not an integer. Code: `VALIDATION_ERROR` (with `errors[]`).",
     },
-    403: {
-        "description": "Permission denied.",
-        "content": {"application/problem+json": {"schema": _PROBLEM_SCHEMA}},
+)
+_EDIT_RESPONSES = documented_responses(
+    method="PATCH",
+    body=True,
+    permission=True,
+    extra={
+        404: "The order does not exist. Code: `NOT_FOUND`.",
+        409: "The version is stale or the order is not a draft. Codes: "
+        "`VERSION_CONFLICT`, `ORDER_NOT_EDITABLE`.",
+        422: "The id or the body is invalid, or the customer is inactive. Codes: "
+        "`VALIDATION_ERROR` (with `errors[]`), `CUSTOMER_INACTIVE`.",
     },
-    404: {
-        "description": "Order, line or product not found.",
-        "content": {"application/problem+json": {"schema": _PROBLEM_SCHEMA}},
+)
+_ADD_LINE_RESPONSES = documented_responses(
+    method="POST",
+    body=True,
+    permission=True,
+    extra={
+        404: "The order does not exist. Code: `NOT_FOUND`.",
+        409: "The version is stale or the order is not a draft. Codes: "
+        "`VERSION_CONFLICT`, `ORDER_NOT_EDITABLE`.",
+        422: "The id or the body is invalid, the customer is inactive, the product "
+        "is repeated or the order is full. Codes: `VALIDATION_ERROR` "
+        "(with `errors[]`), `CUSTOMER_INACTIVE`, `ORDER_DUPLICATE_PRODUCT`, "
+        "`ORDER_TOO_MANY_LINES`.",
     },
-    409: {
-        "description": "Version or state conflict.",
-        "content": {"application/problem+json": {"schema": _PROBLEM_SCHEMA}},
+)
+_UPDATE_LINE_RESPONSES = documented_responses(
+    method="PATCH",
+    body=True,
+    permission=True,
+    extra={
+        404: "The order or the line does not exist. Code: `NOT_FOUND`.",
+        409: "The version is stale or the order is not a draft. Codes: "
+        "`VERSION_CONFLICT`, `ORDER_NOT_EDITABLE`.",
+        422: "The id, the line id or the body is invalid, or the customer is "
+        "inactive. Codes: `VALIDATION_ERROR` (with `errors[]`), "
+        "`CUSTOMER_INACTIVE`.",
     },
-    422: {
-        "description": "Validation error.",
-        "content": {"application/problem+json": {"schema": _PROBLEM_SCHEMA}},
+)
+_DELETE_LINE_RESPONSES = documented_responses(
+    method="DELETE",
+    permission=True,
+    extra={
+        404: "The order or the line does not exist. Code: `NOT_FOUND`.",
+        409: "The version is stale or the order is not a draft. Codes: "
+        "`VERSION_CONFLICT`, `ORDER_NOT_EDITABLE`.",
+        422: "The id, the line id or the If-Match header is invalid, or the "
+        "customer is inactive. Codes: `VALIDATION_ERROR` (with `errors[]`), "
+        "`CUSTOMER_INACTIVE`.",
     },
-}
+)
+_CONFIRM_RESPONSES = documented_responses(
+    method="POST",
+    permission=True,
+    extra={
+        404: "The order does not exist. Code: `NOT_FOUND`.",
+        409: "The version is stale, the transition is not allowed or the stock is "
+        "short. Codes: `VERSION_CONFLICT`, `INVALID_TRANSITION`, "
+        "`INSUFFICIENT_STOCK` (with `shortages[]`).",
+        422: "The id or the If-Match header is invalid, the customer is inactive or "
+        "the order is empty. Codes: `VALIDATION_ERROR` (with `errors[]`), "
+        "`CUSTOMER_INACTIVE`, `ORDER_EMPTY`.",
+    },
+)
+_TRANSITION_RESPONSES = documented_responses(
+    method="POST",
+    permission=True,
+    extra={
+        404: "The order does not exist. Code: `NOT_FOUND`.",
+        409: "The version is stale or the transition is not allowed. Codes: "
+        "`VERSION_CONFLICT`, `INVALID_TRANSITION`.",
+        422: "The id or the If-Match header is invalid. Code: `VALIDATION_ERROR` "
+        "(with `errors[]`).",
+    },
+)
 
 _DIGITS = re.compile(r"[0-9]+")
 
@@ -160,7 +229,7 @@ def _summary_out(view: OrderSummaryView) -> schemas.OrderSummary:
     )
 
 
-@router.get("/products", response_model=schemas.ProductListOut, responses=_ERROR_RESPONSES)
+@router.get("/products", response_model=schemas.ProductListOut, responses=_READ_RESPONSES)
 def list_products(
     user: Annotated[User, Depends(get_current_user)],
     service: Annotated[OrderService, Depends(get_service)],
@@ -171,7 +240,7 @@ def list_products(
     )
 
 
-@router.get("/settings", response_model=schemas.TaxRateOut, responses=_ERROR_RESPONSES)
+@router.get("/settings", response_model=schemas.TaxRateOut, responses=_READ_RESPONSES)
 def read_settings(
     user: Annotated[User, Depends(get_current_user)],
     service: Annotated[OrderService, Depends(get_service)],
@@ -180,7 +249,11 @@ def read_settings(
     return schemas.TaxRateOut(tax_rate=service.get_tax_rate())
 
 
-@router.patch("/settings", response_model=schemas.TaxRateOut, responses=_ERROR_RESPONSES)
+@router.patch(
+    "/settings",
+    response_model=schemas.TaxRateOut,
+    responses=_SETTINGS_PATCH_RESPONSES,
+)
 def update_settings(
     payload: schemas.SettingsPatch,
     user: Annotated[User, Depends(require_action(Action.CHANGE_TAX_RATE))],
@@ -190,7 +263,7 @@ def update_settings(
     return schemas.TaxRateOut(tax_rate=service.set_tax_rate(payload.tax_rate))
 
 
-@router.get("/orders", response_model=schemas.OrderListOut, responses=_ERROR_RESPONSES)
+@router.get("/orders", response_model=schemas.OrderListOut, responses=_LIST_RESPONSES)
 def list_orders(
     user: Annotated[User, Depends(get_current_user)],
     service: Annotated[OrderService, Depends(get_service)],
@@ -213,7 +286,7 @@ def list_orders(
     "/orders",
     status_code=http_status.HTTP_201_CREATED,
     response_model=schemas.Order,
-    responses=_ERROR_RESPONSES,
+    responses=_CREATE_RESPONSES,
 )
 def create_order(
     payload: schemas.OrderCreate,
@@ -228,7 +301,7 @@ def create_order(
     return _order_out(view)
 
 
-@router.get("/orders/{id}", response_model=schemas.Order, responses=_ERROR_RESPONSES)
+@router.get("/orders/{id}", response_model=schemas.Order, responses=_ORDER_READ_RESPONSES)
 def read_order(
     response: Response,
     user: Annotated[User, Depends(get_current_user)],
@@ -239,7 +312,7 @@ def read_order(
     return _order_out(order)
 
 
-@router.patch("/orders/{id}", response_model=schemas.Order, responses=_ERROR_RESPONSES)
+@router.patch("/orders/{id}", response_model=schemas.Order, responses=_EDIT_RESPONSES)
 def update_order_customer(
     payload: schemas.OrderCustomerPatch,
     response: Response,
@@ -257,7 +330,7 @@ def update_order_customer(
     "/orders/{id}/lines",
     status_code=http_status.HTTP_201_CREATED,
     response_model=schemas.Order,
-    responses=_ERROR_RESPONSES,
+    responses=_ADD_LINE_RESPONSES,
 )
 def add_order_line(
     payload: schemas.OrderLineCreate,
@@ -280,7 +353,7 @@ def add_order_line(
 @router.patch(
     "/orders/{id}/lines/{line_id}",
     response_model=schemas.Order,
-    responses=_ERROR_RESPONSES,
+    responses=_UPDATE_LINE_RESPONSES,
 )
 def update_order_line(
     payload: schemas.OrderLinePatch,
@@ -304,7 +377,7 @@ def update_order_line(
 @router.delete(
     "/orders/{id}/lines/{line_id}",
     response_model=schemas.Order,
-    responses=_ERROR_RESPONSES,
+    responses=_DELETE_LINE_RESPONSES,
 )
 def delete_order_line(
     response: Response,
@@ -341,7 +414,7 @@ def _transition(
 @router.post(
     "/orders/{id}/confirm",
     response_model=schemas.Order,
-    responses=_ERROR_RESPONSES,
+    responses=_CONFIRM_RESPONSES,
 )
 def confirm_order(
     response: Response,
@@ -359,7 +432,7 @@ def confirm_order(
 @router.post(
     "/orders/{id}/cancel",
     response_model=schemas.Order,
-    responses=_ERROR_RESPONSES,
+    responses=_TRANSITION_RESPONSES,
 )
 def cancel_order(
     response: Response,
@@ -377,7 +450,7 @@ def cancel_order(
 @router.post(
     "/orders/{id}/ship",
     response_model=schemas.Order,
-    responses=_ERROR_RESPONSES,
+    responses=_TRANSITION_RESPONSES,
 )
 def ship_order(
     response: Response,

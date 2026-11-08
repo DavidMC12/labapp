@@ -11,6 +11,7 @@ from typing import Any
 import pytest
 
 from app.domain.orders import OrderAction, OrderStatus
+from app.domain.sorting import SortSpec
 from app.errors import ApiError
 from app.modules.customers.models import CustomerStatus, NewCustomer
 from app.modules.customers.ports import CustomerRepository
@@ -24,6 +25,7 @@ from app.modules.orders.ports import (
     ProductNotFound,
     VersionConflict,
 )
+from app.modules.orders.seed import seed_products
 
 NOW = datetime(2026, 2, 1, 12, 0, tzinfo=UTC)
 LATER = NOW + timedelta(minutes=1)
@@ -32,6 +34,27 @@ SEED_RATE = Decimal("10.00")
 
 def _deactivate(customers: CustomerRepository, customer_id: int) -> None:
     customers.set_status(customer_id, CustomerStatus.INACTIVE, None, NOW)
+
+
+def _order(
+    identifier: int,
+    *,
+    number: str,
+    customer_id: int,
+    created_at: datetime = NOW,
+) -> Order:
+    return Order(
+        id=identifier,
+        number=number,
+        status=OrderStatus.DRAFT,
+        customer_id=customer_id,
+        lines=(),
+        tax_rate=None,
+        version=1,
+        created_at=created_at,
+        updated_at=created_at,
+        invoice_id=None,
+    )
 
 
 class OrderStoreContract:
@@ -57,6 +80,33 @@ class OrderStoreContract:
         assert products[0].price == Decimal("19.90")
         assert store.get_product(99) is None
 
+    def test_products_sort_by_every_field_in_both_directions(self, store: Any) -> None:
+        expected = {
+            "id": (list(range(1, 16)), list(range(15, 0, -1))),
+            "sku": (
+                [6, 15, 13, 5, 8, 1, 4, 3, 2, 9, 11, 14, 12, 10, 7],
+                [7, 10, 12, 14, 11, 9, 2, 3, 4, 1, 8, 5, 13, 15, 6],
+            ),
+            "name": (
+                [8, 6, 7, 5, 13, 9, 4, 3, 2, 11, 15, 12, 14, 1, 10],
+                [10, 1, 14, 12, 15, 11, 2, 3, 4, 9, 13, 5, 7, 6, 8],
+            ),
+            "price": (
+                [6, 2, 14, 1, 8, 12, 13, 7, 11, 5, 10, 3, 9, 15, 4],
+                [4, 15, 9, 3, 10, 5, 11, 7, 13, 12, 8, 1, 14, 2, 6],
+            ),
+            "stock": (
+                [9, 7, 15, 4, 10, 12, 3, 11, 5, 13, 8, 1, 2, 14, 6],
+                [6, 14, 2, 1, 8, 13, 5, 11, 3, 12, 10, 4, 15, 7, 9],
+            ),
+        }
+        for field, (ascending, descending) in expected.items():
+            asc = store.list_products(sort=SortSpec(field, False))
+            desc = store.list_products(sort=SortSpec(field, True))
+
+            assert [product.id for product in asc] == ascending
+            assert [product.id for product in desc] == descending
+
     def test_tax_rate(self, store: Any) -> None:
         assert store.get_tax_rate() == SEED_RATE
 
@@ -72,6 +122,214 @@ class OrderStoreContract:
         assert total == 7
         assert [order.id for order, _ in items] == [7, 6, 5, 4, 3, 2, 1]
         assert items[0][1] == "Cafetería La Esquina"
+
+    def test_list_orders_sorts_by_every_field_in_both_directions(self, store: Any) -> None:
+        expected = {
+            "created_at": ([1, 2, 3, 4, 5, 6, 7], [7, 6, 5, 4, 3, 2, 1]),
+            "number": ([1, 2, 3, 4, 5, 6, 7], [7, 6, 5, 4, 3, 2, 1]),
+            "customer": ([1, 2, 7, 3, 4, 5, 6], [6, 5, 4, 3, 7, 2, 1]),
+        }
+        for field, (ascending, descending) in expected.items():
+            asc, _ = store.list_orders(
+                query=None,
+                status=None,
+                customer_id=None,
+                page=1,
+                page_size=20,
+                sort=SortSpec(field, False),
+            )
+            desc, _ = store.list_orders(
+                query=None,
+                status=None,
+                customer_id=None,
+                page=1,
+                page_size=20,
+                sort=SortSpec(field, True),
+            )
+
+            assert [order.id for order, _ in asc] == ascending
+            assert [order.id for order, _ in desc] == descending
+
+    def test_customer_name_ties_are_broken_by_id_in_the_same_direction(
+        self,
+        store: Any,
+        customer_repository: CustomerRepository,
+    ) -> None:
+        first = customer_repository.add(
+            NewCustomer(
+                name="Álvaro",
+                email="alvaro.one@example.test",
+                phone=None,
+                tax_id=None,
+                address=None,
+            ),
+            NOW,
+        )
+        second = customer_repository.add(
+            NewCustomer(
+                name="alvaro",
+                email="alvaro.two@example.test",
+                phone=None,
+                tax_id=None,
+                address=None,
+            ),
+            NOW,
+        )
+        one = store.create_order(first.id, NOW)
+        two = store.create_order(second.id, NOW)
+
+        asc, _ = store.list_orders(
+            query="alvaro",
+            status=None,
+            customer_id=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("customer", False),
+        )
+        desc, _ = store.list_orders(
+            query="alvaro",
+            status=None,
+            customer_id=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("customer", True),
+        )
+
+        assert [order.id for order, _ in asc] == [one.id, two.id]
+        assert [order.id for order, _ in desc] == [two.id, one.id]
+
+    def test_the_customer_sort_ignores_accents(
+        self,
+        store: Any,
+        customer_repository: CustomerRepository,
+    ) -> None:
+        customer_repository.replace_all([])
+        customers = [
+            customer_repository.add(
+                NewCustomer(
+                    name=name,
+                    email=f"{index}@example.test",
+                    phone=None,
+                    tax_id=None,
+                    address=None,
+                ),
+                NOW,
+            )
+            for index, name in enumerate(("Ana", "Álvaro", "Alba", "Beto"), start=1)
+        ]
+        store.replace_all(
+            seed_products(),
+            [
+                _order(index, number=f"PED-{index:04d}", customer_id=customer.id)
+                for index, customer in enumerate(customers, start=1)
+            ],
+            SEED_RATE,
+        )
+
+        items, _ = store.list_orders(
+            query=None,
+            status=None,
+            customer_id=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("customer", False),
+        )
+
+        assert [order.customer_id for order, _ in items] == [
+            customers[2].id,
+            customers[1].id,
+            customers[0].id,
+            customers[3].id,
+        ]
+        assert [name for _, name in items] == ["Alba", "Álvaro", "Ana", "Beto"]
+
+    def test_the_number_sorts_as_an_integer(self, store: Any) -> None:
+        store.replace_all(
+            seed_products(),
+            [
+                _order(1, number="PED-0009", customer_id=1),
+                _order(2, number="PED-0010", customer_id=1),
+                _order(3, number="PED-0100", customer_id=1),
+            ],
+            SEED_RATE,
+        )
+
+        asc, _ = store.list_orders(
+            query=None,
+            status=None,
+            customer_id=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("number", False),
+        )
+        desc, _ = store.list_orders(
+            query=None,
+            status=None,
+            customer_id=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("number", True),
+        )
+
+        assert [int(order.number.rsplit("-", 1)[-1]) for order, _ in asc] == [9, 10, 100]
+        assert [int(order.number.rsplit("-", 1)[-1]) for order, _ in desc] == [100, 10, 9]
+
+    def test_sorting_combines_with_the_filters(self, store: Any) -> None:
+        confirmed, _ = store.list_orders(
+            query=None,
+            status=OrderStatus.CONFIRMED,
+            customer_id=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("customer", False),
+        )
+        by_name, _ = store.list_orders(
+            query="cafeteria",
+            status=None,
+            customer_id=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("number", True),
+        )
+
+        assert [order.id for order, _ in confirmed] == [2, 7, 3]
+        assert [order.id for order, _ in by_name] == [7]
+
+    def test_page_two_continues_page_one_under_a_sort(self, store: Any) -> None:
+        store.replace_all(
+            seed_products(),
+            [
+                _order(
+                    identifier,
+                    number=f"PED-{identifier:04d}",
+                    customer_id=(identifier - 1) % 10 + 1,
+                    created_at=NOW + timedelta(seconds=identifier),
+                )
+                for identifier in range(1, 46)
+            ],
+            SEED_RATE,
+        )
+
+        first, total = store.list_orders(
+            query=None,
+            status=None,
+            customer_id=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("number", False),
+        )
+        second, _ = store.list_orders(
+            query=None,
+            status=None,
+            customer_id=None,
+            page=2,
+            page_size=20,
+            sort=SortSpec("number", False),
+        )
+
+        assert total == 45
+        assert [order.id for order, _ in first] == list(range(1, 21))
+        assert [order.id for order, _ in second] == list(range(21, 41))
 
     def test_list_orders_pages(self, store: Any) -> None:
         first, total = store.list_orders(

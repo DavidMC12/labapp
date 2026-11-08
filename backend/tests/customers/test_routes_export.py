@@ -120,14 +120,14 @@ def test_the_export_ignores_page(
 
 def test_the_export_headers_come_from_the_application_clock(
     clients: dict[str, TestClient],
-    clock: OffsetClock,
+    app_clock: OffsetClock,
 ) -> None:
-    moved = clock.now() + timedelta(hours=2)
-    clock.advance(timedelta(hours=2))
+    moved = app_clock.now() + timedelta(hours=2)
+    app_clock.advance(timedelta(hours=2))
     try:
         response = clients["sales"].get("/api/customers/export")
     finally:
-        clock.set_offset(timedelta(0))
+        app_clock.set_offset(timedelta(0))
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "text/csv; charset=utf-8"

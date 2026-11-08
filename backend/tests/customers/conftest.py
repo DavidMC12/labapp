@@ -24,19 +24,19 @@ CLIENTS = {
 
 
 @pytest.fixture(scope="module")
-def clock() -> OffsetClock:
+def app_clock() -> OffsetClock:
     return OffsetClock(FixedClock(datetime(2026, 11, 5, 23, 0, tzinfo=UTC)))
 
 
 @pytest.fixture(scope="module")
-def app(clock: OffsetClock) -> FastAPI:
+def app(app_clock: OffsetClock) -> FastAPI:
     return create_app(
         Settings(
             session_secret="test-secret",
             test_mode=False,
             app_origin="http://localhost:3000",
         ),
-        clock=clock,
+        clock=app_clock,
     )
 
 

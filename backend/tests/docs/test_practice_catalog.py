@@ -331,6 +331,10 @@ def test_the_numbers_of_each_area_are_consecutive_from_one() -> None:
     assert wrong == {}
 
 
+def test_the_eight_area_tables_are_present() -> None:
+    assert {row.area for row in support.practice_rows()} == set("ABCDEFGH")
+
+
 def test_every_quoted_code_exists() -> None:
     violations = check_codes(support.practice_rows())
     assert violations == [], _report(violations)

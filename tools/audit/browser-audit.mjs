@@ -163,7 +163,7 @@ const PAGE_TABBABLE = `(() => {
   const tabbable = [...document.querySelectorAll("a[href], button, input:not([type=hidden]), select, textarea, summary, [contenteditable], [tabindex]:not([tabindex='-1'])")]
     .filter((el) => visible(el) && !el.closest(rules) && !el.inert
       && !(el.matches("button, input, select, textarea") && el.disabled)
-      && !!(el.closest("dialog")?.open)
+      && !(el.closest("dialog") && !el.closest("dialog").open)
       && !(document.querySelector("dialog:modal") && !document.querySelector("dialog:modal").contains(el)));
   window.__labappTabbable = tabbable;
   return tabbable.map((el) => ({ label: node(el), unfocused: style(el) }));
@@ -172,11 +172,13 @@ const PAGE_TABBABLE = `(() => {
 // Runs after a Tab press: the element the focus is on, whether it is inside
 // the page's document, its visibility and its focused computed-style
 // snapshot. When the focus left the page content (document.body reports the
-// browser chrome) or went to a tool element, the walk is over.
+// browser chrome, which is the end of a cycle) the walk is over; a focus
+// that lands on a tool element of the dev server (the Next.js devtools) is
+// not the page either, but it is not a trap: the walk presses on.
 const PAGE_STOP = `(() => {
   const active = document.activeElement;
   if (!(active instanceof Element) || active === document.body || active === document.documentElement) return { left: true };
-  if (active.closest("nextjs-portal, [data-nextjs-dev-tools-button], [data-next-badge-root]")) return { left: true };
+  if (active.closest("nextjs-portal, [data-nextjs-dev-tools-button], [data-next-badge-root]")) return { tools: true };
   const node = (el) => {
     const testId = el.getAttribute("data-testid");
     if (testId) return testId;
@@ -382,35 +384,56 @@ async function main() {
       // until the focus leaves the page content or returns to the first element of
       // the walk. The stops are judged by keyboard.mjs: a visible focus indicator
       // (WCAG 2.4.7), no trap (WCAG 2.1.2) and every visible tabbable element reached.
+      // The keyboard walk (task 062): real Tab keystrokes through the DevTools Input
+      // domain, never a programmatic .focus(). First the unfocused snapshot of every
+      // tabbable element in one pass, then the presses: up to MAX_TAB_PRESSES, or until
+      // the focus leaves the page content and returns to the start (the browser chrome —
+      // document.body —, and the walk goes on pressing until it is back inside the
+      // content on the first element again; Chromium enters the content fresh after the
+      // visit to the chrome, so a single pass out is not proof of reachability yet). The
+      // stops are judged by keyboard.mjs: a visible focus indicator (WCAG 2.4.7), no trap
+      // (WCAG 2.1.2) and every visible tabbable element reached.
       if (keyboard) {
         const tabbable = await evaluate(PAGE_TABBABLE);
         let presses = 0;
-        let leftContent = false;
         const stops = [];
         // The element that owns the focus when the walk starts (the "Volver"
         // button of a confirmation dialog, given it by showModal) is reached
         // at the start: it is the first stop, before any press. An element
         // that is not tabbable (the alert that receives the focus
         // programmatically) is not part of the walk.
-        const opening = await evaluate(PAGE_STOP);
-        if (!opening.left) stops.push({ ...opening, tab: false });
+        let previous = await evaluate(PAGE_STOP);
+        while (previous.tools && presses < MAX_TAB_PRESSES) {
+          // A tool element of the dev server sitting on the Tab path is not
+          // the page and not a trap: press on.
+          presses++;
+          await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Tab", code: "Tab", windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
+          await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Tab", code: "Tab", windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
+          previous = await evaluate(PAGE_STOP);
+        }
+        if (!previous.left) stops.push({ ...previous, tab: false });
+        let left = false;
         while (presses < MAX_TAB_PRESSES) {
           presses++;
           await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Tab", code: "Tab", windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
           await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Tab", code: "Tab", windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
           const stop = await evaluate(PAGE_STOP);
-          if (stop.left) { leftContent = true; break; }
+          if (stop.tools) continue;
+          // document.body again: the browser chrome between the cycles of the
+          // content. The walk presses on: the cycle re-enters the content
+          // where its tab order begins.
+          if (stop.left) { left = true; continue; }
           stops.push({ ...stop, tab: true });
           const key = (s) => (typeof s.index === "number" ? s.index : s.label);
-          const stuck = key(stops.at(-1));
+          const stuck = key(stop);
           // A trap cannot repair itself: five presses on the same element are enough to say so.
           if (stops.length >= 5 && stops.slice(-4).every((s) => key(s) === stuck)) break;
           // The cycle is over when the focus is back on the first element of the walk.
-          if (stops.length > 1 && key(stops.at(-1)) === key(stops[0])) break;
+          if (stops.length > 1 && key(stop) === key(stops[0])) break;
         }
         entry.tabStops = stops.length;
         tabStops += stops.length;
-        for (const failure of keyboardFailures({ tabbable, stops, presses, leftContent })) entry.failures.push(failure);
+        for (const failure of keyboardFailures({ tabbable, stops, presses, leftContent: left })) entry.failures.push(failure);
       }
       report.push(entry);
     }
@@ -419,7 +442,6 @@ async function main() {
   } finally {
     cleanup();
   }
-  return tabStops;
 }
 
 const { report, tabStops } = await main();

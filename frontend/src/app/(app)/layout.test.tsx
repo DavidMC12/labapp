@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import AppLayout from "./layout";import { ME_QUERY_KEY } from "@/features/auth/hooks";
@@ -419,5 +419,37 @@ describe("app shell theme", () => {  it("offers the Tema control in the rail use
       ).toBe("dark");
     });
     expect(document.documentElement.getAttribute("data-theme")).toBe(null);
+  });
+});
+
+describe("app shell logout re-entry", () => {
+  it("ignores a second logout while the first POST /logout is pending", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(userPayload("admin", "admin@labapp.test"), 200,
+        "application/json"),
+    );
+    const heldLogout = new Promise<Response>(() => {});
+    fetchMock.mockReturnValueOnce(heldLogout);
+
+    renderShell();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("app-user-name-text")).toBeInTheDocument();
+    });
+
+    const button = screen.getByTestId("app-logout-button");
+    await userEvent.setup().click(button);
+    const logoutCalls = () =>
+      fetchMock.mock.calls.filter(([input, init]) =>
+        String(input) === "/api/auth/logout"
+        && String((init as RequestInit | undefined)?.method) === "POST");
+    await waitFor(() => expect(logoutCalls()).toHaveLength(1));
+
+    // While the request runs the button shows its loading state; a click
+    // dispatched to it anyway is ignored by the handler guard.
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(button).toHaveAttribute("data-state", "loading");
+    expect(logoutCalls()).toHaveLength(1);
   });
 });

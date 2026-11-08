@@ -20,8 +20,8 @@ const { routerMock } = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({
   useRouter: () => routerMock,
-  // "/": no rail section is current in this flow.
   usePathname: () => "/",
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 const fetchMock = vi.fn();

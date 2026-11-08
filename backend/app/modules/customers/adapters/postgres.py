@@ -21,10 +21,11 @@ from app.modules.customers.tables import customers
 _FIELDS = ("name", "email", "phone", "tax_id", "address")
 _EMAIL_CONSTRAINT = "customers_email_lower_key"
 _DEFAULT_SORT = SortSpec("created_at", True)
+# Text sorts must follow Python's code point order, not the database collation.
 _SORT_COLUMNS = {
     "created_at": customers.c.created_at,
-    "name": customers.c.name_search,
-    "email": customers.c.email_search,
+    "name": customers.c.name_search.collate("C"),
+    "email": customers.c.email_search.collate("C"),
 }
 
 

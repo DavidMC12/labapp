@@ -356,6 +356,34 @@ class CustomerRepositoryContract:
 
         assert [item.name for item in items] == ["Alba", "Álvaro", "Ana", "Beto"]
 
+    def test_text_sort_uses_the_code_point_order(self, repository: Any) -> None:
+        repository.replace_all(
+            [
+                customer(1, name="ab-c", email="one@example.test"),
+                customer(2, name="ab", email="two@example.test"),
+                customer(3, name="a-c", email="three@example.test"),
+                customer(4, name="a b", email="four@example.test"),
+            ]
+        )
+
+        asc, _ = repository.list(
+            query=None,
+            status=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("name", False),
+        )
+        desc, _ = repository.list(
+            query=None,
+            status=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("name", True),
+        )
+
+        assert [item.name for item in asc] == ["a b", "a-c", "ab", "ab-c"]
+        assert [item.name for item in desc] == ["ab-c", "ab", "a-c", "a b"]
+
     def test_sorting_combines_with_the_filters(self, repository: Any) -> None:
         repository.replace_all(
             [

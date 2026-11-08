@@ -9,6 +9,7 @@ from app.modules.auth import tables as auth_tables  # noqa: F401
 from app.modules.customers import tables as customers_tables  # noqa: F401
 from app.modules.invoices import tables as invoices_tables  # noqa: F401
 from app.modules.orders import tables as orders_tables
+from app.modules.testcontrols import tables as testcontrols_tables  # noqa: F401
 
 DIALECT = postgresql.dialect()
 DATABASE_URL = "postgresql+psycopg://user:password@host/db"
@@ -25,6 +26,7 @@ TABLES = {
     "invoice_lines",
     "payments",
     "idempotency_keys",
+    "fault_rules",
 }
 INDEXES = {
     "users_email_lower_key",

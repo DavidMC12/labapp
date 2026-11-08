@@ -166,7 +166,7 @@ def db(database_engine: Engine, database_schema: str) -> Iterator[Connection]:
         connection.exec_driver_sql(
             "TRUNCATE TABLE users, sessions, customers, products, orders, "
             "order_lines, settings, invoices, invoice_lines, payments, "
-            "idempotency_keys RESTART IDENTITY CASCADE"
+            "idempotency_keys, fault_rules RESTART IDENTITY CASCADE"
         )
         connection.commit()
         try:

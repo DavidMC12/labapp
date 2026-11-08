@@ -9,6 +9,7 @@ from typing import Annotated
 from pydantic import (
     BaseModel,
     ConfigDict,
+    Field,
     PlainSerializer,
     StrictInt,
     WithJsonSchema,
@@ -18,6 +19,7 @@ from pydantic import (
 from app.domain.money import quantize_money
 from app.domain.orders import OrderStatus
 from app.modules.customers.models import CustomerStatus
+from app.openapi import ID_MAXIMUM, ID_MINIMUM, MONEY_JSON_SCHEMA, TaxRate
 
 
 def _money(value: Decimal) -> str:
@@ -27,14 +29,14 @@ def _money(value: Decimal) -> str:
 Money = Annotated[
     Decimal,
     PlainSerializer(_money, return_type=str),
-    WithJsonSchema({"type": "string"}),
+    WithJsonSchema(MONEY_JSON_SCHEMA),
 ]
 
 
 class Product(BaseModel):
     """A product of the read-only catalog."""
 
-    id: int
+    id: int = Field(ge=ID_MINIMUM, le=ID_MAXIMUM)
     sku: str
     name: str
     price: Money
@@ -58,14 +60,14 @@ class SettingsPatch(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    tax_rate: str | None = None
+    tax_rate: TaxRate | None = None
 
 
 class OrderLine(BaseModel):
     """One line of an order."""
 
-    id: int
-    product_id: int
+    id: int = Field(ge=ID_MINIMUM, le=ID_MAXIMUM)
+    product_id: int = Field(ge=ID_MINIMUM, le=ID_MAXIMUM)
     sku: str
     name: str
     quantity: int
@@ -76,7 +78,7 @@ class OrderLine(BaseModel):
 class OrderCustomer(BaseModel):
     """The current customer of an order."""
 
-    id: int
+    id: int = Field(ge=ID_MINIMUM, le=ID_MAXIMUM)
     name: str
     status: CustomerStatus
 
@@ -84,7 +86,7 @@ class OrderCustomer(BaseModel):
 class Order(BaseModel):
     """The full order representation."""
 
-    id: int
+    id: int = Field(ge=ID_MINIMUM, le=ID_MAXIMUM)
     number: str
     status: OrderStatus
     customer: OrderCustomer
@@ -93,8 +95,8 @@ class Order(BaseModel):
     tax_rate: Money
     tax: Money
     total: Money
-    invoice_id: int | None
-    version: int
+    invoice_id: int | None = Field(default=None, ge=ID_MINIMUM, le=ID_MAXIMUM)
+    version: int = Field(ge=ID_MINIMUM, le=ID_MAXIMUM)
     created_at: datetime
     updated_at: datetime
 
@@ -106,14 +108,14 @@ class Order(BaseModel):
 class OrderSummary(BaseModel):
     """One row of the order list."""
 
-    id: int
+    id: int = Field(ge=ID_MINIMUM, le=ID_MAXIMUM)
     number: str
     status: OrderStatus
-    customer_id: int
+    customer_id: int = Field(ge=ID_MINIMUM, le=ID_MAXIMUM)
     customer_name: str
     line_count: int
     total: Money
-    version: int
+    version: int = Field(ge=ID_MINIMUM, le=ID_MAXIMUM)
     created_at: datetime
     updated_at: datetime
 

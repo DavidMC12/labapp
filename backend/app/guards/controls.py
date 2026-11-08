@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from uuid import uuid4
+
+from starlette._utils import get_route_path
 from starlette.datastructures import Headers
 from starlette.requests import Request
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -15,6 +18,15 @@ def _is_test_path(path: str) -> bool:
     return path == "/__test__" or path.startswith("/__test__/")
 
 
+def _request_id(scope: Scope) -> str:
+    """Return the request id of an HTTP request or a fresh one for a websocket."""
+    if scope["type"] == "http":
+        return get_request_id(Request(scope))
+    state = scope.get("state") or {}
+    request_id = state.get("request_id")
+    return request_id if isinstance(request_id, str) and request_id else str(uuid4())
+
+
 class ControlsGuardMiddleware:
     """Answer 404 to unauthenticated probes of the test controls."""
 
@@ -23,11 +35,11 @@ class ControlsGuardMiddleware:
         self.settings = settings
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http":
+        if scope["type"] not in ("http", "websocket"):
             await self.app(scope, receive, send)
             return
 
-        path = scope.get("path", "")
+        path = get_route_path(scope)
         if _is_test_path(path):
             headers = Headers(scope=scope)
             allowed = controls_allowed(
@@ -37,7 +49,7 @@ class ControlsGuardMiddleware:
             )
             if not allowed:
                 response = problem_response(
-                    get_request_id(Request(scope)),
+                    _request_id(scope),
                     status=404,
                     code=NOT_FOUND,
                     detail=ERROR_MESSAGES[NOT_FOUND],

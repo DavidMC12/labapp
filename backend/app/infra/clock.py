@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+from contextvars import ContextVar
 from datetime import UTC, datetime, timedelta
 from threading import Lock
 from typing import Protocol
+
+from app.modules.testcontrols.ports import ClockOffsetStore
+
+clock_offset: ContextVar[float | None] = ContextVar("clock_offset_seconds", default=None)
 
 
 class Clock(Protocol):
@@ -45,3 +50,39 @@ class OffsetClock:
         with self._lock:
             offset = self._offset
         return self._base.now() + offset
+
+    def now_at(self, offset_seconds: float) -> datetime:
+        """Return the base time plus the given offset, ignoring the stored one."""
+        return self._base.now() + timedelta(seconds=offset_seconds)
+
+
+class ControlledClock:
+    """A clock whose offset lives in a store, used only when the controls are enabled.
+
+    When disabled it never reads the store and ignores ``clock_offset``. When enabled
+    it uses the request value set by the controls middleware, or the stored value for
+    the CLI and the exempt paths.
+    """
+
+    def __init__(self, base: Clock, store: ClockOffsetStore, enabled: bool) -> None:
+        self._base = base
+        self._store = store
+        self._enabled = enabled
+
+    @property
+    def enabled(self) -> bool:
+        """Return whether the store and the context value may be read."""
+        return self._enabled
+
+    def now(self) -> datetime:
+        if not self._enabled:
+            return self._base.now()
+
+        offset = clock_offset.get()
+        if offset is None:
+            offset = self._store.get()
+        return self.now_at(offset)
+
+    def now_at(self, offset_seconds: float) -> datetime:
+        """Return the base time plus the given offset, without reading the store."""
+        return self._base.now() + timedelta(seconds=offset_seconds)

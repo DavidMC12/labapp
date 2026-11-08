@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Response, status
 
@@ -20,43 +20,51 @@ from app.modules.customers.schemas import (
     CustomerPatch,
 )
 from app.modules.customers.service import MAX_ID, PAGE_SIZE, CustomerService
+from app.openapi import documented_responses
 
 router = APIRouter(prefix="/api/customers", tags=["customers"])
 
-_PROBLEM_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "required": ["type", "title", "status", "code", "detail"],
-    "properties": {
-        "type": {"type": "string"},
-        "title": {"type": "string"},
-        "status": {"type": "integer"},
-        "code": {"type": "string"},
-        "detail": {"type": "string"},
+_LIST_RESPONSES = documented_responses(
+    method="GET",
+    extra={422: "The query parameters are invalid. Code: `VALIDATION_ERROR` (with `errors[]`)."},
+)
+_CREATE_RESPONSES = documented_responses(
+    method="POST",
+    body=True,
+    permission=True,
+    extra={
+        409: "The email already belongs to another customer. Code: `CUSTOMER_EMAIL_TAKEN`.",
+        422: "The body is invalid. Code: `VALIDATION_ERROR` (with `errors[]`).",
     },
-}
-
-_ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
-    401: {
-        "description": "Authentication failed.",
-        "content": {"application/problem+json": {"schema": _PROBLEM_SCHEMA}},
+)
+_READ_RESPONSES = documented_responses(
+    method="GET",
+    extra={
+        404: "The customer does not exist. Code: `NOT_FOUND`.",
+        422: "The id is not an integer. Code: `VALIDATION_ERROR` (with `errors[]`).",
     },
-    403: {
-        "description": "Permission denied.",
-        "content": {"application/problem+json": {"schema": _PROBLEM_SCHEMA}},
+)
+_PATCH_RESPONSES = documented_responses(
+    method="PATCH",
+    body=True,
+    permission=True,
+    extra={
+        404: "The customer does not exist. Code: `NOT_FOUND`.",
+        409: "The version is stale or the email is taken. Codes: `VERSION_CONFLICT`, "
+        "`CUSTOMER_EMAIL_TAKEN`.",
+        422: "The id or the body is invalid. Code: `VALIDATION_ERROR` (with `errors[]`).",
     },
-    404: {
-        "description": "Customer not found.",
-        "content": {"application/problem+json": {"schema": _PROBLEM_SCHEMA}},
+)
+_STATUS_RESPONSES = documented_responses(
+    method="POST",
+    permission=True,
+    extra={
+        404: "The customer does not exist. Code: `NOT_FOUND`.",
+        409: "The version is stale. Code: `VERSION_CONFLICT`.",
+        422: "The id or the If-Match header is invalid. Code: `VALIDATION_ERROR` "
+        "(with `errors[]`).",
     },
-    409: {
-        "description": "Version or email conflict.",
-        "content": {"application/problem+json": {"schema": _PROBLEM_SCHEMA}},
-    },
-    422: {
-        "description": "Validation error.",
-        "content": {"application/problem+json": {"schema": _PROBLEM_SCHEMA}},
-    },
-}
+)
 
 _DIGITS = re.compile(r"[0-9]+")
 
@@ -113,7 +121,7 @@ def _parse_if_match(value: str | None) -> int | None:
     return version
 
 
-@router.get("", response_model=CustomerListOut, responses=_ERROR_RESPONSES)
+@router.get("", response_model=CustomerListOut, responses=_LIST_RESPONSES)
 def list_customers(
     user: Annotated[User, Depends(get_current_user)],
     service: Annotated[CustomerService, Depends(get_service)],
@@ -135,7 +143,7 @@ def list_customers(
     "",
     status_code=status.HTTP_201_CREATED,
     response_model=CustomerOut,
-    responses=_ERROR_RESPONSES,
+    responses=_CREATE_RESPONSES,
 )
 def create_customer(
     payload: CustomerCreate,
@@ -150,7 +158,7 @@ def create_customer(
     return _customer_out(customer)
 
 
-@router.get("/{id}", response_model=CustomerOut, responses=_ERROR_RESPONSES)
+@router.get("/{id}", response_model=CustomerOut, responses=_READ_RESPONSES)
 def read_customer(
     response: Response,
     user: Annotated[User, Depends(get_current_user)],
@@ -161,7 +169,7 @@ def read_customer(
     return _customer_out(customer)
 
 
-@router.patch("/{id}", response_model=CustomerOut, responses=_ERROR_RESPONSES)
+@router.patch("/{id}", response_model=CustomerOut, responses=_PATCH_RESPONSES)
 def update_customer(
     payload: CustomerPatch,
     response: Response,
@@ -178,7 +186,7 @@ def update_customer(
     return _customer_out(updated)
 
 
-@router.post("/{id}/deactivate", response_model=CustomerOut, responses=_ERROR_RESPONSES)
+@router.post("/{id}/deactivate", response_model=CustomerOut, responses=_STATUS_RESPONSES)
 def deactivate_customer(
     response: Response,
     user: Annotated[User, Depends(require_action(Action.MANAGE_CUSTOMERS))],
@@ -192,7 +200,7 @@ def deactivate_customer(
     return _customer_out(updated)
 
 
-@router.post("/{id}/reactivate", response_model=CustomerOut, responses=_ERROR_RESPONSES)
+@router.post("/{id}/reactivate", response_model=CustomerOut, responses=_STATUS_RESPONSES)
 def reactivate_customer(
     response: Response,
     user: Annotated[User, Depends(require_action(Action.MANAGE_CUSTOMERS))],

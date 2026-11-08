@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from starlette._utils import get_route_path
 from starlette.datastructures import Headers
 from starlette.requests import Request
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -35,7 +36,7 @@ class RateLimitMiddleware:
             await self.app(scope, receive, send)
             return
 
-        path = scope.get("path", "")
+        path = get_route_path(scope)
         method = scope.get("method", "")
         if not _is_limited_path(path, method):
             await self.app(scope, receive, send)

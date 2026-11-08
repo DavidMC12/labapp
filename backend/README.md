@@ -28,6 +28,10 @@ The app refuses to start when `SESSION_SECRET` is empty or still `change-me`, un
 `backend/.env` wins over the repository-root `.env`, and real environment variables always
 win over both files.
 
+`TEST_MODE=1` is refused when the process runs on Vercel: `VERCEL_ENV` set to
+`production` or `preview`, or `AWS_LAMBDA_FUNCTION_NAME` or `VERCEL` set (Vercel
+functions run on AWS Lambda). The error names the variable that refused it.
+
 Check the API:
 
 ```bash
@@ -36,6 +40,50 @@ curl -i localhost:8000/api/health
 
 Every response carries an `X-Request-Id` header. Send your own `X-Request-Id` to have it
 echoed; values must match `^[A-Za-z0-9._-]{1,64}$`, otherwise a new UUID4 is generated.
+
+## OpenAPI contract
+
+`docs/openapi.json` is the committed contract of the API: the document the owner's
+automation and any other tool can read without starting the server. FastAPI generates it
+for an application built with no database and no environment variables:
+
+```bash
+cd backend
+uv run python -m app.cli openapi --output ../docs/openapi.json
+```
+
+Without `--output` the command prints the document to standard output.
+`tests/test_openapi_contract.py` fails when the committed file and the application
+disagree, and CI runs that test, so every change of the API regenerates the file and
+commits it in the same change.
+
+What a reader can rely on:
+
+- **Errors.** Every error answer of every operation is `application/problem+json` and
+  references the `Problem` component: `type`, `title`, `status`, `code` (stable),
+  `detail` (Spanish) and the optional `errors[]` of `FieldError {field, code, message}`,
+  `shortages[]`, `payment_id`, `reason` and `retry_after`. The description of each answer
+  names the codes it can carry.
+- **Answers that apply to every route.** Every operation documents only the guards it
+  really passes through: 400 `MALFORMED_JSON` and 413 `PAYLOAD_TOO_LARGE` when it takes a
+  body, 401 `UNAUTHENTICATED`/`SESSION_EXPIRED` when it needs a session, 403
+  `CSRF_ORIGIN_MISMATCH` (and `FORBIDDEN` when it also needs a permission) on POST,
+  PATCH, PUT and DELETE, 429 `RATE_LIMITED`, 500 `INTERNAL_ERROR` and 503 (`LOCK_TIMEOUT`,
+  plus `SERVICE_BUSY` on login and `PAYMENT_GATEWAY_UNAVAILABLE` on payment). The feature
+  answers (404, 409, 422 and the business codes) appear only where `docs/SPEC.md` says the
+  operation can give them. `GET /api/health` is the exception: the rate limiter skips it
+  and it never reaches the database, so it documents neither 429 nor 503.
+- **Sessions.** The `cookieAuth` scheme is an `apiKey` in the `labapp_session` cookie.
+  Every operation carries it except the three public ones: `POST /api/auth/login`,
+  `POST /api/auth/logout` (idempotent, as the SPEC says) and `GET /api/health`.
+- **Shapes.** Money is a string with two decimals (`^[0-9]+\.[0-9]{2}$`), with an example;
+  the tax-rate input documents its own pattern. Ids and versions are integers from 1 to
+  2147483647. The payment body is the `PaymentCreate` component (method, amount, card,
+  reference) and describes which fields each method needs; the route still validates the
+  raw body so that an idempotency replay is decided first.
+- **Metadata.** `info.version` is the package version, the tags group the operations by
+  module and `servers` has one relative entry, `{"url": "/"}`, because the web app and the
+  API share one origin locally and online.
 
 ## PostgreSQL
 
@@ -144,10 +192,10 @@ as the bytes received exceed the limit.
 ## Request guards
 
 The outer middleware chain is, from outside to inside: `RequestIdMiddleware`,
-`RateLimitMiddleware`, `ControlsGuardMiddleware`, `BodySizeLimitMiddleware`, then the
-application. The order matters: the rate limit and the test-controls guard answer before
-the body is read or parsed, and the size limit answers before the application validates
-the body.
+`RateLimitMiddleware`, `ControlsGuardMiddleware`, `RequestControlsMiddleware`,
+`BodySizeLimitMiddleware`, then the application. The order matters: the rate limit and
+the test-controls guard answer before the body is read or parsed, and the size limit
+answers before the application validates the body.
 
 Rate limits are best effort per instance: 120 requests per minute and 10 login attempts
 per minute for each client IP. They are off with `TEST_MODE=1` and for a request with a
@@ -180,6 +228,129 @@ for _ in $(seq 1 120); do curl -s -o /dev/null localhost:8000/api/settings; done
 curl -i localhost:8000/api/settings
 ```
 
+## Request controls
+
+The application clock and the fault injection are test-only. They run only when
+`TEST_MODE=1` or `TEST_TOKEN` is non-empty; otherwise `RequestControlsMiddleware` does
+nothing and `ControlledClock` never reads the database.
+
+- **Clock.** The offset is the `settings` row `clock_offset_seconds`, a decimal number of
+  seconds. In PostgreSQL two concurrent advances are one atomic `UPDATE`; `advance` also
+  creates the row when it is absent, and `get` returns `0.0` without one. The offset is
+  added to the system clock for sessions, card expiry and stored timestamps. A request
+  gets its offset from the middleware; the exempt paths and the CLI read the store.
+- **Fault rules.** The `fault_rules` table stores `route` and `gateway` rules. A route
+  rule matches an HTTP method (or any method) and an exact path; a gateway rule has no
+  method, path or status and may carry a latency. `remaining` is the number of times the
+  rule can be consumed, or `null` until it is removed. At most 50 non-exhausted rules
+  exist; adding deletes exhausted rows first, and the 51st is rejected. `take` and
+  `take_gateway` consume a rule with one atomic statement, so N concurrent requests get
+  exactly `remaining` decisions.
+- **Gateway.** `FaultyGateway` wraps `FakeGateway`. A consumed gateway rule waits its
+  latency (capped at 10 seconds) and answers `unavailable` with
+  `GATEWAY_UNAVAILABLE` without calling the inner gateway; with no rule it delegates.
+  When the controls are disabled it delegates directly and never reads the store.
+- **Route faults.** A consumed route rule waits its latency and, when it has a status,
+  answers a problem document with code `INJECTED_FAULT` before the application runs.
+  `/__test__/*` and `GET /api/health` are exempt.
+- **Cost.** In PostgreSQL mode an enabled request loads the clock and the fault through
+  one extra database transaction and one threadpool hop; disabled controls add nothing.
+  In memory mode the same path is a plain call. Latency is limited to 10 seconds per
+  rule and status codes to 400-599.
+
+## Test controls
+
+`/__test__` exposes the clock and fault stores to the owner's automated tests. The
+endpoints are left out of the OpenAPI schema, need no session and are guarded twice: the
+`ControlsGuardMiddleware` of task 017 and a dependency that every route repeats.
+
+| `TEST_MODE` | `X-Test-Token` header | Result |
+|---|---|---|
+| `1` | any | Allowed. |
+| `0` | equals a non-empty `TEST_TOKEN` | Allowed. |
+| `0` | missing or different | 404, as if the route did not exist. |
+| `0` with an empty `TEST_TOKEN` | any | 404. |
+
+| Method | Path | Body | Answer |
+|---|---|---|---|
+| `POST` | `/__test__/reset` | none | `200 {"status": "ok"}` |
+| `POST` | `/__test__/seed` | `{"dataset": "default" \| "empty"}` | `200 {"dataset": "<value>"}` |
+| `GET` | `/__test__/clock` | none | `200 {"now": "<ISO 8601 UTC Z>", "offset_seconds": <number>}` |
+| `POST` | `/__test__/clock` | exactly one of `{"offset_seconds": <number>}` or `{"advance_seconds": <number>}` | the same shape as `GET` |
+| `POST` | `/__test__/faults` | a rule: `target`, optional `method`, `path`, `latency_ms`, `status` and `times` | `201` with the stored rule and its `id` |
+| `GET` | `/__test__/faults` | none | `200` with the non-exhausted rules and their `remaining` count |
+| `DELETE` | `/__test__/faults` | none | `204` |
+
+```bash
+# With TEST_MODE=1, or with the matching header when TEST_TOKEN is set.
+curl -s -X POST localhost:8000/__test__/reset
+curl -s -X POST -H 'X-Test-Token: secret' -H 'Content-Type: application/json' \
+  -d '{"dataset": "empty"}' localhost:8000/__test__/seed
+curl -s localhost:8000/__test__/clock
+curl -s -X POST -H 'Content-Type: application/json' \
+  -d '{"advance_seconds": 3600}' localhost:8000/__test__/clock
+curl -s -X POST -H 'Content-Type: application/json' \
+  -d '{"target": "route", "method": "GET", "path": "/api/customers", "status": 500, "times": 2}' \
+  localhost:8000/__test__/faults
+curl -s localhost:8000/__test__/faults
+curl -s -X DELETE localhost:8000/__test__/faults
+```
+
+The bodies use `extra="forbid"` and strict types, so an unknown field, a string where a
+number belongs, a boolean, a non-finite number or a value outside its range is a 422
+`VALIDATION_ERROR` on the offending field. The clock offset and a cumulative advance must
+stay within plus or minus ten years; the advance is a single `UPDATE ... WHERE
+abs(value::float8 + :delta) <= :max`, so a refused advance changes nothing. A fault rule
+is validated with the same function as the store: a route rule needs a path that starts
+with `/` and a latency above 0 or a status; a gateway rule takes no method, path or
+status. `times` is 1 to 1000 or `null`, and the 51st non-exhausted rule is a 422.
+
+What is stored where:
+
+- In PostgreSQL the offset is the `settings` row `clock_offset_seconds` and the rules are
+  rows of `fault_rules`; every instance reads them per request. Without `DATABASE_URL`
+  the same API runs against the in-memory `OffsetClock` and dictionary, which is the test
+  double. Creating the app and `GET /api/health` still open no connection.
+- A reset runs the five `replace_all` calls in this order, which respects the foreign
+  keys: (1) invoices empty, (2) orders and products empty, (3) customers seed, (4) orders
+  and products seed, (5) invoices and payments seed; then the four users are upserted, the
+  tax rate is restored to `DEFAULT_TAX_RATE` (quantized), the clock row is set to `'0'`
+  and every fault rule is deleted. PostgreSQL does all of it in one transaction after
+  `pg_advisory_xact_lock` (a key different from the session and fault-rule locks), so no
+  request sees a half-restored database. `TRUNCATE` and raw `DELETE` are never used.
+- Every `replace_all` accepts `defer_sequences`. The reset collects the sequence
+  restarts there and runs them as the last statements of the transaction, because
+  `setval` is not undone by a rollback: a reset that fails in a data step leaves the
+  sequences as they were instead of at 1.
+- A reset keeps the sessions: the four users keep their ids (upsert and delete-missing,
+  never touching `sessions`), so a stored cookie keeps working. It restores the data, the
+  number sequences (the next order is `PED-0008`, the next invoice `FAC-0004`, the next
+  payment id 5, the next customer id 11), the tax rate, the clock and the faults, and it
+  clears the rate-limit counters of the instance that serves it. Those counters are
+  per-instance and in memory; moving them to the database is not planned (the limits are best effort).
+- `seed {"dataset": "default"}` loads the same rows without touching the clock, the faults
+  or the rate-limit counters. `seed {"dataset": "empty"}` leaves the four users and the
+  settings, empties every other table, restarts the sequences, restores the tax rate,
+  sets the clock row to `'0'` and deletes the fault rules.
+- A reset is meant for a quiet system. A request that runs during it may fail with 409 or
+  503 `LOCK_TIMEOUT`, and a payment or an invoice that commits in the middle can make the
+  reset fail with a foreign key error; `/__test__/reset` answers 409 and the caller retries
+  once. A gateway fault with latency holds the invoice lock for up to 10 seconds, so a
+  reset that needs that invoice can answer 409 or 503.
+
+For local use the CLI has the same reset with three refusals:
+
+```bash
+TEST_MODE=1 uv run python -m app.cli reset --yes
+TEST_MODE=1 uv run python -m app.cli reset --yes --allow-public
+```
+
+It refuses unless `TEST_MODE=1` and `--yes` are both given, refuses a host that is not
+`localhost`, `127.0.0.1` or `::1` unless `--allow-remote` is also given, prints the host,
+the database name and the schema it will touch, and refuses when `DATABASE_SCHEMA` is
+unset (the public schema would be wiped) unless `--allow-public` is also given. It exits
+with code 2 when it refuses.
+
 ## Test
 
 ```bash
@@ -201,7 +372,7 @@ uv run ruff format --check .
 backend/
   app/
     config.py      Settings read from environment variables
-    cli.py         the migrate and seed commands
+    cli.py         the database and OpenAPI commands
     errors.py      ApiError, problem+json rendering and exception handlers
     infra/db.py    engine, metadata and URL helpers
     main.py        create_app() and the application instance

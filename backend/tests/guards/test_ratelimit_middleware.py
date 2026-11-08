@@ -204,3 +204,14 @@ def test_reset_limiters_clears_both_limiters() -> None:
     assert client.post("/api/auth/login", json={}).status_code == 429
     app.state.container.reset_limiters()
     assert client.post("/api/auth/login", json={}).status_code == 422
+
+
+def test_the_limited_path_ignores_the_root_path() -> None:
+    monotonic = FakeMonotonic()
+    client = TestClient(
+        make_app(make_settings(), monotonic),
+        root_path="/prefix",
+    )
+
+    assert [client.get("/prefix/api/customers").status_code for _ in range(120)] == [401] * 120
+    assert client.get("/prefix/api/customers").status_code == 429

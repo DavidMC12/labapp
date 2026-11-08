@@ -675,6 +675,88 @@ curl -s -b $J "$BASE/api/customers?sort=surname"
 # 422 {"code":"VALIDATION_ERROR", "errors":[{"field":"sort","code":"INVALID_FORMAT", ...}]}
 ```
 
+### Download the lists as CSV
+
+The three lists (customers, orders, invoices) download their whole result — every row the filters select, never one page — as a CSV file.
+
+**In the UI.** An `Exportar CSV` link sits next to the filter controls of each list (`customers-list-export-link`, `orders-list-export-link`, `invoices-list-export-link`, `<a>` per [TESTIDS](TESTIDS.md)), and it renders in every state of the request, empty file included. It is a plain download link — `<a download>` to `/api/<resource>/export`, the client router is not involved — so `waitForEvent('download')` is the way a test digs in. Its `href` mirrors the applied state: `q`, `status`, and `sort` with `direction` whenever the sort is not the plain-list one (the orders list adds `customer_id`); **`page` never travels**, because the export answers every matching row.
+
+```ts
+// Illustrative, not run in CI.
+const [download] = await Promise.all([
+  page.waitForEvent("download"),
+  page.getByTestId("customers-list-export-link").click(),
+]);
+expect(download.suggestedFilename()).toMatch(/^customers-\d{8}\.csv$/);
+// The date in the file name is the UTC date of the application clock: move
+// the clock with POST /__test__/clock (section 11) and the name moves too.
+await download.saveAs("customers.csv");
+```
+
+**Over the API.** Same parameters as the list (`q`, `status`, `sort`, `direction`, plus `customer_id` for orders and `order_id` for invoices) with exactly the same validation — including the 422s of the previous subsection — and **no `page`**: sending one changes nothing, like any other unknown query parameter. Every signed-in role may export; without a session it is the usual 401. The answer is the file itself:
+
+| Header | Value |
+|---|---|
+| `Content-Type` | `text/csv; charset=utf-8` |
+| `Content-Disposition` | `attachment; filename="<resource>-<YYYYMMDD>.csv"` (`customers`, `orders` or `invoices`; the date is the UTC date of the **application clock**) |
+| `Cache-Control` | `no-store` (plus the usual `nosniff` and `X-Request-Id`, section 10) |
+
+The file is UTF-8 without a byte order mark; every line ends with CRLF, the last line included; the first line is the header, one of the three:
+
+```text
+id,name,email,phone,tax_id,address,status,created_at,updated_at
+id,number,status,customer_id,customer_name,subtotal,tax_rate,tax,total,invoice_id,created_at,updated_at
+id,number,status,order_id,order_number,customer_name,tax_id,subtotal,tax_rate,tax,total,created_at,updated_at
+```
+
+Money is a plain number with two decimals (`110.00`), the tax rate `10.00`, timestamps ISO 8601 UTC with a trailing `Z`, and the rows are in the order the list gives for the same `sort` and `direction` ([SPEC section 8](SPEC.md#8-formats-and-conventions)). The export of a filter that matches nothing is a file with the header only.
+
+**The formula guard.** A text field that starts with `=`, `+`, `-`, `@`, a tab or a carriage return is written with a single quote in front (`'=1+1`), so a spreadsheet that opens the file never evaluates it as a formula. The seed gives one: Acme's phone `+1 555 010 0001` exports as `'+1 555 010 0001`. The quoting itself is RFC 4180: fields containing commas, double quotes or line breaks are wrapped in double quotes and a double quote inside is doubled.
+
+**The recipe.** With the cookie jar of section 10:
+
+```bash
+BASE=http://127.0.0.1:8000; J=/tmp/labapp-cookies
+curl -s -b $J -o customers.csv "$BASE/api/customers/export"
+curl -s -b $J -o orders.csv    "$BASE/api/orders/export"
+curl -s -b $J -o invoices.csv  "$BASE/api/invoices/export"
+```
+
+What lands (verified): `customers.csv` holds the header, then the ten customers in `created_at` descending order (so `Joyería Júpiter` first), the phone of Acme quoted as `'+1 555 010 0001`, and nothing else — no BOM, no page limit. Reading it back in a test:
+
+```ts
+// Illustrative, not run in CI. A minimal RFC 4180 parser: doubled quotes,
+// commas, CRLF and LF. For real suites prefer a library, e.g. csv-parse.
+import fs from "node:fs";
+
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [], cell = "", quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (c === '"') quoted = false;
+      else cell += c;
+    } else if (c === '"') quoted = true;
+    else if (c === ",") { row.push(cell); cell = ""; }
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      row.push(cell); rows.push(row); row = []; cell = "";
+    } else cell += c;
+  }
+  if (cell !== "" || row.length > 0) { row.push(cell); rows.push(row); }
+  return rows;
+}
+
+const lines = parseCsv(fs.readFileSync("customers.csv", "utf8"));
+const [header, ...data] = lines;
+expect(header).toEqual(
+  ["id","name","email","phone","tax_id","address","status","created_at","updated_at"]);
+expect(data.length).toBe(10);         // the list's total, not one page
+expect(data[0][1]).toBe("Joyería Júpiter"); // the same order the UI shows
+```
+
 ## 13. Isolating tests
 
 A test that assumes a clean world will eventually meet someone else's data. The reset controls give three patterns; choose one per project and keep it.

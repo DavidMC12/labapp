@@ -235,6 +235,13 @@ Three features that cut across every list. The rows are grouped in this order: *
 | I-24 ✔ | API | Without a session the export is 401. | Without a cookie: `GET /api/customers/export`. | 401 `UNAUTHENTICATED` "Inicia sesión para continuar.", as every route without a session. | Equivalence class | 1 |
 | I-25 ✔ | API | An invalid filter answers the same 422 as the list. | `GET /api/orders/export?status=drafting`. | 422 `VALIDATION_ERROR` with `{"field": "status", "code": "INVALID_FORMAT", "message": "El formato no es válido."}` — the same answer as the list with the same filter. | Error guessing | 1 |
 | I-26 ✔ | API | Every role can export. | Log in as Admin, Sales, Finance and Read-only; as each one, `GET /api/customers/export`, `GET /api/orders/export` and `GET /api/invoices/export`. | All twelve calls answer 200 `text/csv`; reading is open to every role, and an export is a read. | Decision table | 1 |
+| I-27 ✔ | API | A success carries both security headers. | `GET /api/customers` with a session. | 200 with `X-Content-Type-Options: nosniff` and `Cache-Control: no-store`, besides the usual `X-Request-Id`. | Equivalence class | 1 |
+| I-28 ✔ | API | A 401 carries both security headers. | `GET /api/customers` with no cookie. | 401 `UNAUTHENTICATED` with both `X-Content-Type-Options: nosniff` and `Cache-Control: no-store`. | Equivalence class | 1 |
+| I-29 ✔ | API | The 404 of an unknown path under `/api/` carries both headers. | Request an unknown path under `/api/`, for example `/api/nope`, with a session. | 404 `NOT_FOUND` "No se encontró el recurso solicitado." with both headers. | Equivalence class | 1 |
+| I-30 ✔ | API | A 422 carries both security headers. | `GET /api/customers?sort=bogus` with a session. | 422 `VALIDATION_ERROR` with both headers. | Equivalence class | 1 |
+| I-31 ✔ | API | A 413 carries both security headers. | `POST /api/customers` with a body above 100 KB, for example a `name` of 102400 characters. | 413 `PAYLOAD_TOO_LARGE` "La solicitud es demasiado grande." with both headers. | Boundary value | 1 |
+| I-32 ✔ | API | The contract and the Swagger page are the only answers without `Cache-Control`. | Request `/api/openapi.json` and `/api/docs`. | Both answer 200 with `X-Content-Type-Options: nosniff` and no `Cache-Control` at all: they are the only two exceptions, because the contract and the Swagger page do not depend on the session or on the data. | Decision table | 2 |
+| I-33 ✔ | API | A path outside `/api/` carries neither header. | Request a path outside `/api/`, for example `/nope`, with `curl`. | 404 `NOT_FOUND` with neither `X-Content-Type-Options` nor `Cache-Control`; the rule covers only `/api/` and `/__test__/`. | Boundary value | 1 |
 
 ## Learning path
 

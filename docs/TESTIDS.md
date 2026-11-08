@@ -160,6 +160,7 @@ Present in every logged-in state.
 | `customers-list-row-8` | `tr` |
 | `customers-list-row-9` | `tr` |
 | `customers-list-row-10` | `tr` |
+| `customers-list-scroll-region` | `div[role=region]` |
 | `customers-list-search-button` | `button` |
 | `customers-list-search-form` | `form` |
 | `customers-list-search-input` | `input[type=text]` |
@@ -238,6 +239,7 @@ Present in every logged-in state.
 | `customers-list-row-8` | `tr` |
 | `customers-list-row-9` | `tr` |
 | `customers-list-row-10` | `tr` |
+| `customers-list-scroll-region` | `div[role=region]` |
 | `customers-list-search-button` | `button` |
 | `customers-list-search-form` | `form` |
 | `customers-list-search-input` | `input[type=text]` |
@@ -441,6 +443,7 @@ Present in every logged-in state.
 | `products-list-row-13` | `tr` |
 | `products-list-row-14` | `tr` |
 | `products-list-row-15` | `tr` |
+| `products-list-scroll-region` | `div[role=region]` |
 | `products-list-search-button` | `button` |
 | `products-list-search-form` | `form` |
 | `products-list-search-input` | `input[type=text]` |
@@ -489,6 +492,7 @@ Present in every logged-in state.
 | `products-list-name-cell-6` | `td` |
 | `products-list-price-cell-6` | `td` |
 | `products-list-row-6` | `tr` |
+| `products-list-scroll-region` | `div[role=region]` |
 | `products-list-search-button` | `button` |
 | `products-list-search-form` | `form` |
 | `products-list-search-input` | `input[type=text]` |
@@ -543,6 +547,7 @@ Present in every logged-in state.
 | `orders-list-row-5` | `tr` |
 | `orders-list-row-6` | `tr` |
 | `orders-list-row-7` | `tr` |
+| `orders-list-scroll-region` | `div[role=region]` |
 | `orders-list-search-button` | `button` |
 | `orders-list-search-form` | `form` |
 | `orders-list-search-input` | `input[type=text]` |
@@ -626,6 +631,7 @@ Present in every logged-in state.
 | `orders-detail-line-save-button-1` | `button` |
 | `orders-detail-line-total-cell-1` | `td` |
 | `orders-detail-lines-heading` | `h2` |
+| `orders-detail-lines-scroll-region` | `div[role=region]` |
 | `orders-detail-lines-table` | `table` |
 | `orders-detail-preview-text` | `p` |
 | `orders-detail-state-status` | `span` |
@@ -658,6 +664,7 @@ Present in every logged-in state.
 | `orders-detail-line-row-4` | `tr` |
 | `orders-detail-line-total-cell-4` | `td` |
 | `orders-detail-lines-heading` | `h2` |
+| `orders-detail-lines-scroll-region` | `div[role=region]` |
 | `orders-detail-lines-table` | `table` |
 | `orders-detail-state-status` | `span` |
 | `orders-detail-subtotal-text` | `span` |
@@ -689,6 +696,7 @@ Present in every logged-in state.
 | `orders-detail-line-row-4` | `tr` |
 | `orders-detail-line-total-cell-4` | `td` |
 | `orders-detail-lines-heading` | `h2` |
+| `orders-detail-lines-scroll-region` | `div[role=region]` |
 | `orders-detail-lines-table` | `table` |
 | `orders-detail-state-status` | `span` |
 | `orders-detail-subtotal-text` | `span` |
@@ -719,6 +727,7 @@ Present in every logged-in state.
 | `orders-detail-line-row-6` | `tr` |
 | `orders-detail-line-total-cell-6` | `td` |
 | `orders-detail-lines-heading` | `h2` |
+| `orders-detail-lines-scroll-region` | `div[role=region]` |
 | `orders-detail-lines-table` | `table` |
 | `orders-detail-state-status` | `span` |
 | `orders-detail-subtotal-text` | `span` |
@@ -748,6 +757,7 @@ Present in every logged-in state.
 | `orders-detail-line-row-7` | `tr` |
 | `orders-detail-line-total-cell-7` | `td` |
 | `orders-detail-lines-heading` | `h2` |
+| `orders-detail-lines-scroll-region` | `div[role=region]` |
 | `orders-detail-lines-table` | `table` |
 | `orders-detail-state-status` | `span` |
 | `orders-detail-subtotal-text` | `span` |
@@ -785,6 +795,7 @@ Present in every logged-in state.
 | `invoices-list-row-1` | `tr` |
 | `invoices-list-row-2` | `tr` |
 | `invoices-list-row-3` | `tr` |
+| `invoices-list-scroll-region` | `div[role=region]` |
 | `invoices-list-search-button` | `button` |
 | `invoices-list-search-form` | `form` |
 | `invoices-list-search-input` | `input[type=text]` |
@@ -818,6 +829,7 @@ Present in every logged-in state.
 | `invoices-detail-line-row-1` | `tr` |
 | `invoices-detail-line-total-cell-1` | `td` |
 | `invoices-detail-lines-heading` | `h2` |
+| `invoices-detail-lines-scroll-region` | `div[role=region]` |
 | `invoices-detail-lines-table` | `table` |
 | `invoices-detail-order-link` | `a` |
 | `invoices-detail-payment-amount-cell-1` | `td` |
@@ -831,6 +843,7 @@ Present in every logged-in state.
 | `invoices-detail-payment-state-cell-1` | `td` |
 | `invoices-detail-payment-state-cell-2` | `td` |
 | `invoices-detail-payments-heading` | `h2` |
+| `invoices-detail-payments-scroll-region` | `div[role=region]` |
 | `invoices-detail-payments-table` | `table` |
 | `invoices-detail-state-status` | `span` |
 | `invoices-detail-subtotal-text` | `span` |
@@ -865,6 +878,7 @@ Present in every logged-in state.
 | `invoices-detail-line-row-2` | `tr` |
 | `invoices-detail-line-total-cell-2` | `td` |
 | `invoices-detail-lines-heading` | `h2` |
+| `invoices-detail-lines-scroll-region` | `div[role=region]` |
 | `invoices-detail-lines-table` | `table` |
 | `invoices-detail-order-link` | `a` |
 | `invoices-detail-payment-amount-cell-3` | `td` |
@@ -873,6 +887,7 @@ Present in every logged-in state.
 | `invoices-detail-payment-row-3` | `tr` |
 | `invoices-detail-payment-state-cell-3` | `td` |
 | `invoices-detail-payments-heading` | `h2` |
+| `invoices-detail-payments-scroll-region` | `div[role=region]` |
 | `invoices-detail-payments-table` | `table` |
 | `invoices-detail-state-status` | `span` |
 | `invoices-detail-subtotal-text` | `span` |
@@ -898,6 +913,7 @@ Present in every logged-in state.
 | `invoices-detail-line-row-1` | `tr` |
 | `invoices-detail-line-total-cell-1` | `td` |
 | `invoices-detail-lines-heading` | `h2` |
+| `invoices-detail-lines-scroll-region` | `div[role=region]` |
 | `invoices-detail-lines-table` | `table` |
 | `invoices-detail-order-link` | `a` |
 | `invoices-detail-payment-amount-cell-1` | `td` |
@@ -911,6 +927,7 @@ Present in every logged-in state.
 | `invoices-detail-payment-state-cell-1` | `td` |
 | `invoices-detail-payment-state-cell-2` | `td` |
 | `invoices-detail-payments-heading` | `h2` |
+| `invoices-detail-payments-scroll-region` | `div[role=region]` |
 | `invoices-detail-payments-table` | `table` |
 | `invoices-detail-state-status` | `span` |
 | `invoices-detail-subtotal-text` | `span` |

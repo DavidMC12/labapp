@@ -81,6 +81,72 @@ class CustomerRepositoryContract:
         with pytest.raises(EmailTaken):
             repository.add(new_customer(email="ACME@EXAMPLE.TEST"), NOW)
 
+    def test_add_many_inserts_in_order_with_consecutive_ids(self, repository: Any) -> None:
+        created = repository.add_many(
+            [
+                new_customer(name="One", email="one@example.test"),
+                new_customer(name="Two", email="two@example.test"),
+                new_customer(name="Three", email="three@example.test"),
+            ],
+            NOW,
+        )
+
+        assert [item.id for item in created] == [1, 2, 3]
+        assert [item.name for item in created] == ["One", "Two", "Three"]
+        for item in created:
+            assert item.status == CustomerStatus.ACTIVE
+            assert item.version == 1
+            assert item.created_at == NOW
+            assert item.updated_at == NOW
+            assert repository.get(item.id) == item
+
+    def test_add_many_with_a_duplicate_inside_the_batch_inserts_nothing(
+        self,
+        repository: Any,
+    ) -> None:
+        with pytest.raises(EmailTaken):
+            repository.add_many(
+                [
+                    new_customer(name="One", email="one@example.test"),
+                    new_customer(name="Two", email="two@example.test"),
+                    new_customer(name="Again", email="ONE@example.test"),
+                ],
+                NOW,
+            )
+
+        items, total = repository.list(query=None, status=None, page=1, page_size=20)
+
+        assert total == 0
+        assert items == []
+        assert repository.get(1) is None
+
+    def test_add_many_with_an_existing_email_inserts_nothing(self, repository: Any) -> None:
+        stored = repository.add(new_customer(email="taken@example.test"), NOW)
+
+        with pytest.raises(EmailTaken):
+            repository.add_many(
+                [
+                    new_customer(name="New", email="new@example.test"),
+                    new_customer(name="Taken", email="TAKEN@example.test"),
+                ],
+                NOW + timedelta(minutes=1),
+            )
+
+        items, total = repository.list(query=None, status=None, page=1, page_size=20)
+
+        assert total == 1
+        assert [item.id for item in items] == [stored.id]
+        assert repository.get(2) is None
+
+    def test_existing_emails_is_case_insensitive_and_ignores_unknown(self, repository: Any) -> None:
+        repository.add(new_customer(email="acme@example.test"), NOW)
+
+        found = repository.existing_emails(
+            ["ACME@example.test", "other@example.test", "acme@example.test"]
+        )
+
+        assert found == {"acme@example.test"}
+
     def test_list_orders_by_created_at_then_id_descending(self, repository: Any) -> None:
         for index in range(5):
             repository.add(

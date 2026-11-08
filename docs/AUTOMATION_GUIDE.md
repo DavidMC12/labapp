@@ -28,6 +28,7 @@ Password for all four: `Demo-LabApp-2026!`. What each role can do ([SPEC section
 |---|---|---|---|---|
 | View customers, products, orders, invoices, payments | yes | yes | yes | yes |
 | Create, edit, deactivate and reactivate customers | yes | yes | no | no |
+| Import customers from a CSV file | yes | yes | no | no |
 | Create and edit Draft orders; confirm, cancel, ship | yes | yes | no | no |
 | Create invoices and register payments | yes | no | yes | no |
 | Change the tax rate | yes | no | no | no |
@@ -76,6 +77,7 @@ One row per screen. "Who" is who gets the screen's main function; every logged-i
 | Customer detail | `/customers/{id}` | view: all; deactivate/reactivate: Admin, Sales | `Cliente {name} · LabApp` | `customers-detail-heading` | — (definition card) |
 | Customer new | `/customers/new` | Admin, Sales (others get the permission alert) | `Nuevo cliente · LabApp` | `customers-form-heading` | `customers-customer-form` |
 | Customer edit | `/customers/{id}/edit` | Admin, Sales (others get the permission alert) | `Editar cliente · LabApp` | `customers-form-heading` | `customers-customer-form` |
+| Customers import | `/customers/import` | Admin, Sales (others get the permission alert) | `Importar clientes · LabApp` | `customers-import-heading` | `customers-import-form` |
 | Orders list | `/orders` | view: all; create: Admin, Sales | `Pedidos · LabApp` | `orders-list-heading` | `orders-list-table` |
 | Order new | `/orders/new` | Admin, Sales (others get the permission alert) | `Nuevo pedido · LabApp` | `orders-form-heading` | `orders-customer-form` |
 | Order detail | `/orders/{id}` | view: all; transitions: Admin, Sales; invoice: Admin, Finance | `Pedido {number} · LabApp` | `orders-detail-heading` | `orders-detail-lines-table` |
@@ -143,6 +145,116 @@ await page.getByTestId("customers-form-email-input").fill("prueba@example.test")
 await page.getByTestId("customers-form-submit-button").click();
 await expect(page.getByTestId("customers-detail-heading")).toHaveText(name);
 await expect(page.getByTestId("customers-detail-state-status")).toHaveText("Activo");
+```
+
+### Import customers from a CSV file (Admin or Sales)
+
+The list puts **Importar CSV** next to **Nuevo cliente** for the two roles that manage customers. Finance and Read-only see no link; opening `/customers/import` answers the same permission notice as the other write screens (`customers-import-forbidden-alert`, `No tienes permiso para realizar esta acción.`) and renders no form. The page is one form: choose a file, press **Importar**, read the answer. The server judges the file; the screen repeats no CSV rule.
+
+| What | Id | Element or text |
+|---|---|---|
+| The link on the list | `customers-list-import-link` | `<a>` "Importar CSV", Admin and Sales only |
+| The heading | `customers-import-heading` | `<h1>`, "Importar clientes" |
+| The help text | `customers-import-help-text` | `<p>`: the five columns, 200 rows and about 100 KB |
+| The file input | `customers-import-file-input` | `input[type=file]`, `accept=".csv,text/csv"`, labelled "Archivo CSV" |
+| The file error slot | `customers-import-file-error` | the field error under the input, empty today (the server answers instead) |
+| The submit button | `customers-import-submit-button` | `<button type="submit">` "Importar"; disabled without a file and while sending |
+| The back link | `customers-import-back-link` | `<a>` to `/customers`, "Volver a clientes" |
+| The form | `customers-import-form` | `<form>`, carries `data-state` and `aria-busy` |
+| The result text | `customers-import-result-text` | `role="status"`: "Se importó 1 cliente." or "Se importaron N clientes." |
+| The list link | `customers-import-list-link` | `<a>` to `/customers`, "Ver clientes"; rendered after a success |
+| The alert | `customers-import-error-alert` | `<p role="alert">`, focusable; receives the focus after a failure |
+| The errors table | `customers-import-errors-table` | one row per entry of `errors[]` |
+| Its scroll region | `customers-import-errors-region` | the focusable wrapper (kind `region`) of the table |
+| An error row | `customers-import-error-row-N` | the N-th entry, in the API's order |
+| Its line cell | `customers-import-error-line-cell-N` | the line number, or `—` for a whole-file error |
+| Its field cell | `customers-import-error-field-cell-N` | a Spanish label: `Nombre`, `Email`, `Teléfono`, `ID fiscal`, `Dirección`, `Archivo` or `Fila completa` |
+| Its message cell | `customers-import-error-message-cell-N` | the message exactly as the API sends it |
+| The truncation note | `customers-import-truncated-text` | only when `errors[]` has 100 entries: "Se muestran los primeros 100 errores." |
+| The page loading line | `customers-import-loading-status` | `role="status"`, `Cargando…` while the session (`/api/auth/me`) is in flight |
+| The permission notice | `customers-import-forbidden-alert` | `role="alert"` for Finance and Read-only |
+
+**The four states.** The form carries `data-state`, and `aria-busy="true"` while the request is in flight:
+
+| State | When | What a test sees |
+|---|---|---|
+| `idle` | On arrival, and again when a new file is chosen | The submit button is disabled until the input holds a file |
+| `loading` | From the submit until the answer | `aria-busy="true"`; the button is disabled and its own `data-state` is `loading`, but its label stays "Importar" |
+| `success` | The 201 answer | The result text and the list link appear; the file input is emptied and the button disabled again. The form **stays** in `success` until another file is chosen |
+| `error` | Any other answer | The alert appears and takes the focus; the chosen file stays, so a retry is one click. The form stays in `error` until another file is chosen |
+
+The alert text depends on the answer: a rejected file (422) gets the fixed sentence "El archivo tiene errores. No se importó nada." followed by the table; a 413 gets "El archivo es demasiado grande (máximo 100 KB)." and no table; a 403 or 409 shows the API's `detail`; anything else (a network failure included) gets "Ocurrió un error inesperado. Inténtalo de nuevo.". A 422 with a whole-file entry shows `—` under Línea and `Archivo` under Campo; a whole-row entry (`rows[N]`) shows `Fila completa` under Campo.
+
+**The traps.**
+
+- The input is a native file control: clicking the browser's "Choose file" button opens an operating-system dialog and blocks the test. Set the files on the input instead; no file on disk is needed.
+- The rows are in the API's order, and the line is the **line of the file**, not the row number: the header is line 1, blank lines count, and a quoted field with a line break covers two lines.
+- A rejected file creates nothing. Assert the list (its `total`, or the absence of the rows) after a rejection, not only the table.
+- Permission is a page decision as well as a server one: Finance and Read-only get the notice and no form, and the API answers them 403 before reading the file.
+
+```ts
+// Illustrative, not run in CI. A good file: the form ends in success.
+const csv = "name,email\nAna Uno,ana.uno@example.test\n";
+const form = page.getByTestId("customers-import-form");
+await page.getByTestId("customers-list-import-link").click();
+await expect(form).toHaveAttribute("data-state", "idle");
+await expect(page.getByTestId("customers-import-submit-button")).toBeDisabled();
+await page.getByTestId("customers-import-file-input").setInputFiles({
+  name: "clientes.csv",
+  mimeType: "text/csv",
+  buffer: Buffer.from(csv),
+});
+await page.getByTestId("customers-import-submit-button").click();
+await expect(form).toHaveAttribute("data-state", "success");
+await expect(page.getByTestId("customers-import-result-text"))
+  .toHaveText("Se importó 1 cliente.");
+await expect(page.getByTestId("customers-import-list-link"))
+  .toHaveAttribute("href", "/customers");
+await expect(page.getByTestId("customers-import-file-input")).toHaveValue("");
+await expect(page.getByTestId("customers-import-submit-button")).toBeDisabled();
+```
+
+```ts
+// Illustrative, not run in CI. A rejected file: two rows, two errors.
+const bad = "name,email\nA,short@example.test\nValid Name,not-an-email\n";
+const form = page.getByTestId("customers-import-form");
+await page.getByTestId("customers-import-file-input").setInputFiles({
+  name: "clientes.csv",
+  mimeType: "text/csv",
+  buffer: Buffer.from(bad),
+});
+await page.getByTestId("customers-import-submit-button").click();
+await expect(form).toHaveAttribute("data-state", "error");
+const alert = page.getByTestId("customers-import-error-alert");
+await expect(alert).toHaveText("El archivo tiene errores. No se importó nada.");
+await expect(alert).toBeFocused();
+await expect(page.getByTestId("customers-import-error-row-2")).toBeVisible();
+await expect(page.getByTestId("customers-import-error-line-cell-1")).toHaveText("2");
+await expect(page.getByTestId("customers-import-error-field-cell-1")).toHaveText("Nombre");
+await expect(page.getByTestId("customers-import-error-message-cell-1"))
+  .toHaveText("Debe tener al menos 2 caracteres.");
+await expect(page.getByTestId("customers-import-error-line-cell-2")).toHaveText("3");
+await expect(page.getByTestId("customers-import-error-field-cell-2")).toHaveText("Email");
+await expect(page.getByTestId("customers-import-error-message-cell-2"))
+  .toHaveText("El formato no es válido.");
+```
+
+A file above the limit is made in memory too: a buffer of 120 KB is safely above the 100 KB body limit, which covers the whole multipart request. The page answers with the 413 alert and no table:
+
+```ts
+// Illustrative, not run in CI. 120 KB of CSV: the header plus one padded row.
+const big = "name,email\nBig One,big@example.test," + "x".repeat(120 * 1024) + "\n";
+const form = page.getByTestId("customers-import-form");
+await page.getByTestId("customers-import-file-input").setInputFiles({
+  name: "big120k.csv",
+  mimeType: "text/csv",
+  buffer: Buffer.from(big),
+});
+await page.getByTestId("customers-import-submit-button").click();
+await expect(form).toHaveAttribute("data-state", "error");
+await expect(page.getByTestId("customers-import-error-alert"))
+  .toHaveText("El archivo es demasiado grande (máximo 100 KB).");
+await expect(page.getByTestId("customers-import-errors-table")).toHaveCount(0);
 ```
 
 ### Flow 2 — build, confirm and cancel an order (Admin or Sales)

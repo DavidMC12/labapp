@@ -151,8 +151,14 @@ def _validate_field(field: str, value: object | None) -> tuple[str | None, dict[
     )
 
 
-def validate_new(data: Mapping[str, object | None]) -> NewCustomer:
-    """Validate a creation payload and return its normalized values."""
+def validate_new_fields(
+    data: Mapping[str, object | None],
+) -> tuple[dict[str, str | None], list[dict[str, str]]]:
+    """Validate a creation payload, returning the normalized values and the errors.
+
+    The import collects the errors of every row, so it needs the values that did
+    pass (the normalized email, for instance) even when another field failed.
+    """
     errors: list[dict[str, str]] = []
     values: dict[str, str | None] = {}
     for field in _FIELDS:
@@ -161,6 +167,12 @@ def validate_new(data: Mapping[str, object | None]) -> NewCustomer:
             errors.append(error)
         else:
             values[field] = value
+    return values, errors
+
+
+def validate_new(data: Mapping[str, object | None]) -> NewCustomer:
+    """Validate a creation payload and return its normalized values."""
+    values, errors = validate_new_fields(data)
     _raise_validation_errors(errors)
     return NewCustomer(
         name=values["name"] or "",

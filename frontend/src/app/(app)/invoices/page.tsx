@@ -9,12 +9,14 @@ import {
   SortableHeader,
   type SortableHeaderState,
   TableScroll,
+  TEXT_LINK_CLASSES,
 } from "@/components/ui";
 import { useInvoices } from "@/features/invoices/hooks";
 import {
   flipInvoiceSortDirection,
   invoiceSortDefaultDirection,
   invoiceSortLabel,
+  invoicesExportUrl,
   isDefaultInvoiceSort,
   parseInvoiceListParams,
   resolveInvoiceSort,
@@ -244,6 +246,24 @@ function InvoicesListContent() {
           Buscar
         </Button>
       </form>
+
+      {/*
+       * The download of every invoice the applied filters select: a plain
+       * anchor (the API serves the file, the client router must not touch
+       * it) with the state of the URL, never the text still in the
+       * inputs. It renders in every state of the request, even empty or
+       * error. The DOM order keeps it right after the filter controls.
+       */}
+      <p className="mt-3">
+        <a
+          data-testid="invoices-list-export-link"
+          download
+          href={invoicesExportUrl(params)}
+          className={TEXT_LINK_CLASSES}
+        >
+          Exportar CSV
+        </a>
+      </p>
 
       {list.isPending ? (
         <p

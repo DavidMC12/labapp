@@ -150,6 +150,7 @@ Present in every logged-in state.
 | `customers-list-email-cell-8` | `td` |
 | `customers-list-email-cell-9` | `td` |
 | `customers-list-email-cell-10` | `td` |
+| `customers-list-export-link` | `a` |
 | `customers-list-footer-item` | `div` |
 | `customers-list-heading` | `h1` |
 | `customers-list-name-cell-1` | `td` |
@@ -244,6 +245,7 @@ Present in every logged-in state.
 | `customers-list-email-cell-8` | `td` |
 | `customers-list-email-cell-9` | `td` |
 | `customers-list-email-cell-10` | `td` |
+| `customers-list-export-link` | `a` |
 | `customers-list-footer-item` | `div` |
 | `customers-list-heading` | `h1` |
 | `customers-list-name-cell-1` | `td` |
@@ -566,6 +568,7 @@ Present in every logged-in state.
 | `orders-list-customer-cell-5` | `td` |
 | `orders-list-customer-cell-6` | `td` |
 | `orders-list-customer-cell-7` | `td` |
+| `orders-list-export-link` | `a` |
 | `orders-list-footer-item` | `div` |
 | `orders-list-heading` | `h1` |
 | `orders-list-lines-cell-1` | `td` |
@@ -828,6 +831,7 @@ Present in every logged-in state.
 | `invoices-list-customer-cell-1` | `td` |
 | `invoices-list-customer-cell-2` | `td` |
 | `invoices-list-customer-cell-3` | `td` |
+| `invoices-list-export-link` | `a` |
 | `invoices-list-footer-item` | `div` |
 | `invoices-list-heading` | `h1` |
 | `invoices-list-next-button` | `button` |

@@ -4,6 +4,7 @@ import {
   isDefaultOrderSort,
   orderSortDefaultDirection,
   orderSortLabel,
+  ordersExportUrl,
   parseCustomerIdParam,
   parseOrderIdParam,
   parseOrderListParams,
@@ -202,5 +203,53 @@ describe("parseOrderListParams", () => {
     // Any other value of either falls back like a broken status.
     expect(read("sort=items")).toMatchObject({ sort: null });
     expect(read("direction=upwards")).toMatchObject({ direction: null });
+  });
+});
+
+describe("ordersExportUrl", () => {
+  /** A params value with one field overridden, for brevity in the tests. */
+  function paramsWith(overrides: Partial<OrderListParams>): OrderListParams {
+    return {
+      page: 1,
+      q: null,
+      status: null,
+      customerId: null,
+      sort: null,
+      direction: null,
+      ...overrides,
+    };
+  }
+
+  it("answers the plain export URL of the plain list", () => {
+    expect(ordersExportUrl(paramsWith({}))).toBe("/api/orders/export");
+  });
+
+  it("never carries the page parameter", () => {
+    expect(
+      ordersExportUrl(
+        paramsWith({ page: 2, q: "ped", status: "confirmed", customerId: 4 }),
+      ),
+    ).toBe("/api/orders/export?q=ped&status=confirmed&customer_id=4");
+  });
+
+  it("carries a direction of the default field as a sort of its own", () => {
+    expect(
+      ordersExportUrl(paramsWith({ direction: "asc" })),
+    ).toBe("/api/orders/export?sort=created_at&direction=asc");
+  });
+
+  it("drops the customer filter when the URL has none", () => {
+    expect(
+      ordersExportUrl(paramsWith({ q: "ped", customerId: null })),
+    ).toBe("/api/orders/export?q=ped");
+  });
+
+  it("encodes the search value", () => {
+    expect(
+      ordersExportUrl(paramsWith({ q: "café & más" })),
+    ).toBe("/api/orders/export?q=caf%C3%A9+%26+m%C3%A1s");
+    expect(
+      ordersExportUrl(paramsWith({ q: "1+1" })),
+    ).toBe("/api/orders/export?q=1%2B1");
   });
 });

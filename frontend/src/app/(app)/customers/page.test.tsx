@@ -706,3 +706,105 @@ describe("the customers list permission", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe("the customers list export link", () => {
+  it("renders the plain download anchor of the plain list", () => {
+    renderAt("");
+
+    const link = screen.getByTestId("customers-list-export-link");
+    expect(link.tagName).toBe("A");
+    expect(link).toHaveAccessibleName("Exportar CSV");
+    expect(link).toHaveAttribute("href", "/api/customers/export");
+    expect(link).toHaveAttribute("download");
+  });
+
+  it("renders it in the empty state too", async () => {
+    respondList(listPageOf([], 0));
+    renderAt("");
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-list-empty-status"))
+        .toBeInTheDocument();
+    });
+    expect(screen.getByTestId("customers-list-export-link")).toBeDefined();
+  });
+
+  it("renders it in the error state too", async () => {
+    respondList(
+      problemResponse(500, "INTERNAL_ERROR", "Fallo inesperado."),
+      500,
+    );
+    renderAt("");
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-list-error-alert"))
+        .toBeInTheDocument();
+    });
+    expect(screen.getByTestId("customers-list-export-link")).toBeDefined();
+  });
+
+  it("follows the applied filters and the sort of the URL", () => {
+    renderAt("?page=2&q=ana&status=active&sort=name&direction=asc");
+
+    expect(screen.getByTestId("customers-list-export-link")).toHaveAttribute(
+      "href",
+      "/api/customers/export?q=ana&status=active&sort=name&direction=asc",
+    );
+  });
+
+  it("leaves the parameters that are the default out", () => {
+    // The direction alone is the default of the default field; the plain
+    // list (whatever its page) exports with no parameters at all.
+    renderAt("?page=3&sort=created_at&direction=desc");
+
+    expect(screen.getByTestId("customers-list-export-link")).toHaveAttribute(
+      "href",
+      "/api/customers/export",
+    );
+  });
+
+  it("never carries the page parameter", () => {
+    renderAt("?page=9&q=ana");
+
+    const href = screen.getByTestId("customers-list-export-link")
+      .getAttribute("href");
+    expect(href).toBe("/api/customers/export?q=ana");
+    expect(href).not.toContain("page=");
+  });
+
+  it("is rebuilt from the URL state, not from the search box", async () => {
+    const user = userEvent.setup();
+    renderAt("?q=ana");
+
+    await user.type(
+      screen.getByTestId("customers-list-search-input"),
+      "maria",
+    );
+
+    expect(screen.getByTestId("customers-list-export-link")).toHaveAttribute(
+      "href",
+      "/api/customers/export?q=ana",
+    );
+  });
+
+  it("follows the URL state when it changes", () => {
+    const { rerenderAt } = renderAt("?q=ana");
+    expect(screen.getByTestId("customers-list-export-link")).toHaveAttribute(
+      "href",
+      "/api/customers/export?q=ana",
+    );
+
+    rerenderAt("?q=ana&status=inactive&sort=email&direction=desc");
+    expect(screen.getByTestId("customers-list-export-link")).toHaveAttribute(
+      "href",
+      "/api/customers/export?q=ana&status=inactive&sort=email&direction=desc",
+    );
+  });
+
+  it("is a plain anchor: no router call on click", async () => {
+    renderAt("?q=ana");
+
+    await userEvent.setup().click(screen.getByTestId("customers-list-export-link"));
+
+    expect(state.router.push).not.toHaveBeenCalled();
+    expect(state.router.replace).not.toHaveBeenCalled();
+  });
+});

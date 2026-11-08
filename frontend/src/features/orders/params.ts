@@ -184,3 +184,33 @@ export function parseOrderListParams(
 
   return { page, q, status, customerId, sort, direction };
 }
+
+/**
+ * The href of the "Exportar CSV" link of the list (docs/SPEC.md section
+ * 8): the export endpoint of the resource plus the applied list state,
+ * with each parameter only when it has a value and is not the default,
+ * exactly the rule `listUrl` follows for the list URL — and never `page`,
+ * because the export answers every row the filters select, not one page.
+ */
+export function ordersExportUrl(params: OrderListParams): string {
+  const search = new URLSearchParams();
+  if (params.q) {
+    search.set("q", params.q);
+  }
+  if (params.status) {
+    search.set("status", params.status);
+  }
+  if (params.customerId) {
+    search.set("customer_id", String(params.customerId));
+  }
+  const sort = resolveOrderSort({
+    sort: params.sort,
+    direction: params.direction,
+  });
+  if (!isDefaultOrderSort(sort)) {
+    search.set("sort", sort.sort);
+    search.set("direction", sort.direction);
+  }
+  const query = search.toString();
+  return query === "" ? "/api/orders/export" : `/api/orders/export?${query}`;
+}

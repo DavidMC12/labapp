@@ -482,6 +482,52 @@ def test_no_log_record_contains_the_card_number_or_the_cvc(
     assert "cvc" not in caplog.text
 
 
+class ExportOnlyStore:
+    """A store that fails if the export asks for a page."""
+
+    def __init__(self, invoices: list[object]) -> None:
+        self.invoices = invoices
+        self.arguments: dict[str, object] = {}
+
+    def list_invoices(self, **_: object) -> tuple[list[object], int]:
+        raise AssertionError("the export must not read the paged list")
+
+    def export_rows(
+        self,
+        *,
+        query: str | None,
+        status: object,
+        order_id: int | None,
+        sort: object = None,
+    ) -> list[object]:
+        self.arguments = {
+            "query": query,
+            "status": status,
+            "order_id": order_id,
+            "sort": sort,
+        }
+        return self.invoices
+
+
+def test_export_reads_every_row_in_one_call() -> None:
+    store = ExportOnlyStore(list(seed_invoices()))
+    service = InvoiceService(  # type: ignore[arg-type]
+        store,
+        object(),
+        InMemoryCustomerRepository(seed_customers()),
+        FixedClock(NOW),
+        RecordingMailer(),
+        SECRET,
+    )
+
+    document = service.export_invoices("  delta  ", None, 3, "number", "asc")
+
+    assert store.arguments["query"] == "delta"
+    assert store.arguments["order_id"] == 3
+    assert "FAC-0001" in document.text
+    assert document.filename == "invoices-20260615.csv"
+
+
 def test_list_rejects_an_invalid_order_id_type(service) -> None:
     with pytest.raises(ApiError) as error:
         service.list_invoices(1, None, None, "1")  # type: ignore[arg-type]

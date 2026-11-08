@@ -61,6 +61,24 @@ class InvoiceStore(Protocol):
         """
         ...
 
+    def export_rows(
+        self,
+        *,
+        query: str | None,
+        status: InvoiceStatus | None,
+        order_id: int | None,
+        sort: SortSpec | None = None,
+    ) -> list[Invoice]:
+        """Return every match of the list filters, in one read.
+
+        The filters and the order are exactly those of ``list_invoices`` with the
+        same ``query``, ``status``, ``order_id`` and ``sort``, without a page. The
+        returned invoices have empty ``lines`` and ``payments``. A SQL adapter
+        reads it in one statement, so a concurrent write cannot repeat or skip a
+        row between pages.
+        """
+        ...
+
     def find_key(self, invoice_id: int, key: str, now: datetime) -> StoredKey | None:
         """Return a committed, not expired key of this invoice, or ``None``.
 

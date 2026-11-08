@@ -142,6 +142,33 @@ def _pay(
     )
 
 
+def _all_invoice_pages(
+    store,
+    *,
+    query: str | None,
+    status: InvoiceStatus | None,
+    order_id: int | None,
+    sort: SortSpec,
+    page_size: int = 20,
+) -> list[Invoice]:
+    """Concatenate every page of ``list_invoices`` for the same filters and sort."""
+    items: list[Invoice] = []
+    page = 1
+    while True:
+        page_items, _ = store.list_invoices(
+            query=query,
+            status=status,
+            order_id=order_id,
+            page=page,
+            page_size=page_size,
+            sort=sort,
+        )
+        items.extend(page_items)
+        if len(page_items) < page_size:
+            return items
+        page += 1
+
+
 class InvoiceStoreContract:
     """The behavior every InvoiceStore adapter must share.
 
@@ -454,6 +481,56 @@ class InvoiceStoreContract:
         assert total == 45
         assert [invoice.id for invoice in first] == list(range(1, 21))
         assert [invoice.id for invoice in second] == list(range(21, 41))
+
+    def test_export_rows_equal_every_page_of_the_list(self, store, order_store) -> None:
+        store.replace_all([], [])
+        order_store.replace_all(
+            seed_products(),
+            [
+                _order(identifier, created_at=NOW + timedelta(seconds=identifier))
+                for identifier in range(1, 46)
+            ],
+            Decimal("10.00"),
+        )
+        store.replace_all(
+            [
+                _invoice(
+                    identifier,
+                    number=f"FAC-{identifier:04d}",
+                    order_id=identifier,
+                    customer_name=f"Customer {(identifier - 1) % 7:02d}",
+                    total=f"{identifier}.50",
+                    status=(InvoiceStatus.PAID if identifier % 3 == 0 else InvoiceStatus.ISSUED),
+                    created_at=NOW + timedelta(seconds=identifier),
+                )
+                for identifier in range(1, 46)
+            ],
+            [],
+        )
+
+        for field in ("created_at", "number", "customer", "total"):
+            for descending in (False, True):
+                spec = SortSpec(field, descending)
+                assert store.export_rows(
+                    query=None,
+                    status=None,
+                    order_id=None,
+                    sort=spec,
+                ) == _all_invoice_pages(store, query=None, status=None, order_id=None, sort=spec)
+
+        paid = SortSpec("number", False)
+        assert store.export_rows(
+            query=None,
+            status=InvoiceStatus.PAID,
+            order_id=None,
+            sort=paid,
+        ) == _all_invoice_pages(
+            store,
+            query=None,
+            status=InvoiceStatus.PAID,
+            order_id=None,
+            sort=paid,
+        )
 
     def test_list_pages(self, store) -> None:
         first, total = store.list_invoices(

@@ -18,7 +18,6 @@ type CsvValue = str | int | Decimal | datetime | None
 FORMULA_STARTERS = ("=", "+", "-", "@", "\t", "\r")
 CSV_MEDIA_TYPE = "text/csv"
 CSV_CONTENT_TYPE = "text/csv; charset=utf-8"
-EXPORT_PAGE_SIZE = 500
 
 
 @dataclass(frozen=True)

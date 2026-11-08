@@ -921,6 +921,89 @@ expect(data.length).toBe(10);         // the list's total, not one page
 expect(data[0][1]).toBe("Joyería Júpiter"); // the same order the UI shows
 ```
 
+### Upload customers from a CSV file
+
+`POST /api/customers/import` creates the customers of one CSV file, all or nothing: any bad row rejects the whole file and nothing is stored. The request is `multipart/form-data` with one file part named **`file`**; the browser sets its own multipart `Content-Type` with the boundary. Admin and Sales only (403 for the other roles, checked before the file is read), a session (401), and the origin rule of the writes ([section 10](#10-where-the-api-is)): a browser sends `Origin`; `curl` and Playwright `request` send none, which is always allowed, and one that is present must match the application origin or the answer is 403 `CSRF_ORIGIN_MISMATCH` before any file is read.
+
+The good file, with the cookie jar of [section 10](#10-where-the-api-is):
+
+```bash
+BASE=http://127.0.0.1:8000; J=/tmp/labapp-cookies
+printf 'name,email\nAna Uno,ana.uno@example.test\n' > customers.csv
+curl -s -i -b $J -F 'file=@customers.csv;type=text/csv' "$BASE/api/customers/import"
+# 201 Created; X-Content-Type-Options: nosniff, Cache-Control: no-store, X-Request-Id
+# {"created":1,"items":[{"id":11,"name":"Ana Uno","email":"ana.uno@example.test",
+#   "phone":null,"tax_id":null,"address":null,"status":"active","version":1,
+#   "created_at":"…","updated_at":"…"}]}
+```
+
+A file with two bad rows is rejected whole, and the answer lists both errors in file order:
+
+```bash
+printf 'name,email,phone\nA,short@example.test,+1 555 01\nValid Name,not-an-email,\n' > bad.csv
+curl -s -b $J -F 'file=@bad.csv;type=text/csv' "$BASE/api/customers/import"
+# 422 {"type":"about:blank","title":"Unprocessable Content","status":422,
+#      "code":"VALIDATION_ERROR","detail":"Revisa los datos ingresados.",
+#      "errors":[{"field":"rows[2].name","code":"TOO_SHORT",
+#                 "message":"Debe tener al menos 2 caracteres."},
+#                {"field":"rows[3].email","code":"INVALID_FORMAT",
+#                 "message":"El formato no es válido."}]}
+```
+
+Nothing was created: on a fresh seed a `GET /api/customers` after the rejected upload still reads `"total": 10` (if the good upload above already ran, 11). The same upload from Playwright, which needs no file on disk (illustrative, not run in CI; the `request` fixture shares the browser's cookies):
+
+```ts
+// Illustrative, not run in CI.
+const base = "http://127.0.0.1:8000";
+const csv = "name,email\nAna Uno,ana.uno@example.test\n";
+const res = await request.post(`${base}/api/customers/import`, {
+  multipart: {
+    file: { name: "customers.csv", mimeType: "text/csv", buffer: Buffer.from(csv) },
+  },
+});
+expect(res.status()).toBe(201);
+const { created, items } = await res.json();
+expect(created).toBe(1);
+expect(items[0].email).toBe("ana.uno@example.test");
+```
+
+**The answers.** The endpoint shares the shapes and the headers of the rest of the API ([section 10](#10-where-the-api-is)):
+
+| HTTP | Body | When |
+|---|---|---|
+| 201 | `{created, items}` | every row is valid; `created` is the number of rows and `items` are the `Customer` objects in file order, with consecutive ids |
+| 401 | `UNAUTHENTICATED` | no session |
+| 403 | `FORBIDDEN` | Finance or Read-only; the permission is checked before the multipart body is read |
+| 413 | `PAYLOAD_TOO_LARGE` | the whole multipart request is above about 100 KB |
+| 422 | `VALIDATION_ERROR` with `errors[]` | the file, the header or a row is invalid (the entries below) |
+| 409 | `CUSTOMER_EMAIL_TAKEN` | another request took one of the emails between validation and insert; nothing is created |
+
+| Entry | Code | When |
+|---|---|---|
+| `file` | `REQUIRED` | the part `file` is missing or empty |
+| `file` | `INVALID_FORMAT` | the file is not UTF-8, its name does not end in `.csv`, it is not parseable CSV, or the header is invalid |
+| `file` | `OUT_OF_RANGE` | fewer than 1 or more than 200 data rows: "El valor debe estar entre 1 y 200." |
+| `rows[N]` | `INVALID_FORMAT` | a row has more or fewer cells than the header |
+| `rows[N].<column>` | the field codes | a column fails the creation rule; the email duplicate of the seed or of an earlier row is `CUSTOMER_EMAIL_TAKEN` |
+
+**The limits.** All of them are enforced by the server, so a test can provoke each one:
+
+- The file is UTF-8; a leading byte order mark is ignored. Its name ends in `.csv` in any case. The separator is the comma, quoting is RFC 4180, line ends are CRLF or LF, and blank lines are ignored.
+- The first line is the header: the columns are `name`, `email`, `phone`, `tax_id` and `address`, case-sensitive, each at most once; `name` and `email` must be present.
+- There are 1 to 200 data rows. Each one follows the creation rules of a customer (trimming, lengths, formats); an empty optional value is stored as `null`, and the email is trimmed and lowercased. Values are stored as the file gives them after trimming: the import does not remove a leading single quote.
+- Any error rejects the file: nothing is created, the answer lists every error in file order, and the list stops at **100 entries**.
+- The request size limit covers the whole multipart body, headers included, so a file of about 100 KB already answers 413.
+
+**The line numbers.** `N` is the physical line in the file, not the position of the data row: the header is line 1, a blank line counts, and a quoted field with a line break covers as many lines as it spans. The header, a blank line, a row whose quoted `address` spans lines 3 and 4, a blank line and a bad row on line 6:
+
+```bash
+printf 'name,email,address\n\nGamma Tres,gamma.tres@example.test,"Linea uno\nLinea dos"\n\nA,bad-line@example.test,Calle\n' > lines.csv
+curl -s -b $J -F 'file=@lines.csv;type=text/csv' "$BASE/api/customers/import"
+# 422 {"code":"VALIDATION_ERROR", ...,
+#      "errors":[{"field":"rows[6].name","code":"TOO_SHORT",
+#                 "message":"Debe tener al menos 2 caracteres."}]}
+```
+
 ## 13. Isolating tests
 
 A test that assumes a clean world will eventually meet someone else's data. The reset controls give three patterns; choose one per project and keep it.

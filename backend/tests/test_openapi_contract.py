@@ -51,6 +51,7 @@ MONEY_CASES = [
 ]
 
 BOUNDED_SCHEMAS = (
+    "Problem",
     "CustomerOut",
     "Product",
     "OrderLine",

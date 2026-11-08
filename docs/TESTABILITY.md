@@ -10,12 +10,12 @@ LabApp exists to be easy and reliable to automate. These rules apply to every sc
 4. Naming: `<module>-<name>-<kind>` in kebab-case, with the numeric record id appended after the kind for list items.
    - `module` is one of `app`, `auth`, `customers`, `products`, `orders`, `invoices`, `payments`, `settings`, `home`.
    - `name` is one or more kebab-case words describing the element (`form-email`, `confirm`, `list`). Each word starts with a letter, so a numeric record id can appear only as the final suffix after the kind: `customers-list-row-42` is valid, `customers-list-row-42-view-button` and `orders-line-7-quantity-input` are not (write `orders-line-quantity-input-7`).
-   - `kind` is one of `button`, `input`, `select`, `textarea`, `checkbox`, `radio`, `switch`, `link`, `tab`, `menuitem`, `form`, `table`, `row`, `cell`, `list`, `item`, `dialog`, `alert`, `error`, `status`, `text`, `heading`.
+   - `kind` is one of `button`, `input`, `select`, `textarea`, `checkbox`, `radio`, `switch`, `link`, `tab`, `menuitem`, `form`, `table`, `row`, `cell`, `list`, `item`, `dialog`, `alert`, `error`, `status`, `text`, `heading`, `region`.
    - Examples: `customers-form-email-input`, `customers-form-email-error`, `orders-confirm-button`, `customers-list-row-42`, `orders-total-text`.
    - The pattern checked by the lint rule, the types and the audit is:
 
 ```
-^(app|auth|customers|products|orders|invoices|payments|settings|home)(-[a-z][a-z0-9]*)+-(button|input|select|textarea|checkbox|radio|switch|link|tab|menuitem|form|table|row|cell|list|item|dialog|alert|error|status|text|heading)(-[0-9]+)?$
+^(app|auth|customers|products|orders|invoices|payments|settings|home)(-[a-z][a-z0-9]*)+-(button|input|select|textarea|checkbox|radio|switch|link|tab|menuitem|form|table|row|cell|list|item|dialog|alert|error|status|text|heading|region)(-[0-9]+)?$
 ```
 
 Playwright configuration for this attribute:

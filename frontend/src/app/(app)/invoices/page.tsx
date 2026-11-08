@@ -1,6 +1,6 @@
 "use client";
 
-import { Alert, Button, Input, Link, Select } from "@/components/ui";
+import { Alert, Button, Input, Link, Select, TableScroll } from "@/components/ui";
 import { useInvoices } from "@/features/invoices/hooks";
 import { parseInvoiceListParams } from "@/features/invoices/params";
 import {
@@ -202,7 +202,7 @@ function InvoicesListContent() {
            * the padding keeps the 3px focus ring visible around the
            * scrollbar edges.
            */}
-          <div className="mt-6 overflow-x-auto p-1.5">
+          <TableScroll testId="invoices-list-scroll-region" label="Tabla de facturas" className="mt-6">
             <table
               data-testid="invoices-list-table"
               className="min-w-[44rem] w-full"
@@ -277,7 +277,7 @@ function InvoicesListContent() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
 
           {/*
            * The ledger footer: a 4px double rule of ink above it, the

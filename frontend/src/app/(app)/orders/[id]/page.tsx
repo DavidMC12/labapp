@@ -7,6 +7,7 @@ import {
   Input,
   Link,
   Select,
+  TableScroll,
 } from "@/components/ui";
 import { useMe } from "@/features/auth/hooks";
 import { canManageInvoices } from "@/features/invoices/permissions";
@@ -921,7 +922,7 @@ function OrderDetail({ id }: { id: number }) {
             Este pedido aún no tiene líneas.
           </p>
         ) : (
-          <div className="mt-3 overflow-x-auto p-1.5">
+          <TableScroll testId="orders-detail-lines-scroll-region" label="Líneas del pedido" className="mt-3">
             <table
               data-testid="orders-detail-lines-table"
               className="min-w-[36rem] w-full"
@@ -956,7 +957,7 @@ function OrderDetail({ id }: { id: number }) {
                 )}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         )}
 
         {/*

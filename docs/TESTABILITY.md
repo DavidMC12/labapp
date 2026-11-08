@@ -11,7 +11,7 @@ LabApp exists to be easy and reliable to automate. These rules apply to every sc
    - `module` is one of `app`, `auth`, `customers`, `products`, `orders`, `invoices`, `payments`, `settings`, `home`.
    - `name` is one or more kebab-case words describing the element (`form-email`, `confirm`, `list`). Each word starts with a letter, so a numeric record id can appear only as the final suffix after the kind: `customers-list-row-42` is valid, `customers-list-row-42-view-button` and `orders-line-7-quantity-input` are not (write `orders-line-quantity-input-7`).
    - `kind` is one of `button`, `input`, `select`, `textarea`, `checkbox`, `radio`, `switch`, `link`, `tab`, `menuitem`, `form`, `table`, `row`, `cell`, `list`, `item`, `dialog`, `alert`, `error`, `status`, `text`, `heading`, `region`.
-   - Examples: `customers-form-email-input`, `customers-form-email-error`, `orders-confirm-button`, `customers-list-row-42`, `orders-total-text`.
+   - Examples: `customers-form-email-input`, `customers-form-email-error`, `orders-detail-confirm-button`, `customers-list-row-42`, `orders-detail-total-text`.
    - The pattern checked by the lint rule, the types and the audit is:
 
 ```

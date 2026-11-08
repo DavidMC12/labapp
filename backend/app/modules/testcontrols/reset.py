@@ -119,6 +119,7 @@ class PostgresResetter:
         orders: PostgresOrderStore,
         invoices: PostgresInvoiceStore,
         default_tax_rate: Decimal,
+        reset_limiters: Callable[[], None] | None = None,
     ) -> None:
         self._engine = engine
         self._users = PostgresUserRepository(engine)
@@ -126,6 +127,7 @@ class PostgresResetter:
         self._orders = orders
         self._invoices = invoices
         self._tax_rate = quantize_money(default_tax_rate)
+        self._reset_limiters = reset_limiters
 
     def reset(self) -> None:
         # Argon2 is slow; compute the hash outside the transaction that holds locks.
@@ -136,6 +138,8 @@ class PostgresResetter:
             self._users.replace_all(users, connection=connection)
             self._write_clock(connection)
             connection.execute(delete(fault_rules))
+        if self._reset_limiters is not None:
+            self._reset_limiters()
 
     def seed(self, dataset: Dataset) -> None:
         users = seed_users(demo_password_hash())

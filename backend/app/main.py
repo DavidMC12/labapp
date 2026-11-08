@@ -172,6 +172,7 @@ def create_app(
             orders=order_store,
             invoices=invoice_store,
             default_tax_rate=settings.default_tax_rate,
+            reset_limiters=container.reset_limiters,
         )
     app.state.resetter = resetter
     app.include_router(invoices_router)

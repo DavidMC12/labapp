@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
+from contextlib import nullcontext
 from datetime import datetime
 from typing import Any
 
@@ -207,10 +208,21 @@ class PostgresCustomerRepository:
             )
             return _customer_from_row(row)
 
-    def replace_all(self, replacement: Iterable[Customer]) -> None:
+    def replace_all(
+        self,
+        replacement: Iterable[Customer],
+        *,
+        connection: Connection | None = None,
+    ) -> None:
+        """Replace every customer and restart the id sequence.
+
+        With ``connection`` it runs inside the caller's transaction and does not open
+        its own; without it, the replacement is one transaction.
+        """
         replacements = list(replacement)
         next_id = max((customer.id for customer in replacements), default=0) + 1
-        with self._engine.begin() as connection:
+        context = nullcontext(connection) if connection is not None else self._engine.begin()
+        with context as connection:
             connection.execute(delete(customers))
             if replacements:
                 connection.execute(

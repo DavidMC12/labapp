@@ -26,6 +26,7 @@ holds a final response.
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -573,12 +574,20 @@ class PostgresInvoiceStore:
         self,
         invoice_rows: Iterable[Invoice],
         payment_rows: Iterable[Payment],
+        *,
+        connection: Connection | None = None,
     ) -> None:
+        """Replace the invoices, payments and idempotency keys and link the orders.
+
+        With ``connection`` it runs inside the caller's transaction and does not open
+        its own; without it, the replacement is one transaction.
+        """
         invoice_list = list(invoice_rows)
         payment_list = list(payment_rows)
         line_list = [(invoice.id, line) for invoice in invoice_list for line in invoice.lines]
 
-        with self._engine.begin() as connection:
+        context = nullcontext(connection) if connection is not None else self._engine.begin()
+        with context as connection:
             connection.execute(delete(payments))
             connection.execute(delete(idempotency_keys))
             connection.execute(delete(invoice_lines))

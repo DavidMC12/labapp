@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
+from contextlib import nullcontext
 from datetime import datetime
 from typing import Any
 
 from sqlalchemy import BigInteger, cast, delete, func, literal, select, text, update
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Connection, Engine
 
 from app.domain.permissions import Role
 from app.infra.db import as_utc, qualified_table_name
@@ -61,12 +62,22 @@ class PostgresUserRepository:
             row = connection.execute(select(users).where(users.c.id == id)).mappings().first()
         return _user_from_row(row) if row is not None else None
 
-    def replace_all(self, replacement: Iterable[User]) -> None:
-        """Replace the users, keeping the sessions of the users that remain."""
+    def replace_all(
+        self,
+        replacement: Iterable[User],
+        *,
+        connection: Connection | None = None,
+    ) -> None:
+        """Replace the users, keeping the sessions of the users that remain.
+
+        With ``connection`` it runs inside the caller's transaction and does not open
+        its own; without it, the replacement is one transaction.
+        """
         replacements = list(replacement)
         ids = [user.id for user in replacements]
         next_id = max(ids, default=0) + 1
-        with self._engine.begin() as connection:
+        context = nullcontext(connection) if connection is not None else self._engine.begin()
+        with context as connection:
             if ids:
                 connection.execute(delete(users).where(users.c.id.not_in(ids)))
             else:

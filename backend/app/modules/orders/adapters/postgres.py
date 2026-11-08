@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Iterable, Mapping
+from contextlib import nullcontext
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
@@ -634,11 +635,19 @@ class PostgresOrderStore:
         product_rows: Iterable[Product],
         order_rows: Iterable[Order],
         tax_rate: Decimal,
+        *,
+        connection: Connection | None = None,
     ) -> None:
+        """Replace the catalog, the orders and the tax rate in one transaction.
+
+        With ``connection`` it runs inside the caller's transaction and does not open
+        its own; without it, the replacement is one transaction.
+        """
         product_list = list(product_rows)
         order_list = list(order_rows)
         line_list = [(order.id, line) for order in order_list for line in order.lines]
-        with self._engine.begin() as connection:
+        context = nullcontext(connection) if connection is not None else self._engine.begin()
+        with context as connection:
             connection.execute(delete(order_lines))
             connection.execute(delete(orders))
             connection.execute(delete(products))

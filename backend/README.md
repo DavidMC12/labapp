@@ -73,9 +73,10 @@ The adapters follow two rules:
 - Raw SQL that names a table uses `qualified_table_name(engine, table)`, which adds the
   translated schema. `schema_translate_map` only rewrites `Table` constructs, so an
   unqualified raw statement would run against `public`.
-- Unique violations are mapped by index name with `unique_violation_of`. Only
-  `customers_email_lower_key` becomes `EmailTaken`; every other database error
-  propagates and answers 500 `INTERNAL_ERROR`.
+- Unique violations are mapped by index name with `unique_violation_of`.
+  `customers_email_lower_key` becomes `EmailTaken` and `invoices_order_key` becomes
+  `INVOICE_ALREADY_EXISTS`; every other database error propagates and answers 500
+  `INTERNAL_ERROR`.
 
 Products, orders, order lines and the tax rate use the `products`, `orders`,
 `order_lines` and `settings` tables. Order numbers come from `order_number_seq`
@@ -434,8 +435,8 @@ A PostgreSQL adapter must guarantee the same behaviour as the in-memory one:
 - Only the last four digits of a card are ever stored; the number and the CVC
   never reach the store or a response.
 
-This module runs in memory only when `DATABASE_URL` is unset; task 021 wires
-`PostgresInvoiceStore` when it is set.
+This module runs in memory only when `DATABASE_URL` is unset; when it is set,
+`PostgresInvoiceStore` runs instead.
 
 ```bash
 # Log in as finance and keep the session cookie.

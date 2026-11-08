@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   customerSortDefaultDirection,
   customerSortLabel,
+  customersExportUrl,
   flipCustomerSortDirection,
   isDefaultCustomerSort,
   parseCustomerListParams,
@@ -164,5 +165,68 @@ describe("parseCustomerListParams", () => {
     // The detail id keeps its own larger cap (docs/SPEC.md section 4 cap:
     // 2147483647), unchanged by the page range.
     expect(parseCustomerIdParam("2147483647")).toBe(2147483647);
+  });
+});
+
+describe("customersExportUrl", () => {
+  it("answers the plain export URL of the plain list", () => {
+    expect(
+      customersExportUrl({
+        page: 1,
+        q: null,
+        status: null,
+        sort: null,
+        direction: null,
+      }),
+    ).toBe("/api/customers/export");
+  });
+
+  it("never carries the page parameter", () => {
+    expect(
+      customersExportUrl({
+        page: 4,
+        q: "ana",
+        status: "inactive",
+        sort: "name",
+        direction: "desc",
+      }),
+    ).toBe(
+      "/api/customers/export?q=ana&status=inactive&sort=name&direction=desc",
+    );
+  });
+
+  it("carries a direction of the default field as a sort of its own", () => {
+    // `resolveCustomerSort` applies a lone `direction` to the default
+    // field, and `created_at` ascending is not the plain-list order.
+    expect(
+      customersExportUrl({
+        page: 1,
+        q: null,
+        status: null,
+        sort: null,
+        direction: "asc",
+      }),
+    ).toBe("/api/customers/export?sort=created_at&direction=asc");
+  });
+
+  it("encodes the search value", () => {
+    expect(
+      customersExportUrl({
+        page: 1,
+        q: "café & más",
+        status: null,
+        sort: null,
+        direction: null,
+      }),
+    ).toBe("/api/customers/export?q=caf%C3%A9+%26+m%C3%A1s");
+    expect(
+      customersExportUrl({
+        page: 1,
+        q: "1+1",
+        status: null,
+        sort: null,
+        direction: null,
+      }),
+    ).toBe("/api/customers/export?q=1%2B1");
   });
 });

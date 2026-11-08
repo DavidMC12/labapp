@@ -34,7 +34,7 @@ The Neon integration for Vercel can create `DATABASE_URL` and `DATABASE_URL_UNPO
 
 ## After the first deployment
 
-- `GET /api/health` answers 200.
+- `GET /api/health` answers 200. The contract is at `GET /api/openapi.json` and the Swagger UI at `GET /api/docs`; log in on the web app first so "Try it out" sends the session cookie.
 - Log in with a demo user from the login screen; reload the page and stay logged in.
 - `POST /__test__/reset` answers 404 without a token and 200 with `X-Test-Token: <TEST_TOKEN>`; then `GET /api/customers` (after logging in) lists the 10 seeded customers. The nightly workflow does the same call.
 - Rotate the database password and update the two connection strings if the string was ever pasted into a chat or a ticket.

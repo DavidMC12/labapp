@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from tests.invoices.helpers import assert_problem, field_codes
+from tests.invoices.helpers import assert_field_error, assert_problem, field_codes
 
 
 def test_the_seed_list_is_ordered_and_uses_the_summary_shape(
@@ -85,6 +85,62 @@ def test_an_invalid_page_and_a_long_query_are_reported(
 
     assert field_codes(page) == [("page", "OUT_OF_RANGE")]
     assert field_codes(query) == [("q", "TOO_LONG")]
+
+
+def test_the_list_sorts_by_a_field_in_both_directions(
+    clients: dict[str, TestClient],
+) -> None:
+    by_number = clients["finance"].get("/api/invoices", params={"sort": "number"})
+    by_total = clients["finance"].get(
+        "/api/invoices",
+        params={"sort": "total", "direction": "desc"},
+    )
+
+    assert by_number.status_code == 200
+    assert [item["id"] for item in by_number.json()["items"]] == [1, 2, 3]
+    assert [item["id"] for item in by_total.json()["items"]] == [3, 1, 2]
+
+
+def test_the_defaults_and_a_lone_direction(clients: dict[str, TestClient]) -> None:
+    default = clients["finance"].get("/api/invoices")
+    by_total = clients["finance"].get("/api/invoices", params={"sort": "total"})
+    by_created_at = clients["finance"].get(
+        "/api/invoices",
+        params={"sort": "created_at"},
+    )
+    ascending = clients["finance"].get("/api/invoices", params={"direction": "asc"})
+    descending = clients["finance"].get("/api/invoices", params={"direction": "desc"})
+
+    assert [item["id"] for item in default.json()["items"]] == [3, 2, 1]
+    assert [item["id"] for item in by_total.json()["items"]] == [2, 1, 3]
+    assert [item["id"] for item in by_created_at.json()["items"]] == [3, 2, 1]
+    assert [item["id"] for item in ascending.json()["items"]] == [1, 2, 3]
+    assert [item["id"] for item in descending.json()["items"]] == [3, 2, 1]
+
+
+@pytest.mark.parametrize(
+    ("query", "field"),
+    [
+        ("sort=", "sort"),
+        ("sort=unknown", "sort"),
+        ("sort=Total", "sort"),
+        ("direction=", "direction"),
+        ("direction=ASC", "direction"),
+    ],
+)
+def test_sort_validation(
+    clients: dict[str, TestClient],
+    query: str,
+    field: str,
+) -> None:
+    response = clients["finance"].get(f"/api/invoices?{query}")
+
+    assert_field_error(
+        response,
+        field=field,
+        code="INVALID_FORMAT",
+        message="El formato no es válido.",
+    )
 
 
 def test_one_invoice_carries_the_snapshot_the_lines_and_the_payments(

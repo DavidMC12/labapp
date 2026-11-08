@@ -222,7 +222,9 @@ export default function AppLayout({
       </a>
       <div className="min-h-screen md:grid md:grid-cols-[212px_minmax(0,1fr)]">
         <aside className="flex flex-col bg-rail text-rail-ink md:sticky md:top-0 md:h-screen">
-          <div className="px-4 py-3 md:px-3 md:pt-4">
+          {/* On the phone the brand row loses the vertical padding of the
+            * rail (task 038): py-2 and the desktop padding restored at md. */}
+          <div className="px-4 py-2 md:px-3 md:pt-4 md:pb-3">
             <Link
               href="/"
               testId="app-nav-home-link"

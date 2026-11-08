@@ -44,6 +44,7 @@ INDEXES = {
     "invoices_created_at_id_idx",
     "ix_invoice_lines_invoice_id",
     "ix_payments_invoice_id",
+    "uq_payments_one_approved_per_invoice",
 }
 
 

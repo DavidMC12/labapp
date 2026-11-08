@@ -53,6 +53,8 @@ const REQUIRED_IDS: readonly TestId[] = [
  // B5: states of the customers picker
   "orders-form-customer-loading-status",
   "orders-form-customer-empty-status",
+  // Task 039: the status of the `customer_id` of the url
+  "orders-form-presetcustomer-status",
   // Detail
   "orders-detail-heading",
   "orders-detail-state-status",

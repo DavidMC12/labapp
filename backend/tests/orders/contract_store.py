@@ -203,6 +203,7 @@ class OrderStoreContract:
         store: Any,
         customer_repository: CustomerRepository,
     ) -> None:
+        store.replace_all(seed_products(), [], SEED_RATE)
         customer_repository.replace_all([])
         customers = [
             customer_repository.add(
@@ -265,6 +266,7 @@ class OrderStoreContract:
         store: Any,
         customer_repository: CustomerRepository,
     ) -> None:
+        store.replace_all(seed_products(), [], SEED_RATE)
         customer_repository.replace_all([])
         names = ("ab-c", "ab", "a-c", "a b")
         customers = [

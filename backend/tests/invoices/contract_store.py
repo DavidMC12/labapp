@@ -400,6 +400,7 @@ class InvoiceStoreContract:
         assert [invoice.id for invoice in by_name] == [3]
 
     def test_page_two_continues_page_one_under_a_sort(self, store, order_store) -> None:
+        store.replace_all([], [])
         order_store.replace_all(
             seed_products(),
             [

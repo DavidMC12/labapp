@@ -300,6 +300,54 @@ class InvoiceStoreContract:
             "Beto",
         ]
 
+    def test_the_customer_sort_uses_the_code_point_order(self, store) -> None:
+        names = ("ab-c", "ab", "a-c", "a b")
+        store.replace_all(
+            [
+                _invoice(
+                    identifier,
+                    number=f"FAC-{identifier:04d}",
+                    order_id=order_id,
+                    customer_name=name,
+                )
+                for identifier, (name, order_id) in enumerate(
+                    zip(names, (3, 4, 5, 6), strict=True),
+                    start=1,
+                )
+            ],
+            [],
+        )
+
+        asc, _ = store.list_invoices(
+            query=None,
+            status=None,
+            order_id=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("customer", False),
+        )
+        desc, _ = store.list_invoices(
+            query=None,
+            status=None,
+            order_id=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("customer", True),
+        )
+
+        assert [invoice.customer_name for invoice in asc] == [
+            "a b",
+            "a-c",
+            "ab",
+            "ab-c",
+        ]
+        assert [invoice.customer_name for invoice in desc] == [
+            "ab-c",
+            "ab",
+            "a-c",
+            "a b",
+        ]
+
     def test_the_number_sorts_as_an_integer(self, store) -> None:
         store.replace_all(
             [

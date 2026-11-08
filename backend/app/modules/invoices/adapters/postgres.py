@@ -263,7 +263,7 @@ class PostgresInvoiceStore:
         if spec.field == "number":
             sort_column = cast(func.substring(invoices.c.number, "[0-9]+"), Integer)
         elif spec.field == "customer":
-            sort_column = invoices.c.customer_name_search
+            sort_column = invoices.c.customer_name_search.collate("C")
         elif spec.field == "total":
             sort_column = invoices.c.total
         else:

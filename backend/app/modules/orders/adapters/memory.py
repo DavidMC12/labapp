@@ -20,6 +20,7 @@ from app.domain.orders import (
     next_status,
     validate_draft_lines,
 )
+from app.domain.sorting import SortSpec
 from app.modules.customers.models import Customer, CustomerStatus
 from app.modules.customers.ports import CustomerRepository
 from app.modules.customers.search import normalize_for_search
@@ -34,9 +35,33 @@ from app.modules.orders.ports import (
     VersionConflict,
 )
 
+_ORDER_DEFAULT_SORT = SortSpec("created_at", True)
+_PRODUCT_DEFAULT_SORT = SortSpec("id", False)
+
 
 def _number_value(number: str) -> int:
     return int(number.rsplit("-", 1)[-1])
+
+
+def _product_sort_key(product: Product, field: str):
+    if field == "sku":
+        return product.sku, product.id
+    if field == "name":
+        return normalize_for_search(product.name), product.id
+    if field == "price":
+        return product.price, product.id
+    if field == "stock":
+        return product.stock, product.id
+    return product.id, product.id
+
+
+def _order_sort_key(item: tuple[Order, str], field: str):
+    order, customer_name = item
+    if field == "number":
+        return _number_value(order.number), order.id
+    if field == "customer":
+        return normalize_for_search(customer_name), order.id
+    return order.created_at, order.id
 
 
 class InMemoryOrderStore:
@@ -58,9 +83,15 @@ class InMemoryOrderStore:
         self._next_number = 1
         self._next_line_id = 1
 
-    def list_products(self) -> list[Product]:
+    def list_products(self, *, sort: SortSpec | None = None) -> list[Product]:
+        spec = sort or _PRODUCT_DEFAULT_SORT
         with self._lock:
-            return [self._products[id] for id in sorted(self._products)]
+            products = list(self._products.values())
+            products.sort(
+                key=lambda product: _product_sort_key(product, spec.field),
+                reverse=spec.descending,
+            )
+            return products
 
     def get_product(self, id: int) -> Product | None:
         with self._lock:
@@ -82,7 +113,9 @@ class InMemoryOrderStore:
         customer_id: int | None,
         page: int,
         page_size: int,
+        sort: SortSpec | None = None,
     ) -> tuple[list[tuple[Order, str]], int]:
+        spec = sort or _ORDER_DEFAULT_SORT
         with self._lock:
             matches: list[tuple[Order, str]] = []
             for order in self._orders.values():
@@ -99,7 +132,10 @@ class InMemoryOrderStore:
                     ) and needle not in normalize_for_search(customer_name):
                         continue
                 matches.append((order, customer_name))
-            matches.sort(key=lambda pair: (pair[0].created_at, pair[0].id), reverse=True)
+            matches.sort(
+                key=lambda item: _order_sort_key(item, spec.field),
+                reverse=spec.descending,
+            )
             start = (page - 1) * page_size
             return matches[start : start + page_size], len(matches)
 

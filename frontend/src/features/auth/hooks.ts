@@ -6,7 +6,7 @@ import {
   type UseQueryResult,
 } from "@tanstack/react-query";
 import { ApiRequestError, apiFetch } from "@/lib/api";
-import { ME_QUERY_KEY, SESSION_EXPIRED_QUERY_KEY } from "./session";
+import { ME_QUERY_KEY, SESSION_EXPIRED_QUERY_KEY, noteUnauthorized } from "./session";
 import type { LoginInput, User } from "./types";
 
 // The cache keys of the session (`ME_QUERY_KEY` and the expired flag)
@@ -16,16 +16,20 @@ export { ME_QUERY_KEY } from "./session";
 
 /**
  * Current session. A 401 resolves to `null`: an expired or missing session
- * is treated as "no session" and the shell redirects silently for now. Any
- * other answer stays a rejection with the problem as its error.
+ * is treated as "no session" and the shell redirects (to `/login?expired=1`
+ * when the 401 was `SESSION_EXPIRED`, see `noteUnauthorized`). Any other
+ * answer stays a rejection with the problem as its error.
  */
 export function useMe(): UseQueryResult<User | null, ApiRequestError> {
+  const queryClient = useQueryClient();
+
   return useQuery<User | null, ApiRequestError>({
     queryKey: ME_QUERY_KEY,
     queryFn: async () => {
       try {
         return await apiFetch<User>("/api/auth/me");
       } catch (error) {
+        noteUnauthorized(error, queryClient);
         if (error instanceof ApiRequestError && error.problem.status === 401) {
           return null;
         }
@@ -54,6 +58,9 @@ export function useLogin(): UseMutationResult<
     retry: false,
     onSuccess: (user) => {
       queryClient.setQueryData(ME_QUERY_KEY, user);
+      // The flag of a former expired session is done once the user is in
+      // again: the notice on /login must not show up after this one.
+      queryClient.removeQueries({ queryKey: SESSION_EXPIRED_QUERY_KEY });
     },
   });
 }

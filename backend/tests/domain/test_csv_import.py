@@ -71,7 +71,7 @@ def test_accepts_crlf_and_lf_endings(end: str) -> None:
 
 def test_quoted_fields_hold_commas_quotes_and_line_breaks() -> None:
     text = (
-        'name,email,address\n'
+        "name,email,address\n"
         '"Acme, S.A.",acme@example.test,"Calle 1, ""Piso 2"""\n'
         '"Beta\nComercial",beta@example.test,Calle 3\n'
         "Gamma,gamma@example.test,Calle 4\n"
@@ -87,14 +87,7 @@ def test_quoted_fields_hold_commas_quotes_and_line_breaks() -> None:
 
 
 def test_blank_lines_are_ignored_but_counted_in_the_line_numbers() -> None:
-    text = (
-        "name,email\n"
-        "\n"
-        "Acme,acme@example.test\n"
-        "   \n"
-        "\n"
-        "Beta,beta@example.test\n"
-    )
+    text = "name,email\n\nAcme,acme@example.test\n   \n\nBeta,beta@example.test\n"
 
     result = parse(text)
 
@@ -214,9 +207,7 @@ def test_a_blank_only_file_has_no_header() -> None:
 
 def test_rows_with_missing_or_extra_cells_are_returned_not_rejected_whole() -> None:
     result = parse(
-        "name,email,phone\n"
-        "Acme,acme@example.test\n"
-        "Beta,beta@example.test,+1 555,extra\n"
+        "name,email,phone\nAcme,acme@example.test\nBeta,beta@example.test,+1 555,extra\n"
     )
 
     assert result.errors == ()

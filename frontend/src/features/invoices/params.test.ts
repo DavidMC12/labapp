@@ -4,6 +4,7 @@ import {
   isDefaultInvoiceSort,
   invoiceSortDefaultDirection,
   invoiceSortLabel,
+  invoicesExportUrl,
   parseInvoiceIdParam,
   parseInvoiceListParams,
   resolveInvoiceSort,
@@ -138,5 +139,46 @@ describe("parseInvoiceListParams", () => {
     // Any other value of either falls back like a broken status.
     expect(read("sort=subtotal")).toMatchObject({ sort: null });
     expect(read("direction=upwards")).toMatchObject({ direction: null });
+  });
+});
+
+describe("invoicesExportUrl", () => {
+  /** A params value with one field overridden, for brevity in the tests. */
+  function paramsWith(overrides: Partial<InvoiceListParams>): InvoiceListParams {
+    return {
+      page: 1,
+      q: null,
+      status: null,
+      sort: null,
+      direction: null,
+      ...overrides,
+    };
+  }
+
+  it("answers the plain export URL of the plain list", () => {
+    expect(invoicesExportUrl(paramsWith({}))).toBe("/api/invoices/export");
+  });
+
+  it("never carries the page parameter", () => {
+    expect(
+      invoicesExportUrl(
+        paramsWith({ page: 2, q: "fac", status: "void" }),
+      ),
+    ).toBe("/api/invoices/export?q=fac&status=void");
+  });
+
+  it("carries a direction of the default field as a sort of its own", () => {
+    expect(
+      invoicesExportUrl(paramsWith({ direction: "asc" })),
+    ).toBe("/api/invoices/export?sort=created_at&direction=asc");
+  });
+
+  it("encodes the search value", () => {
+    expect(
+      invoicesExportUrl(paramsWith({ q: "café & más" })),
+    ).toBe("/api/invoices/export?q=caf%C3%A9+%26+m%C3%A1s");
+    expect(
+      invoicesExportUrl(paramsWith({ q: "1+1" })),
+    ).toBe("/api/invoices/export?q=1%2B1");
   });
 });

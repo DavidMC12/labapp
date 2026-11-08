@@ -12,7 +12,8 @@ from app.errors import register_error_handlers
 from app.guards.controls import ControlsGuardMiddleware
 from app.guards.origin import origin_guard
 from app.guards.ratelimit_middleware import RateLimitMiddleware
-from app.infra.clock import OffsetClock, SystemClock
+from app.guards.request_controls import RequestControlsMiddleware
+from app.infra.clock import Clock, ControlledClock, OffsetClock, SystemClock
 from app.infra.db import create_db_engine
 from app.middleware import BodySizeLimitMiddleware, RequestIdMiddleware
 from app.modules.auth.container import build_container
@@ -24,7 +25,7 @@ from app.modules.customers.seed import seed_customers
 from app.modules.customers.service import CustomerService
 from app.modules.invoices.adapters.memory import InMemoryInvoiceStore
 from app.modules.invoices.adapters.postgres import PostgresInvoiceStore
-from app.modules.invoices.gateway import FakeGateway
+from app.modules.invoices.gateway import FakeGateway, FaultyGateway
 from app.modules.invoices.mail import LoggingMailer
 from app.modules.invoices.routes import router as invoices_router
 from app.modules.invoices.seed import seed_invoices, seed_payments
@@ -34,6 +35,15 @@ from app.modules.orders.adapters.postgres import PostgresOrderStore
 from app.modules.orders.routes import router as orders_router
 from app.modules.orders.seed import seed_orders, seed_products
 from app.modules.orders.service import OrderService
+from app.modules.testcontrols.controls import RequestControls
+from app.modules.testcontrols.memory import (
+    InMemoryClockOffsetStore,
+    InMemoryFaultStore,
+)
+from app.modules.testcontrols.postgres import (
+    PostgresClockOffsetStore,
+    PostgresFaultStore,
+)
 
 DEFAULT_SESSION_SECRET = "change-me"
 
@@ -58,8 +68,22 @@ def create_app(
     settings = settings if settings is not None else Settings()
     _check_session_secret(settings)
 
-    application_clock = clock if clock is not None else OffsetClock(SystemClock())
+    base_clock = clock if clock is not None else OffsetClock(SystemClock())
     database_engine = create_db_engine(settings) if settings.database_url is not None else None
+    controls_enabled = settings.test_mode or bool(settings.test_token)
+    clock_store: InMemoryClockOffsetStore | PostgresClockOffsetStore
+    fault_store: InMemoryFaultStore | PostgresFaultStore
+    application_clock: Clock
+    if database_engine is None:
+        clock_store = InMemoryClockOffsetStore(base_clock)
+        fault_store = InMemoryFaultStore()
+        application_clock = base_clock
+    else:
+        clock_store = PostgresClockOffsetStore(database_engine)
+        fault_store = PostgresFaultStore(database_engine)
+        application_clock = ControlledClock(base_clock, clock_store, controls_enabled)
+    request_controls = RequestControls(clock_store, fault_store, database_engine)
+
     container = build_container(
         settings,
         application_clock,
@@ -90,7 +114,13 @@ def create_app(
     app.state.customers = customers
     app.state.order_store = order_store
     app.state.orders = orders
+    app.state.clock_store = clock_store
+    app.state.fault_store = fault_store
+    # add_middleware wraps the existing app, so the last one added is the outermost.
+    # Outside to inside: request id, rate limit, controls guard, request controls,
+    # body size, application.
     app.add_middleware(BodySizeLimitMiddleware)
+    app.add_middleware(RequestControlsMiddleware, settings=settings, controls=request_controls)
     app.add_middleware(ControlsGuardMiddleware, settings=settings)
     app.add_middleware(RateLimitMiddleware, container=container)
     app.add_middleware(RequestIdMiddleware)
@@ -99,18 +129,19 @@ def create_app(
     app.include_router(customers_router)
     app.include_router(orders_router)
     payment_gateway = FakeGateway()
+    faulty_gateway = FaultyGateway(payment_gateway, fault_store)
     invoice_store: InMemoryInvoiceStore | PostgresInvoiceStore
     if database_engine is None:
         invoice_store = InMemoryInvoiceStore(
             order_store,
             customer_repository,
-            payment_gateway,
+            faulty_gateway,
             lock=shared_lock,
         )
         invoice_store.replace_all(seed_invoices(), seed_payments())
         memory_order_store.invoices = invoice_store
     else:
-        invoice_store = PostgresInvoiceStore(database_engine, payment_gateway)
+        invoice_store = PostgresInvoiceStore(database_engine, faulty_gateway)
     invoices = InvoiceService(
         invoice_store,
         order_store,

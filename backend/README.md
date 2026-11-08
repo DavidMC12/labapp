@@ -191,6 +191,22 @@ unpooled URL:
 TEST_DATABASE_URL='postgresql+psycopg://user:password@host/db' uv run pytest tests/integration
 ```
 
+## Sorting
+
+The customer, order and invoice lists and the product catalog accept optional `sort` and
+`direction` query parameters. `sort` is one of the fields of that list (`created_at`, `name`
+or `email` for customers; `created_at`, `number` or `customer` for orders; `created_at`,
+`number`, `customer` or `total` for invoices; `id`, `sku`, `name`, `price` or `stock` for
+products). `direction` is `asc` or `desc`. It defaults to `desc` for `created_at` and to
+`asc` for every other field, and applies to the default field when `sort` is absent. Ties
+are broken by `id` in the same direction, and the sort runs after the filters and before
+the paging. The normal and accent-insensitive text comparison is the one used by `q`. An
+unknown value answers 422 `VALIDATION_ERROR` with `sort` or `direction` in `errors[]`.
+
+```bash
+curl -b /tmp/labapp-cookies 'localhost:8000/api/customers?sort=name&direction=asc'
+```
+
 ## Limits
 
 Request bodies are limited to 100 KB. A declared `Content-Length` above the limit is

@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import re
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Body, Depends, Header, Response
 from fastapi import status as http_status
 from fastapi.responses import JSONResponse
 
 from app.domain.permissions import Action
+from app.domain.sorting import SortDirection
 from app.errors import PROBLEM_MEDIA_TYPE, ApiError
 from app.modules.auth.dependencies import get_current_user, require_action
 from app.modules.auth.models import User
@@ -22,6 +23,8 @@ from app.modules.orders.service import OrderView
 from app.openapi import component_ref, documented_responses
 
 router = APIRouter(prefix="/api", tags=["invoices"])
+
+SortField = Literal["created_at", "number", "customer", "total"]
 
 _DIGITS = re.compile(r"[0-9]+")
 
@@ -136,9 +139,11 @@ def list_invoices(
     q: str | None = None,
     status: InvoiceStatus | None = None,
     order_id: int | None = None,
+    sort: SortField | None = None,
+    direction: SortDirection | None = None,
 ) -> schemas.InvoiceListOut:
     """List invoices with a literal, accent-insensitive search."""
-    items, total = service.list_invoices(page, q, status, order_id)
+    items, total = service.list_invoices(page, q, status, order_id, sort, direction)
     return schemas.InvoiceListOut(
         items=[_summary_out(invoice) for invoice in items],
         page=page,

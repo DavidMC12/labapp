@@ -6,6 +6,7 @@ from collections.abc import Callable, Iterable
 from datetime import datetime
 from typing import Protocol
 
+from app.domain.sorting import SortSpec
 from app.modules.invoices.models import (
     Invoice,
     InvoiceStatus,
@@ -39,10 +40,12 @@ class InvoiceStore(Protocol):
         order_id: int | None,
         page: int,
         page_size: int,
+        sort: SortSpec | None = None,
     ) -> tuple[list[Invoice], int]:
         """Return one page of invoices and the total number of matches.
 
-        Results are ordered by ``created_at`` descending, then ``id`` descending.
+        Results follow ``sort`` (``created_at`` descending when it is absent),
+        with ties broken by id in the same direction.
         ``query`` is already trimmed and non-empty when given. It is literal text
         (``%``, ``_`` and ``\\`` have no special meaning), matched as a contains
         against the invoice number or the customer name stored in the snapshot.

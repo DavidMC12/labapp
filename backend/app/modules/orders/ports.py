@@ -100,6 +100,24 @@ class OrderStore(Protocol):
         """Return one order, or ``None``. This read takes no locks."""
         ...
 
+    def export_rows(
+        self,
+        *,
+        query: str | None,
+        status: OrderStatus | None,
+        customer_id: int | None,
+        sort: SortSpec | None = None,
+    ) -> list[tuple[Order, str]]:
+        """Return every match of the list filters and its lines, in one read.
+
+        Each item is the order with its lines together with the **current** name
+        of its customer. The filters and the order are exactly those of
+        ``list_orders`` with the same ``query``, ``status``, ``customer_id`` and
+        ``sort``, without a page. A SQL adapter reads it in one statement, so a
+        concurrent write cannot repeat or skip a row between pages.
+        """
+        ...
+
     def create_order(self, customer_id: int, now: datetime) -> Order:
         """Create and return a new draft.
 

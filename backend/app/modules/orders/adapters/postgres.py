@@ -89,6 +89,49 @@ _PRODUCT_SORT_COLUMNS = {
     "price": products.c.price,
     "stock": products.c.stock,
 }
+_EXPORT_LINE_COLUMNS = (
+    order_lines.c.id.label("line_id"),
+    order_lines.c.product_id.label("line_product_id"),
+    order_lines.c.sku.label("line_sku"),
+    order_lines.c.name.label("line_name"),
+    order_lines.c.quantity.label("line_quantity"),
+    order_lines.c.unit_price.label("line_unit_price"),
+)
+
+
+def _order_filters(
+    query: str | None,
+    status: OrderStatus | None,
+    customer_id: int | None,
+) -> list[Any]:
+    """Return the WHERE clauses shared by ``list_orders`` and ``export_rows``."""
+    filters: list[Any] = []
+    if status is not None:
+        filters.append(orders.c.status == status.value)
+    if customer_id is not None:
+        filters.append(orders.c.customer_id == customer_id)
+    if query is not None:
+        normalized = normalize_for_search(query)
+        filters.append(
+            or_(
+                func.lower(orders.c.number).contains(normalized, autoescape=True),
+                customers.c.name_search.contains(normalized, autoescape=True),
+            )
+        )
+    return filters
+
+
+def _order_ordering(spec: SortSpec) -> tuple[Any, Any]:
+    """Return the primary and tie-break ORDER BY expressions of an order sort."""
+    if spec.field == "number":
+        sort_column: Any = cast(func.substring(orders.c.number, "[0-9]+"), Integer)
+    elif spec.field == "customer":
+        sort_column = customers.c.name_search.collate("C")
+    else:
+        sort_column = orders.c.created_at
+    primary = sort_column.desc() if spec.descending else sort_column.asc()
+    secondary = orders.c.id.desc() if spec.descending else orders.c.id.asc()
+    return primary, secondary
 
 
 def _number_value(number: str) -> int:
@@ -343,30 +386,10 @@ class PostgresOrderStore:
         sort: SortSpec | None = None,
     ) -> tuple[list[tuple[Order, str]], int]:
         spec = sort or _ORDER_DEFAULT_SORT
-        if spec.field == "number":
-            sort_column = cast(func.substring(orders.c.number, "[0-9]+"), Integer)
-        elif spec.field == "customer":
-            sort_column = customers.c.name_search.collate("C")
-        else:
-            sort_column = orders.c.created_at
-        primary = sort_column.desc() if spec.descending else sort_column.asc()
-        secondary = orders.c.id.desc() if spec.descending else orders.c.id.asc()
-
-        filters = []
-        if status is not None:
-            filters.append(orders.c.status == status.value)
-        if customer_id is not None:
-            filters.append(orders.c.customer_id == customer_id)
-        if query is not None:
-            normalized = normalize_for_search(query)
-            filters.append(
-                or_(
-                    func.lower(orders.c.number).contains(normalized, autoescape=True),
-                    customers.c.name_search.contains(normalized, autoescape=True),
-                )
-            )
-
+        primary, secondary = _order_ordering(spec)
+        filters = _order_filters(query, status, customer_id)
         join = customers.c.id == orders.c.customer_id
+
         offset = (page - 1) * page_size
         with self._engine.begin() as connection:
             total = connection.execute(
@@ -403,6 +426,62 @@ class PostgresOrderStore:
             for row in rows
         ]
         return items, total
+
+    def export_rows(
+        self,
+        *,
+        query: str | None,
+        status: OrderStatus | None,
+        customer_id: int | None,
+        sort: SortSpec | None = None,
+    ) -> list[tuple[Order, str]]:
+        """Read every match and its lines in one statement, without paging or counting."""
+        spec = sort or _ORDER_DEFAULT_SORT
+        primary, secondary = _order_ordering(spec)
+        join = customers.c.id == orders.c.customer_id
+        with self._engine.begin() as connection:
+            rows = (
+                connection.execute(
+                    select(
+                        orders,
+                        customers.c.name.label("customer_name"),
+                        *_EXPORT_LINE_COLUMNS,
+                    )
+                    .join(customers, join)
+                    .outerjoin(order_lines, order_lines.c.order_id == orders.c.id)
+                    .where(*_order_filters(query, status, customer_id))
+                    .order_by(primary, secondary, order_lines.c.id)
+                )
+                .mappings()
+                .all()
+            )
+
+        first_rows: dict[int, Mapping[str, Any]] = {}
+        order_ids: list[int] = []
+        lines_by_order: dict[int, list[OrderLine]] = defaultdict(list)
+        for row in rows:
+            order_id = row["id"]
+            if order_id not in first_rows:
+                first_rows[order_id] = row
+                order_ids.append(order_id)
+            if row["line_id"] is not None:
+                lines_by_order[order_id].append(
+                    OrderLine(
+                        id=row["line_id"],
+                        product_id=row["line_product_id"],
+                        sku=row["line_sku"],
+                        name=row["line_name"],
+                        quantity=row["line_quantity"],
+                        unit_price=row["line_unit_price"],
+                    )
+                )
+        return [
+            (
+                _order_from_row(first_rows[order_id], lines_by_order[order_id]),
+                first_rows[order_id]["customer_name"],
+            )
+            for order_id in order_ids
+        ]
 
     def get_order(self, id: int) -> Order | None:
         with self._engine.begin() as connection:

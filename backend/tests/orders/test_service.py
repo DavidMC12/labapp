@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
 from fastapi import FastAPI
 
+from app.domain.orders import OrderStatus
 from app.errors import ApiError
+from app.modules.customers.adapters.memory import InMemoryCustomerRepository
+from app.modules.customers.seed import seed_customers
+from app.modules.orders.models import Order
 from app.modules.orders.service import OrderService
+from tests.infra.helpers import FixedClock
+
+NOW = datetime(2026, 1, 1, 8, 0, tzinfo=UTC)
 
 
 def _service(app: FastAPI) -> OrderService:
@@ -52,6 +60,64 @@ def test_set_tax_rate_validation(app: FastAPI, value: str | None, code: str) -> 
             }[code],
         }
     ]
+
+
+class ExportOnlyStore:
+    """A store that fails if the export asks for a page."""
+
+    def __init__(self, items: list[tuple[object, str]]) -> None:
+        self.items = items
+        self.arguments: dict[str, object] = {}
+
+    def list_orders(self, **_: object) -> tuple[list[object], int]:
+        raise AssertionError("the export must not read the paged list")
+
+    def export_rows(
+        self,
+        *,
+        query: str | None,
+        status: object,
+        customer_id: int | None,
+        sort: object = None,
+    ) -> list[tuple[object, str]]:
+        self.arguments = {
+            "query": query,
+            "status": status,
+            "customer_id": customer_id,
+            "sort": sort,
+        }
+        return self.items
+
+    def get_tax_rate(self) -> Decimal:
+        return Decimal("10.00")
+
+
+def test_export_reads_every_row_in_one_call() -> None:
+    order = Order(
+        id=1,
+        number="PED-0001",
+        status=OrderStatus.DRAFT,
+        customer_id=1,
+        lines=(),
+        tax_rate=Decimal("10.00"),
+        version=1,
+        created_at=NOW,
+        updated_at=NOW,
+        invoice_id=None,
+    )
+    store = ExportOnlyStore([(order, "Acme Industrial S.A.")])
+    service = OrderService(  # type: ignore[arg-type]
+        store,
+        FixedClock(),
+        InMemoryCustomerRepository(seed_customers()),
+    )
+
+    document = service.export_orders("  acme  ", None, 1, "number", "asc")
+
+    assert store.arguments["query"] == "acme"
+    assert store.arguments["customer_id"] == 1
+    assert "PED-0001" in document.text
+    assert document.filename == "orders-20260101.csv"
 
 
 def test_list_orders_trims_the_query(app: FastAPI) -> None:

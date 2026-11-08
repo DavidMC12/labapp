@@ -8,7 +8,6 @@ from decimal import Decimal
 from typing import NoReturn
 
 from app.domain.csv_export import (
-    EXPORT_PAGE_SIZE,
     CsvExport,
     csv_export_filename,
     write_csv,
@@ -286,7 +285,15 @@ class OrderService:
     ) -> CsvExport:
         """Validate the list filters and render every match as CSV."""
         normalized_query, sort_spec = self._list_params(None, query, customer_id, sort, direction)
-        summaries = self._all_order_summaries(normalized_query, status, customer_id, sort_spec)
+        summaries = [
+            self._summary(order, customer_name)
+            for order, customer_name in self._store.export_rows(
+                query=normalized_query,
+                status=status,
+                customer_id=customer_id,
+                sort=sort_spec,
+            )
+        ]
         rows = [
             (
                 summary.order.id,
@@ -335,30 +342,6 @@ class OrderService:
             default="created_at",
         )
         return normalized_query, sort_spec
-
-    def _all_order_summaries(
-        self,
-        query: str | None,
-        status: OrderStatus | None,
-        customer_id: int | None,
-        sort: SortSpec,
-    ) -> list[OrderSummaryView]:
-        """Read every match page by page, without the list's page limit."""
-        summaries: list[OrderSummaryView] = []
-        page = 1
-        while True:
-            items, _ = self._store.list_orders(
-                query=query,
-                status=status,
-                customer_id=customer_id,
-                page=page,
-                page_size=EXPORT_PAGE_SIZE,
-                sort=sort,
-            )
-            summaries.extend(self._summary(order, customer_name) for order, customer_name in items)
-            if len(items) < EXPORT_PAGE_SIZE:
-                return summaries
-            page += 1
 
     def get(self, id: int) -> OrderView:
         """Return one order with its current customer and totals."""

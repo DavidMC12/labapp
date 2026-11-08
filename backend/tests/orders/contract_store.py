@@ -57,6 +57,33 @@ def _order(
     )
 
 
+def _all_order_pages(
+    store: Any,
+    *,
+    query: str | None,
+    status: OrderStatus | None,
+    customer_id: int | None,
+    sort: SortSpec,
+    page_size: int = 20,
+) -> list[tuple[Order, str]]:
+    """Concatenate every page of ``list_orders`` for the same filters and sort."""
+    items: list[tuple[Order, str]] = []
+    page = 1
+    while True:
+        page_items, _ = store.list_orders(
+            query=query,
+            status=status,
+            customer_id=customer_id,
+            page=page,
+            page_size=page_size,
+            sort=sort,
+        )
+        items.extend(page_items)
+        if len(page_items) < page_size:
+            return items
+        page += 1
+
+
 class OrderStoreContract:
     """The behavior every OrderStore adapter must share.
 
@@ -398,6 +425,45 @@ class OrderStoreContract:
         assert total == 45
         assert [order.id for order, _ in first] == list(range(1, 21))
         assert [order.id for order, _ in second] == list(range(21, 41))
+
+    def test_export_rows_equal_every_page_of_the_list(self, store: Any) -> None:
+        store.replace_all(
+            seed_products(),
+            [
+                _order(
+                    identifier,
+                    number=f"PED-{identifier:04d}",
+                    customer_id=(identifier - 1) % 10 + 1,
+                    created_at=NOW + timedelta(seconds=identifier),
+                )
+                for identifier in range(1, 46)
+            ],
+            SEED_RATE,
+        )
+
+        for field in ("created_at", "number", "customer"):
+            for descending in (False, True):
+                spec = SortSpec(field, descending)
+                assert store.export_rows(
+                    query=None,
+                    status=None,
+                    customer_id=None,
+                    sort=spec,
+                ) == _all_order_pages(store, query=None, status=None, customer_id=None, sort=spec)
+
+        by_customer = SortSpec("number", False)
+        assert store.export_rows(
+            query=None,
+            status=OrderStatus.DRAFT,
+            customer_id=3,
+            sort=by_customer,
+        ) == _all_order_pages(
+            store,
+            query=None,
+            status=OrderStatus.DRAFT,
+            customer_id=3,
+            sort=by_customer,
+        )
 
     def test_list_orders_pages(self, store: Any) -> None:
         first, total = store.list_orders(

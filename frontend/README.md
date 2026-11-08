@@ -327,6 +327,37 @@ src/
 - The navigation link "Configuración" (`app-nav-settings-link`) is
   visible to every role; the current-section highlight covers it.
 
+## Titles, skip link and landmarks
+
+- **The document title names the page** (`src/lib/useDocumentTitle.ts`):
+  every screen calls `useDocumentTitle(title)` and the tab reads
+  `{page} · LabApp`; an empty or missing title reads the plain
+  "LabApp". The hook restores nothing on unmount — the next page sets
+  its own — and the root layout keeps `LabApp` as the server-rendered
+  default with the metadata template `%s · LabApp` (which is what the
+  server components use: the not found page exports its
+  "Página no encontrada").
+- **Titles per screen:** login "Iniciar sesión"; home "Resumen";
+  customers list "Clientes", new "Nuevo cliente", detail
+  "Cliente {name}" (the section title while the record is in the air),
+  edit "Editar cliente"; orders list "Pedidos", new "Nuevo pedido",
+  detail "Pedido {number}"; invoices list "Facturas", detail
+  "Factura {number}"; settings "Configuración"; products "Productos";
+  error "Algo salió mal". Screens without a record title themselves at
+  the first paint (the hook sits in the page's wrapper, so the Suspense
+  fallback already carries the right title); the details keep the
+  section title until the record arrives.
+- **Skip link (WCAG 2.4.1):** the first focusable element of the shell
+  (`app-skip-link`) and of the login (`auth-login-skip-link`) is the
+  "Saltar al contenido" link to `#main-content`, hidden by the
+  `sr-only focus:not-sr-only` pattern with a solid chip over the paper
+  background, readable in both themes. The `main` landmark of both
+  carries `id="main-content"` and `tabIndex={-1}`, so the jump moves the
+  focus there (keeps working with the global `:focus-visible` outline).
+- **Landmarks:** the login page content lives in a `main` element now
+  (it had none); the shell keeps its `nav` (`aria-label="Principal"`)
+  and its `main`. Nothing else is restructured.
+
 ## Products
 
 - Page `/products` ("Productos"), the read-only catalog of flow 2; screen

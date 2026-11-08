@@ -30,6 +30,24 @@ uv run python -m app.cli seed
 
 Then run `scripts/dev.sh` as usual. Never commit a connection string.
 
+## Dependencies
+
+To re-run the security audits of both ecosystems:
+
+```bash
+cd frontend
+pnpm audit --prod
+pnpm audit
+cd ../backend
+uv export --frozen --no-hashes --output-file "$TMPDIR/labapp-requirements.txt"
+uvx pip-audit -r "$TMPDIR/labapp-requirements.txt"
+```
+
+`pnpm audit` exits 1 when it reports any finding (including development-only ones); read the report
+instead of the exit code. The temporary requirements file must stay outside the repository. The audits
+do not replace the lockfiles. Dependabot (`.github/dependabot.yml`) opens the weekly pull requests for
+updates of the npm, uv and GitHub Actions dependencies; their commits use the `build` prefix.
+
 ## Run the checks
 
 ```bash

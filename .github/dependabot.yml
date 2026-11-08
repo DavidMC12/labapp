@@ -1,0 +1,51 @@
+# Keeps the dependencies and the workflow actions up to date. One entry per package manager;
+# the group of each ecosystem collects its minor and patch updates into a single pull request.
+# The commit prefix is "build" with the dependency scope so every bot commit follows
+# Conventional Commits, which .github/workflows/commit-standards.yml checks.
+version: 2
+updates:
+  # The web app. The repository root has no package.json, so this is the only npm entry.
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    commit-message:
+      prefix: "build"
+      include: "scope"
+
+  # The API, from backend/pyproject.toml and backend/uv.lock.
+  - package-ecosystem: "uv"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      uv-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    commit-message:
+      prefix: "build"
+      include: "scope"
+
+  # The actions of .github/workflows/. Pinning them to a full commit SHA (task 064, requirement 6)
+  # is left for the bot: Dependabot keeps a pinned reference up to date.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      actions-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    commit-message:
+      prefix: "build"
+      include: "scope"

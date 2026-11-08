@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import unicodedata
+
 from app.errors import ERROR_MESSAGES, ApiError
 from app.modules.testcontrols.models import NewRule
 
@@ -10,6 +12,9 @@ ALLOWED_METHODS = frozenset({"GET", "POST", "PUT", "PATCH", "DELETE"})
 MAX_LATENCY_MS = 10_000
 MIN_STATUS = 400
 MAX_STATUS = 599
+MAX_PATH_LENGTH = 2_048
+HEALTH_PATH = "/api/health"
+TEST_PREFIX = "/__test__"
 VALIDATION_DETAIL = ERROR_MESSAGES["VALIDATION_ERROR"]
 
 
@@ -33,8 +38,31 @@ def _out_of_range(field: str, minimum: object, maximum: object) -> dict[str, str
     )
 
 
-def validate_rule(rule: NewRule) -> None:
-    """Raise a 422 ``VALIDATION_ERROR`` when a fault rule is not valid."""
+def _has_control_or_surrogate(value: str) -> bool:
+    return any(unicodedata.category(character) in ("Cc", "Cs") for character in value)
+
+
+def _path_error(message: str) -> dict[str, str]:
+    return _error("path", "INVALID_FORMAT", message)
+
+
+def _path_errors(path: str) -> list[dict[str, str]]:
+    """Reject a path that the request controls can never match."""
+    if not path.startswith("/"):
+        return [_invalid("path")]
+    if _has_control_or_surrogate(path):
+        return [_path_error("La ruta no puede contener caracteres de control.")]
+    if len(path) > MAX_PATH_LENGTH:
+        return [_path_error(f"La ruta no puede tener más de {MAX_PATH_LENGTH} caracteres.")]
+    if path.startswith(TEST_PREFIX):
+        return [_path_error(f"La ruta no puede empezar por {TEST_PREFIX}.")]
+    if path == HEALTH_PATH:
+        return [_path_error(f"La ruta {HEALTH_PATH} no puede tener una falla inyectada.")]
+    return []
+
+
+def rule_errors(rule: NewRule) -> list[dict[str, str]]:
+    """Return every problem of a fault rule, so a caller can report them together."""
     errors: list[dict[str, str]] = []
 
     if rule.target not in ALLOWED_TARGETS:
@@ -47,8 +75,8 @@ def validate_rule(rule: NewRule) -> None:
             errors.append(_invalid("method"))
         if not rule.path:
             errors.append(_required("path"))
-        elif not rule.path.startswith("/"):
-            errors.append(_invalid("path"))
+        else:
+            errors.extend(_path_errors(rule.path))
         if rule.status is not None and not MIN_STATUS <= rule.status <= MAX_STATUS:
             errors.append(_out_of_range("status", MIN_STATUS, MAX_STATUS))
         if rule.latency_ms <= 0 and rule.status is None:
@@ -70,5 +98,11 @@ def validate_rule(rule: NewRule) -> None:
     if rule.remaining is not None and rule.remaining < 0:
         errors.append(_out_of_range("remaining", 0, "sin límite"))
 
+    return errors
+
+
+def validate_rule(rule: NewRule) -> None:
+    """Raise a 422 ``VALIDATION_ERROR`` when a fault rule is not valid."""
+    errors = rule_errors(rule)
     if errors:
         raise ApiError(422, "VALIDATION_ERROR", VALIDATION_DETAIL, errors=errors)

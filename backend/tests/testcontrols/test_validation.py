@@ -103,3 +103,33 @@ def test_an_unknown_target_is_rejected() -> None:
             "message": "El formato no es válido.",
         }
     ]
+
+
+@pytest.mark.parametrize(
+    ("path", "message"),
+    [
+        ("/api/\x00x", "La ruta no puede contener caracteres de control."),
+        ("/api/\ud800", "La ruta no puede contener caracteres de control."),
+        (
+            "/" + "a" * 2048,
+            "La ruta no puede tener más de 2048 caracteres.",
+        ),
+        ("/__test__/reset", "La ruta no puede empezar por /__test__."),
+        ("/__test__extra", "La ruta no puede empezar por /__test__."),
+        (
+            "/api/health",
+            "La ruta /api/health no puede tener una falla inyectada.",
+        ),
+    ],
+)
+def test_a_path_that_can_never_match_is_rejected(path: str, message: str) -> None:
+    with pytest.raises(ApiError) as info:
+        validate_rule(_route(path=path))
+
+    assert info.value.errors == [
+        {
+            "field": "path",
+            "code": "INVALID_FORMAT",
+            "message": message,
+        }
+    ]

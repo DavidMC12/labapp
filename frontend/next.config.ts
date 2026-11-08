@@ -19,12 +19,15 @@ export function apiRewrites(apiUrl: string | undefined) {
 /**
  * The `source` pattern of every web app header. Next.js compiles the regex
  * group after the first `/`: the negative lookahead refuses any path whose
- * first segment is `api` or `__test__`. Those paths belong to the API (the
- * API service answers them online and the local rewrite forwards them), and
- * the Swagger page that `/api/docs` serves loads its assets from a CDN, so
- * the web app's Content-Security-Policy must not be sent there.
+ * first **path segment** is `api` or `__test__` (followed by `/` or the
+ * end of the path). Those paths belong to the API (the API service answers
+ * them online and the local rewrite forwards them), and the Swagger page
+ * that `/api/docs` serves loads its assets from a CDN, so the web app's
+ * Content-Security-Policy must not be sent there. A longer name that only
+ * starts alike (`/apiary`, `/api-docs`, `/__test__x`) or an `api` further
+ * down the path (`/customers/api`) is a web page and keeps the headers.
  */
-export const APP_HEADERS_SOURCE = "/((?!api|__test__).*)";
+export const APP_HEADERS_SOURCE = "/((?!(?:api|__test__)(?:/|$)).*)";
 
 /**
  * The headers every page of the web app carries, whatever the environment:

@@ -37,6 +37,13 @@ describe("the source pattern of the web app headers", () => {
     expect(matches.test("/orders/3")).toBe(true);
   });
 
+  it("matches look-alike paths that are not the API's", () => {
+    expect(matches.test("/apiary")).toBe(true);
+    expect(matches.test("/api-docs")).toBe(true);
+    expect(matches.test("/__test__x")).toBe(true);
+    expect(matches.test("/customers/api")).toBe(true);
+  });
+
   it("does not match the paths of the API", () => {
     expect(matches.test("/api/docs")).toBe(false);
     expect(matches.test("/api/openapi.json")).toBe(false);

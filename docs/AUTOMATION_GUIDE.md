@@ -268,4 +268,54 @@ Each item below was verified in the code and the documents.
 
 ## 9. What is next
 
-Part 2 of this guide covers the test controls (reset, seed, controllable clock, fault injection) and the HTTP API contract; it lands once those tasks are merged (see [docs/SEED.md](SEED.md) for the reset contract and [docs/SPEC.md](SPEC.md) section 7 for the error catalog).
+Part 1 covered the web UI; this guide continues below with **part 2**: the HTTP API and the test-only controls (reset, seed, the controllable clock and fault injection).
+
+---
+
+# Part 2: the HTTP API and the test controls
+
+Driving the UI is only half of what makes LabApp easy to automate. The other half is HTTP: every screenshot has an endpoint behind it, and the seed, reset, clock and faults exist so a test can arrange the world it needs. These sections cover the base path and authentication, the committed contract, the seven test-control endpoints with recipes, the three core flows over `curl`, the versioning and idempotency machinery, and how to isolate a run from other visitors of the demo.
+
+Every endpoint, status code, header, field and message below was read from the backend code, [SPEC.md](SPEC.md) and the committed contract [openapi.json](openapi.json); each `curl` recipe was verified against the local server that `mise run dev` starts.
+
+## 10. Where the API is
+
+**One origin, two path roots.** The web app and the API are served from the same origin: locally the Next.js dev server on `http://localhost:3000` forwards `/api/*` and `/__test__/*` to the FastAPI process ([docs/DEVELOPMENT.md](DEVELOPMENT.md)); online, the Vercel project routes the same two prefixes to the API service ([docs/ARCHITECTURE.md](ARCHITECTURE.md)). Point `curl` and Playwright `request` contexts at `http://localhost:3000` (or directly at the API, `http://127.0.0.1:8000`, from a script that does not need cookie-sharing with the browser). Endpoints live under `/api`; the test controls live under `/__test__`, at the root of the API, never under `/api`.
+
+**Logging in with a request.** `POST /api/auth/login` takes `{"email", "password"}` (the email is trimmed and lowercased before the lookup) and answers 200 with the user plus a `Set-Cookie` header. Keep the cookie in a jar; the cookie name is `labapp_session`, and it is `HttpOnly` and `SameSite=Lax` (`Secure` too whenever the origin starts with `https://`):
+
+```bash
+BASE=http://localhost:3000
+curl -s -c /tmp/labapp-cookies -H 'Content-Type: application/json' \
+  -d '{"email":"sales@labapp.test","password":"Demo-LabApp-2026!"}' \
+  "$BASE/api/auth/login"
+# {"id":2,"name":"Ventas Demo","email":"sales@labapp.test","role":"sales"}
+```
+
+`GET /api/auth/me` returns the current user; `POST /api/auth/logout` ends the session and answers 204, and is idempotent: it answers 204 with or without a session. What an API suite can meet on the way in:
+
+| Situation | HTTP | Code | Message |
+|---|---|---|---|
+| Wrong email or password | 401 | `INVALID_CREDENTIALS` | `Email o contraseña incorrectos.` |
+| No session on a protected route | 401 | `UNAUTHENTICATED` | `Inicia sesión para continuar.` |
+| Session idle for more than 8 hours | 401 | `SESSION_EXPIRED` | `Tu sesión expiró. Inicia sesión de nuevo.` |
+
+The same error shape for both wrong email and wrong password is deliberate: accounts cannot be enumerated. Only `POST /api/auth/login`, `POST /api/auth/logout` and `GET /api/health` work without a session.
+
+**The `Origin` rule (CSRF).** State-changing requests — `POST`, `PUT`, `PATCH`, `DELETE` — that carry an `Origin` header must match the application origin; a mismatch answers 403 `CSRF_ORIGIN_MISMATCH` with `La solicitud no proviene de la aplicación.` ([SPEC section 3](SPEC.md#3-authentication-and-sessions)). The comparison is against `APP_ORIGIN` (locally `http://localhost:3000`); online it also accepts the Vercel preview origins built from the platform variables, so a test against a preview URL works. Two details a test suite cares about:
+
+- A request **without** an `Origin` header is always allowed — API clients and test suites send none, because the cookie is `SameSite=Lax` and cannot be sent cross-site in the harmful direction. Do not add `Origin` to your requests unless you are testing this rule.
+- The rule applies to `/api/*` paths only; it is a global guard, and it runs before the route's own checks ([SPEC section 7](SPEC.md#7-errors-and-validation-order)), so a bad `Origin` answers 403 even before authentication could answer 401.
+
+**The contract file.** [docs/openapi.json](openapi.json) is the committed OpenAPI 3 document of every `/api` route: request bodies, query parameters, response shapes and every error answer each operation can give (the `/__test__` controls are deliberately left out of it). FastAPI generates it; the command `cd backend && uv run python -m app.cli openapi --output ../docs/openapi.json` regenerates it, CI fails when the committed file and the application disagree ([backend/README.md](../backend/README.md)), and the running API serves the same document at `/openapi.json` of its own origin. Import `docs/openapi.json` into Postman, Insomnia or any OpenAPI client to get every request pre-built; it is also what code generators consume.
+
+**The error format.** Every error answer is `application/problem+json` ([SPEC section 8](SPEC.md#8-formats-and-conventions)) with `type`, `title` (HTTP status name), `status`, `code` (stable), `detail` (Spanish message) and, when the problem is field-level, `errors[]` with one entry per field:
+
+```json
+{"type": "about:blank", "title": "Unprocessable Content", "status": 422,
+ "code": "VALIDATION_ERROR", "detail": "Revisa los datos ingresados.",
+ "errors": [{"field": "quantity", "code": "OUT_OF_RANGE",
+             "message": "El valor debe estar entre 1 y 999."}]}
+```
+
+Other problem bodies carry extra members at the top level: `shortages[]` on a 409 `INSUFFICIENT_STOCK`, `payment_id` and `reason` on a 402 `PAYMENT_DECLINED` or a 503 `PAYMENT_GATEWAY_UNAVAILABLE`, and `retry_after` on a 429 `RATE_LIMITED` (the same seconds the `Retry-After` header carries). The stable codes and their messages are catalogued in [SPEC section 7](SPEC.md#7-errors-and-validation-order); a test should assert the `code`, not the wording, which may change. Every response — success or error — carries an `X-Request-Id` header; send your own (1–64 characters of `[A-Za-z0-9._-]`) to have it echoed into logs.

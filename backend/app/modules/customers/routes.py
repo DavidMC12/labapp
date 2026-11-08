@@ -206,7 +206,7 @@ def export_customers(
     response_model=CustomerImportOut,
     responses=_IMPORT_RESPONSES,
 )
-async def import_customers(
+def import_customers(
     user: Annotated[User, Depends(require_action(Action.MANAGE_CUSTOMERS))],
     service: Annotated[CustomerService, Depends(get_service)],
     file: Annotated[UploadFile, File(description="A UTF-8 CSV file named *.csv.")],
@@ -229,7 +229,9 @@ async def import_customers(
     single quote of a neutralized formula is kept. Errors are listed in file
     order, at most 100; when any row fails nothing is created.
     """
-    customers = service.import_customers(await file.read(), file.filename)
+    # A plain ``def`` route runs in FastAPI's thread pool: the service opens a
+    # database transaction and may wait on locks, so it must not block the loop.
+    customers = service.import_customers(file.file.read(), file.filename)
     return CustomerImportOut(
         created=len(customers),
         items=[_customer_out(customer) for customer in customers],

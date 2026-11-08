@@ -527,9 +527,8 @@ second the oldest sessions are evicted, so the per-IP limit is what makes that i
 
 `app/modules/customers/` implements the customer API under `/api/customers`.
 
-- `routes.py` — the seven endpoints; all are plain `def` except the import, which is
-  `async` because it reads an `UploadFile`. Reads need a session; writes need the
-  customer-management permission.
+- `routes.py` — the seven endpoints, all plain `def`, so FastAPI runs every one in its
+  thread pool. Reads need a session; writes need the customer-management permission.
 - `service.py` — validation, paging, literal search parameters and the translation of the
   repository exceptions to problem responses.
 - `validation.py` — trimming, normalization and the field limits of SPEC section 4.

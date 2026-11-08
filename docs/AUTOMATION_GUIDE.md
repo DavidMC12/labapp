@@ -576,13 +576,16 @@ At most **50 non-exhausted rules** exist; when they are full the answer is a 422
 
 ```ts
 // Illustrative, not run in CI. Local: TEST_MODE=1, no token needed.
+import { request as pwRequest } from "@playwright/test";
+
 const base = "http://127.0.0.1:8000";
-const controls = await request.newContext();           // no cookie jar needed
+const controls = await pwRequest.newContext();          // no cookie jar needed
 await controls.post(`${base}/__test__/reset`);
 await controls.post(`${base}/__test__/clock`, { data: { advance_seconds: 28801 } });
-const me = await request.get(`${base}/api/auth/me`);   // your existing logged-in context
+const me = await request.get(`${base}/api/auth/me`);    // your existing logged-in context
 expect(me.status()).toBe(401);
 expect((await me.json()).code).toBe("SESSION_EXPIRED");
+await controls.dispose();
 ```
 
 ## 12. Orders and invoices through the API

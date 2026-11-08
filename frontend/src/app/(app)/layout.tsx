@@ -54,6 +54,12 @@ function FacturasIcon() {
   );
 }
 
+function ProductosIcon() {
+  return (
+    <StrokeIcon shapes={<><path d="M2.5 5h11v8.5h-11Z" /><path d="M4.5 2.5V5M8 2.5V5M11.5 2.5V5" /><path d="M2.5 8h11" /></>} />
+  );
+}
+
 function ConfiguracionIcon() {
   return (
     <StrokeIcon shapes={<><circle cx="8" cy="8" r="2.5" /><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4" /></>} />
@@ -170,6 +176,12 @@ export default function AppLayout({
       testId: "app-nav-orders-link",
       label: "Pedidos",
       icon: <PedidosIcon />,
+    },
+    {
+      href: "/products",
+      testId: "app-nav-products-link",
+      label: "Productos",
+      icon: <ProductosIcon />,
     },
     {
       href: "/invoices",

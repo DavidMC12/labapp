@@ -201,3 +201,31 @@ Controls under `/__test__` (their contract is in [AUTOMATION_GUIDE section 11](A
 | H-8 ✔ | API | A reset clears every side effect of the controls. | Set fault rules, move the clock, consume idempotency keys (C-8), reset, then `GET /__test__/clock` and re-run a C-8-like call. | The clock offset is back to 0, the rules gone, and the previously used payment key can be used again: a reset clears the stored keys. (The rate-limit counters of the serving instance are cleared too.) | Equivalence class | 2 |
 | H-9 ✔ | API | The product catalog is one unsplittable read-only answer. | `GET /api/products` as Read-only. | 200 with `items` of 15 products `id` 1–15 in order, no paging parameters, and no write route for them anywhere. | Equivalence class | 1 |
 | H-10 | UI | A suite that runs in parallel is safe only on its own data. | (Design check, not an automation target.) Two agents work against the same local instance. | Each `mise run dev` process keeps its own memory, so parallel suites on different ports share nothing; on the online demo the dataset is one and shared, rate limits count per client IP, and resets must never be part of a parallel suite. Reference: [AUTOMATION_GUIDE section 13](AUTOMATION_GUIDE.md#13-isolating-tests). | Error guessing | 3 |
+
+## Learning path
+
+A suggested order, from coffee-break easy to hard. Each entry links to the section that holds its row.
+
+1. Log in and reach the customers module — [A-1](#a-customers-flow-1)
+2. The first API call: list the seed — [D-9](#d-roles-and-permissions)
+3. Create a customer over the API and see the trim and lowercasing — [A-9](#a-customers-flow-1)
+4. Reject a duplicate email — [A-8](#a-customers-flow-1)
+5. Build and confirm an order, from the API — [B-2](#b-orders-flow-2) and [B-9](#b-orders-flow-2)
+6. Boundary hunt on a quantity field — [B-3](#b-orders-flow-2) and [B-6](#b-orders-flow-2)
+7. Stock and shortages — [B-10](#b-orders-flow-2) and [B-13](#b-orders-flow-2)
+8. Issue the invoice and pay it — [C-2](#c-invoices-and-payments-flow-3) and [C-8](#c-invoices-and-payments-flow-3)
+9. The decline card and the attempt history — [C-9](#c-invoices-and-payments-flow-3)
+10. The idempotency key and its replay — [C-21](#c-invoices-and-payments-flow-3)
+11. The role matrix as a decision table — [D-2](#d-roles-and-permissions) to [D-10](#d-roles-and-permissions)
+12. Move the clock to expire a session — [E-4](#e-session-and-security)
+13. Two writers at once: versions and replay under contention — [F-4](#f-concurrency-and-resilience) and [F-10](#f-concurrency-and-resilience)
+14. Arrange the world: reset, seed, faults — [H-1](#h-test-data-and-isolation) and [H-6](#h-test-data-and-isolation)
+
+Steps 1–4 (easy): a login, a list, a create and a first conflict, each in a dozen lines of Playwright or `curl`. Steps 5–9 (medium): the order machine and the payment gateway, with the seed as the expected-answer calculator. Steps 10–14 (hard): concurrency, role matrices and the test controls — the scenarios that separate a suite that just clicks from one that proves the contract.
+
+
+## What is deliberately not here
+
+- **There are no seeded bugs.** The project owner decided it (see [CLAUDE-advised docs](TESTABILITY.md): "La app queda limpia" — a clean application): nothing in the seed behaves wrongly under the specification. A row here is a behavior to *confirm*, not a defect to *find*: if a row's expected answer does not happen, the surprise is a defect of the application, and it belongs in a bug report, not in this catalog.
+- **No "broken app" challenges.** The catalog does not contain a hidden set of planted faults for the reader to discover. The **fault injection** of [AUTOMATION_GUIDE section 11](AUTOMATION_GUIDE.md#11-the-test-controls) exists exactly so that *you* can break the world on purpose, deterministically, and prove what the application does next — the reader creates their own failures instead of hunting planted ones.
+- **No test code.** The rows stop at the expected answer: status, code, message, test id, and the technique worth practising. The scripts themselves are the practice.

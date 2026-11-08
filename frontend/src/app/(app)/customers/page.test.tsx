@@ -411,6 +411,161 @@ describe("the customers list URL state", () => {
   });
 });
 
+describe("the customers list sorting", () => {
+  it("renders a sorting button with its label in every sortable header", async () => {
+    respondList(
+      listPageOf([seededCustomer(1), seededCustomer(2), seededCustomer(3)]),
+    );
+    renderAt("");
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-list-table")).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("button", { name: "Nombre" }))
+      .toHaveAttribute("data-testid", "customers-list-sort-name-button");
+    expect(screen.getByRole("button", { name: "Email" }))
+      .toHaveAttribute("data-testid", "customers-list-sort-email-button");
+    expect(screen.getByRole("button", { name: "Creado" }))
+      .toHaveAttribute("data-testid", "customers-list-sort-created-button");
+
+    // On arrival the order is the plain one: Creado sorts descending and
+    // every other column is a button with no aria-sort.
+    expect(
+      screen.getByRole("columnheader", { name: "Creado" }),
+    ).toHaveAttribute("aria-sort", "descending");
+    expect(
+      screen.getByRole("columnheader", { name: "Nombre" }),
+    ).not.toHaveAttribute("aria-sort");
+    expect(
+      screen.getByRole("columnheader", { name: "Email" }),
+    ).not.toHaveAttribute("aria-sort");
+    expect(screen.getByTestId("customers-list-sort-text")).toHaveTextContent(
+      "Ordenado por Creado, descendente",
+    );
+  });
+
+  it("sorts ascending on the first click of Nombre and asks the API for it", async () => {
+    respondList(
+      listPageOf([seededCustomer(1), seededCustomer(2), seededCustomer(3)]),
+    );
+    const { rerenderAt } = renderAt("");
+    await waitFor(() => expect(listRequests()).toEqual(["/api/customers?page=1"]));
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-list-table")).toBeInTheDocument();
+    });
+
+    await userEvent.setup().click(screen.getByTestId("customers-list-sort-name-button"));
+
+    // The URL of the sort rule: page 1, the sort visible, no third state.
+    expect(state.router.push).toHaveBeenCalledWith(
+      "/customers?page=1&sort=name&direction=asc",
+    );
+
+    // Following the navigation, the rendered list asks the API for it.
+    rerenderAt("page=1&sort=name&direction=asc");
+    await waitFor(() => {
+      expect(listRequests().at(-1)).toBe(
+        "/api/customers?page=1&sort=name&direction=asc",
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-list-table")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("columnheader", { name: "Nombre" }),
+    ).toHaveAttribute("aria-sort", "ascending");
+    expect(screen.getByTestId("customers-list-sort-name-button"))
+      .toHaveAttribute("data-state", "ascending");
+    expect(screen.getByTestId("customers-list-sort-text")).toHaveTextContent(
+      "Ordenado por Nombre, ascendente",
+    );
+  });
+
+  it("flips to descending on the second click of the same column", async () => {
+    (state.search as unknown as URLSearchParams) =
+      new URLSearchParams("sort=name&direction=asc");
+    respondList(
+      listPageOf([seededCustomer(1), seededCustomer(2), seededCustomer(3)]),
+    );
+    renderAt("sort=name&direction=asc");
+    await waitFor(() => {
+      expect(listRequests().at(-1)).toBe(
+        "/api/customers?page=1&sort=name&direction=asc",
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-list-table")).toBeInTheDocument();
+    });
+
+    await userEvent.setup().click(screen.getByTestId("customers-list-sort-name-button"));
+
+    expect(state.router.push).toHaveBeenCalledWith(
+      "/customers?page=1&sort=name&direction=desc",
+    );
+  });
+
+  it("sorts Creado ascending on the first click and back to the clean URL on the second", async () => {
+    respondList(
+      listPageOf([seededCustomer(1), seededCustomer(2), seededCustomer(3)]),
+    );
+    const { rerenderAt } = renderAt("");
+    await waitFor(() => expect(listRequests()).toEqual(["/api/customers?page=1"]));
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-list-table")).toBeInTheDocument();
+    });
+
+    // The default table is already sorted by Creado, descending, so the
+    // first click flips it to ascending.
+    await userEvent.setup().click(screen.getByTestId("customers-list-sort-created-button"));
+    expect(state.router.push).toHaveBeenCalledWith(
+      "/customers?page=1&sort=created_at&direction=asc",
+    );
+
+    // And the second click goes back to the plain order: both sort
+    // parameters leave the URL again.
+    state.router.push.mockClear();
+    rerenderAt("page=1&sort=created_at&direction=asc");
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-list-table")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("customers-list-sort-created-button"))
+      .toHaveAttribute("data-state", "ascending");
+    await userEvent.setup().click(screen.getByTestId("customers-list-sort-created-button"));
+    expect(state.router.push).toHaveBeenCalledWith("/customers?page=1");
+  });
+
+  it("keeps the filters on a sort and falls back on invalid URL values", async () => {
+    // Enough rows for page 4 to exist, so the correction does not run.
+    respondList(
+      listPageOf([seededCustomer(1), seededCustomer(2), seededCustomer(3)], 80),
+    );
+    // A broken sort falls back to the plain list order; the filters stay.
+    renderAt("sort=phone&direction=upwards&page=4&q=ana&status=inactive");
+
+    await waitFor(() => {
+      expect(listRequests().at(-1)).toBe(
+        "/api/customers?page=4&q=ana&status=inactive",
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-list-table")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("columnheader", { name: "Nombre" }),
+    ).not.toHaveAttribute("aria-sort");
+    expect(screen.getByTestId("customers-list-sort-text")).toHaveTextContent(
+      "Ordenado por Creado, descendente",
+    );
+
+    // Sorting from here goes back to page 1 with the filters intact.
+    state.router.push.mockClear();
+    await userEvent.setup().click(screen.getByTestId("customers-list-sort-email-button"));
+    expect(state.router.push).toHaveBeenCalledWith(
+      "/customers?page=1&q=ana&status=inactive&sort=email&direction=asc",
+    );
+  });
+});
+
 describe("the customers list correction of a page beyond the last", () => {
   it("replaces the url with the last page instead of an empty page", async () => {
     // The URL asks for page 2, the server only has three customers.

@@ -606,4 +606,29 @@ A test that assumes a clean world will eventually meet someone else's data. The 
 
 **Parallel runs and the per-IP rate limit.** Locally (`TEST_MODE=1`) there are no limits and each `mise run dev` process has its own memory, so parallel suites on different ports do not even share data. Online, the limits are per client IP: 120 requests per minute and 10 login attempts per minute shared by everything that runs from one machine — parallel workers count together and the group gets 429 `RATE_LIMITED` with a `Retry-After` header (the body member `retry_after` carries the same seconds). Two outs: spread the workers' requests below the limits, or add a valid `X-Test-Token` header to every request of an online suite — a token-bearing request is exempt from the limits even then (section 11).
 
-- Stable codes pointer… (placeholder)
+## 14. The online demo
+
+Everything above describes the local server. The demo lives on the project's Vercel URL and **is not deployed yet**: the configuration exists ([docs/DEPLOYMENT.md](DEPLOYMENT.md)) but the first deployment is still pending, so until it happens there is no online URL to automate against. When it arrives, this changes from local:
+
+| Aspect | Local | Online |
+|---|---|---|
+| Controls guard | `TEST_MODE=1`: no token needed | `TEST_MODE=0`: 404 without `X-Test-Token: <TEST_TOKEN>` |
+| Data | in memory, from the seed, lost on restart | PostgreSQL, **one shared dataset** all visitors move |
+| Rate limits | off | on: 120 requests/min and 10 logins/min per client IP (429 `RATE_LIMITED`) |
+| Nightly state | `mise run dev` restarts clean | a GitHub Actions workflow resets at **03:17 UTC** |
+| Cold starts | none | possible: the first request after a quiet period can be slow (warm it with `GET /api/health`) |
+
+Three extra facts about the online world ([docs/DEPLOYMENT.md](DEPLOYMENT.md)):
+
+- The nightly reset workflow ([`nightly-reset.yml`](../.github/workflows/nightly-reset.yml)) can only run once the test controls are deployed; it needs the repository settings `DEMO_URL` (variable) and `TEST_TOKEN` (secret), counts only an exact HTTP 200 of `POST /__test__/reset` as success (a redirect fails and is never followed, so the token cannot leave the configured host), and can be started by hand from the Actions tab. Note for a long-lived repo: GitHub disables scheduled workflows after 60 days of inactivity — the nightly reset then stops silently until the next push or a re-enable.
+- Preview deployments get a URL of their own and answer the same API; they share the production database unless the Neon integration carves a branch per preview, so treat preview data as even less stable.
+- The origin check accepts each preview's Vercel origin automatically, so API or UI tests against a preview URL need no extra header handling — requests without an `Origin` never raise the 403 at all.
+
+## 15. What to read next
+
+- [openapi.json](openapi.json) — the committed contract; import it into your HTTP client instead of re-typing requests. The command that regenerates it when the API changes is `cd backend && uv run python -m app.cli openapi --output ../docs/openapi.json`.
+- [SPEC.md](SPEC.md) — sections [3](SPEC.md#3-authentication-and-sessions) (sessions, the origin rule, the rate limits), [5](SPEC.md#5-orders-flow-2) (orders and concurrency), [6](SPEC.md#6-invoices-and-payments-flow-3) (invoices, payments, idempotency), [7](SPEC.md#7-errors-and-validation-order) (the stable error codes) and [9](SPEC.md#9-seed-data) (what a reset and a seed restore).
+- [SEED.md](SEED.md) — the exact data every recipe above leans on.
+- [backend/README.md](../backend/README.md) — the same controls from the implementer's side ("Test controls", "Request controls", "OpenAPI contract").
+- [DEPLOYMENT.md](DEPLOYMENT.md) and [DEVELOPMENT.md](DEVELOPMENT.md) — where the demo lives and how to start the stack locally.
+- Part 1 of this guide, for the UI side of the same flows.

@@ -23,6 +23,9 @@ from app.config import Settings
 from app.infra.db import create_db_engine, normalize_database_url
 from app.modules.customers.adapters.postgres import PostgresCustomerRepository
 from app.modules.customers.seed import seed_customers
+from app.modules.invoices.adapters.postgres import PostgresInvoiceStore
+from app.modules.invoices.gateway import FakeGateway
+from app.modules.invoices.seed import seed_invoices, seed_payments
 from app.modules.orders.adapters.postgres import PostgresOrderStore
 from app.modules.orders.seed import SEED_TAX_RATE, seed_orders, seed_products
 
@@ -128,12 +131,30 @@ def order_customers(db: Connection, unpinned_database_engine: Engine) -> Postgre
 
 
 @pytest.fixture
-def order_store(
+def postgres_order_store(
     order_customers: PostgresCustomerRepository,
     unpinned_database_engine: Engine,
 ) -> PostgresOrderStore:
     store = PostgresOrderStore(unpinned_database_engine)
     store.replace_all(seed_products(), seed_orders(), SEED_TAX_RATE)
+    return store
+
+
+@pytest.fixture
+def order_store(
+    postgres_order_store: PostgresOrderStore,
+) -> PostgresOrderStore:
+    return postgres_order_store
+
+
+@pytest.fixture
+def postgres_invoice_store(
+    postgres_order_store: PostgresOrderStore,
+    order_customers: PostgresCustomerRepository,
+    unpinned_database_engine: Engine,
+) -> PostgresInvoiceStore:
+    store = PostgresInvoiceStore(unpinned_database_engine, FakeGateway())
+    store.replace_all(seed_invoices(), seed_payments())
     return store
 
 
@@ -144,7 +165,8 @@ def db(database_engine: Engine, database_schema: str) -> Iterator[Connection]:
         assert current == database_schema
         connection.exec_driver_sql(
             "TRUNCATE TABLE users, sessions, customers, products, orders, "
-            "order_lines, settings RESTART IDENTITY CASCADE"
+            "order_lines, settings, invoices, invoice_lines, payments, "
+            "idempotency_keys RESTART IDENTITY CASCADE"
         )
         connection.commit()
         try:

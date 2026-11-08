@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field, WithJsonSchema
 
 from app.errors import PROBLEM_MEDIA_TYPE
 from app.modules.auth.constants import SESSION_COOKIE_NAME
+from app.openapi_examples import OPERATION_EXAMPLES, PROBLEM_EXAMPLES
 
 COMPONENT_REF_TEMPLATE = "#/components/schemas/{model}"
 PROBLEM_REF = COMPONENT_REF_TEMPLATE.format(model="Problem")
@@ -152,12 +153,34 @@ def component_ref(name: str) -> str:
     return COMPONENT_REF_TEMPLATE.format(model=name)
 
 
-def problem(description: str) -> dict[str, Any]:
+def problem(description: str, *, status: int) -> dict[str, Any]:
     """Document one error answer that carries a `Problem` body."""
+    content: dict[str, Any] = {"schema": {"$ref": PROBLEM_REF}}
+    examples = PROBLEM_EXAMPLES.get(status)
+    if examples is not None:
+        content["examples"] = dict(examples)
     return {
         "description": description,
-        "content": {PROBLEM_MEDIA_TYPE: {"schema": {"$ref": PROBLEM_REF}}},
+        "content": {PROBLEM_MEDIA_TYPE: content},
     }
+
+
+def body_examples(examples: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+    """Document named examples for a JSON request body."""
+    return {
+        "requestBody": {
+            "content": {"application/json": {"examples": dict(examples)}},
+        }
+    }
+
+
+def response_examples(
+    examples: Mapping[str, Mapping[str, Any]],
+    *,
+    media_type: str = "application/json",
+) -> dict[str, Any]:
+    """Add named examples to an answer documented by its response model."""
+    return {"content": {media_type: {"examples": dict(examples)}}}
 
 
 def documented_responses(
@@ -169,42 +192,62 @@ def documented_responses(
     rate_limited: bool = True,
     unavailable: Sequence[str] | None = ("LOCK_TIMEOUT",),
     extra: Mapping[int, str] | None = None,
+    problem_examples: Mapping[int, Mapping[str, Mapping[str, Any]]] | None = None,
 ) -> dict[int, dict[str, Any]]:
     """Describe the answers that apply to an operation.
 
     `extra` documents the answers specific to the operation; `unavailable` names the
     stable codes of its 503 answer, or is `None` for a route that never reaches the
-    database or a password check.
+    database or a password check. `problem_examples` replaces the shared example of one
+    status, for the operation whose answer is the exception (the login 401).
     """
     responses: dict[int, dict[str, Any]] = {}
     if body:
-        responses[400] = problem("The request body is not valid JSON. Code: `MALFORMED_JSON`.")
-        responses[413] = problem("The request body exceeds 100 KB. Code: `PAYLOAD_TOO_LARGE`.")
+        responses[400] = problem(
+            "The request body is not valid JSON. Code: `MALFORMED_JSON`.",
+            status=400,
+        )
+        responses[413] = problem(
+            "The request body exceeds 100 KB. Code: `PAYLOAD_TOO_LARGE`.",
+            status=413,
+        )
     if protected:
         responses[401] = problem(
-            "There is no session or it expired. Codes: `UNAUTHENTICATED`, `SESSION_EXPIRED`."
+            "There is no session or it expired. Codes: `UNAUTHENTICATED`, `SESSION_EXPIRED`.",
+            status=401,
         )
     if method.upper() in STATE_CHANGING_METHODS:
         if permission:
             responses[403] = problem(
                 "The Origin is not allowed or the role lacks the permission. Codes: "
-                "`CSRF_ORIGIN_MISMATCH`, `FORBIDDEN`."
+                "`CSRF_ORIGIN_MISMATCH`, `FORBIDDEN`.",
+                status=403,
             )
         else:
             responses[403] = problem(
-                "The request Origin is not allowed. Code: `CSRF_ORIGIN_MISMATCH`."
+                "The request Origin is not allowed. Code: `CSRF_ORIGIN_MISMATCH`.",
+                status=403,
             )
     if rate_limited:
         responses[429] = problem(
-            "Too many requests. Code: `RATE_LIMITED`; the answer carries `Retry-After`."
+            "Too many requests. Code: `RATE_LIMITED`; the answer carries `Retry-After`.",
+            status=429,
         )
-    responses[500] = problem("Unexpected server error. Code: `INTERNAL_ERROR`.")
+    responses[500] = problem(
+        "Unexpected server error. Code: `INTERNAL_ERROR`.",
+        status=500,
+    )
     if unavailable:
         noun = "Code" if len(unavailable) == 1 else "Codes"
         codes = ", ".join(f"`{code}`" for code in unavailable)
-        responses[503] = problem(f"The service or a database lock is busy. {noun}: {codes}.")
+        responses[503] = problem(
+            f"The service or a database lock is busy. {noun}: {codes}.",
+            status=503,
+        )
     for status, description in (extra or {}).items():
-        responses[status] = problem(description)
+        responses[status] = problem(description, status=status)
+    for status, examples in (problem_examples or {}).items():
+        responses[status]["content"][PROBLEM_MEDIA_TYPE]["examples"] = dict(examples)
     return responses
 
 
@@ -219,6 +262,7 @@ def install_openapi(app: FastAPI) -> None:
         _add_components(document)
         _apply_security(document)
         _use_component_request_bodies(document)
+        _apply_examples(document)
         app.openapi_schema = document
         return document
 
@@ -267,3 +311,19 @@ def _use_component_request_bodies(document: dict[str, Any]) -> None:
                 schema = media.get("schema")
                 if isinstance(schema, dict) and "$ref" in schema:
                     media["schema"] = {"$ref": schema["$ref"]}
+
+
+def _apply_examples(document: dict[str, Any]) -> None:
+    """Replay the named examples so that the nulls FastAPI drops stay in the contract."""
+    for (method, path), examples in OPERATION_EXAMPLES.items():
+        operation = document.get("paths", {}).get(path, {}).get(method.lower())
+        if operation is None:
+            continue
+        request = examples.get("request")
+        if request is not None:
+            media = operation["requestBody"]["content"]["application/json"]
+            media["examples"] = dict(request)
+        for status, named_examples in examples.get("responses", {}).items():
+            response = operation["responses"][status]
+            media_type = PROBLEM_MEDIA_TYPE if int(status) >= 400 else "application/json"
+            response["content"][media_type]["examples"] = dict(named_examples)

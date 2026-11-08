@@ -44,6 +44,8 @@ from app.modules.testcontrols.postgres import (
     PostgresClockOffsetStore,
     PostgresFaultStore,
 )
+from app.modules.testcontrols.reset import MemoryResetter, PostgresResetter
+from app.modules.testcontrols.routes import router as testcontrols_router
 
 DEFAULT_SESSION_SECRET = "change-me"
 
@@ -153,7 +155,27 @@ def create_app(
     app.state.invoice_store = invoice_store
     app.state.payment_gateway = payment_gateway
     app.state.invoices = invoices
+    if database_engine is None:
+        resetter: MemoryResetter | PostgresResetter = MemoryResetter(
+            customers=customer_repository,
+            orders=memory_order_store,
+            invoices=invoice_store,
+            clock_store=clock_store,
+            fault_store=fault_store,
+            default_tax_rate=settings.default_tax_rate,
+            reset_limiters=container.reset_limiters,
+        )
+    else:
+        resetter = PostgresResetter(
+            database_engine,
+            customers=customer_repository,
+            orders=order_store,
+            invoices=invoice_store,
+            default_tax_rate=settings.default_tax_rate,
+        )
+    app.state.resetter = resetter
     app.include_router(invoices_router)
+    app.include_router(testcontrols_router)
 
     @app.get("/api/health")
     async def health() -> dict[str, str]:

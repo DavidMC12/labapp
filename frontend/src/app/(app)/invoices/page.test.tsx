@@ -605,3 +605,100 @@ describe("the invoices list sorting", () => {
     );
   });
 });
+
+describe("the invoices list export link", () => {
+  it("renders the plain download anchor of the plain list", () => {
+    renderAt("");
+
+    const link = screen.getByTestId("invoices-list-export-link");
+    expect(link.tagName).toBe("A");
+    expect(link).toHaveAccessibleName("Exportar CSV");
+    expect(link).toHaveAttribute("href", "/api/invoices/export");
+    expect(link).toHaveAttribute("download");
+  });
+
+  it("renders it in the empty state too", async () => {
+    respondList(listPageOf([]));
+    renderAt("");
+    await waitFor(() => {
+      expect(screen.getByTestId("invoices-list-empty-status"))
+        .toBeInTheDocument();
+    });
+    expect(screen.getByTestId("invoices-list-export-link")).toBeDefined();
+  });
+
+  it("renders it in the error state too", async () => {
+    respondList(
+      problemResponse(500, "INTERNAL_ERROR", "Fallo inesperado."),
+      500,
+    );
+    renderAt("");
+    await waitFor(() => {
+      expect(screen.getByTestId("invoices-list-error-alert"))
+        .toBeInTheDocument();
+    });
+    expect(screen.getByTestId("invoices-list-export-link")).toBeDefined();
+  });
+
+  it("follows the applied filters and the sort of the URL", () => {
+    renderAt("?page=2&q=fac&status=paid&sort=total&direction=asc");
+
+    expect(screen.getByTestId("invoices-list-export-link")).toHaveAttribute(
+      "href",
+      "/api/invoices/export?q=fac&status=paid&sort=total&direction=asc",
+    );
+  });
+
+  it("leaves the parameters that are the default out", () => {
+    renderAt("?page=3&sort=created_at&direction=desc");
+
+    expect(screen.getByTestId("invoices-list-export-link")).toHaveAttribute(
+      "href",
+      "/api/invoices/export",
+    );
+  });
+
+  it("never carries the page parameter", () => {
+    renderAt("?page=9&q=fac");
+
+    const href = screen.getByTestId("invoices-list-export-link")
+      .getAttribute("href");
+    expect(href).toBe("/api/invoices/export?q=fac");
+    expect(href).not.toContain("page=");
+  });
+
+  it("is rebuilt from the URL state, not from the search box", async () => {
+    const user = userEvent.setup();
+    renderAt("?q=fac");
+
+    await user.type(screen.getByTestId("invoices-list-search-input"), "FAC-0004");
+
+    expect(screen.getByTestId("invoices-list-export-link")).toHaveAttribute(
+      "href",
+      "/api/invoices/export?q=fac",
+    );
+  });
+
+  it("follows the URL state when it changes", () => {
+    const { rerenderAt } = renderAt("?q=fac");
+    expect(screen.getByTestId("invoices-list-export-link")).toHaveAttribute(
+      "href",
+      "/api/invoices/export?q=fac",
+    );
+
+    rerenderAt("?q=fac&status=issued&sort=number&direction=desc");
+    expect(screen.getByTestId("invoices-list-export-link")).toHaveAttribute(
+      "href",
+      "/api/invoices/export?q=fac&status=issued&sort=number&direction=desc",
+    );
+  });
+
+  it("is a plain anchor: no router call on click", async () => {
+    renderAt("?q=fac");
+
+    await userEvent.setup().click(screen.getByTestId("invoices-list-export-link"));
+
+    expect(state.router.push).not.toHaveBeenCalled();
+    expect(state.router.replace).not.toHaveBeenCalled();
+  });
+});

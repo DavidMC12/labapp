@@ -2,16 +2,33 @@
 
 from __future__ import annotations
 
+import inspect
 from typing import Any
 
 import pytest
 from fastapi import FastAPI
+from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
 from app.modules.customers.ports import EmailTaken
 from tests.customers.helpers import assert_problem
 
 CSV = "text/csv"
+
+
+def find_route(app: FastAPI, path: str, method: str) -> APIRoute:
+    """Return an APIRoute, also when it lives inside an included router."""
+    pending = list(app.routes)
+    while pending:
+        route = pending.pop()
+        if isinstance(route, APIRoute):
+            if route.path == path and method in route.methods:
+                return route
+            continue
+        nested = getattr(getattr(route, "original_router", None), "routes", None)
+        if nested:
+            pending.extend(nested)
+    raise AssertionError(f"{method} {path} is not an APIRoute")
 
 
 def upload(
@@ -40,6 +57,15 @@ def import_error(response: Any, field: str, code: str, message: str) -> None:
     body = assert_problem(response, 422, "VALIDATION_ERROR")
     assert body["detail"] == "Revisa los datos ingresados."
     assert body["errors"] == [{"field": field, "code": code, "message": message}]
+
+
+def test_the_import_route_is_synchronous(app: FastAPI) -> None:
+    # The service reaches the database synchronously and may wait on locks. An async
+    # route would block the event loop meanwhile, stalling health and every other
+    # request of the instance; a plain ``def`` route runs in FastAPI's thread pool.
+    route = find_route(app, "/api/customers/import", "POST")
+
+    assert inspect.iscoroutinefunction(route.endpoint) is False
 
 
 def test_imports_three_rows_in_file_order(

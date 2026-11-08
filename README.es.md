@@ -76,7 +76,7 @@ mise install    # una vez: Node, pnpm y uv en las versiones fijadas
 mise run dev    # API en 127.0.0.1:8000, web en localhost:3000, datos en memoria
 ```
 
-Abre <http://localhost:3000> e ingresa con uno de los usuarios de la demo. Mira [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) (en inglés) para la opción con base de datos y los demás comandos, y [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) para el despliegue en línea.
+Abre <http://localhost:3000> e ingresa con uno de los usuarios de la demo. ¿Empiezas a automatizar aquí? [docs/AUTOMATION_GUIDE.md](docs/AUTOMATION_GUIDE.md) (en inglés) es una guía práctica para conducción de pruebas sobre la interfaz web. Mira [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) (en inglés) para la opción con base de datos y los demás comandos, y [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) para el despliegue en línea.
 
 ## Licencia
 

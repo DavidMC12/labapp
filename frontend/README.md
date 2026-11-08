@@ -327,6 +327,36 @@ src/
 - The navigation link "Configuración" (`app-nav-settings-link`) is
   visible to every role; the current-section highlight covers it.
 
+## Confirmation dialogs
+
+- **`ConfirmDialog`** (`src/components/ui/ConfirmDialog.tsx`) is the one
+  confirmation of the destructive actions, on the native `<dialog>`
+  element and its `showModal()`. It is controlled: `open` true calls
+  `showModal()`, false closes it. Escape (`cancel` event) and a click on
+  the backdrop both answer `onCancel` and never close the dialog by
+  themselves; while `pending` neither runs, both buttons are disabled
+  and the confirm shows its loading state. The first focus goes to the
+  "Volver" button (default `cancelLabel`), never to the destructive one,
+  and closing hands the focus back to the element that opened it. The
+  dialog carries `aria-labelledby` (title) and `aria-describedby`
+  (message), and the confirm button uses the `danger` variant of
+  `Button` (the `danger-bg`/`danger` token pair; the backdrop of the
+  dialog is styled in `globals.css` only, with tokens).
+- **Where it is used:** "Cancelar pedido" of the order detail
+  (title "¿Cancelar el pedido {number}?"; the draft message
+  "El borrador quedará cancelado.", the confirmed one "El stock
+  reservado vuelve al inventario y la factura emitida, si existe, se
+  anula."; confirm "Sí, cancelar pedido") and "Desactivar" of the
+  customer detail (title "¿Desactivar a {name}?"; message "No podrá
+  recibir pedidos nuevos. Sus pedidos y facturas existentes no
+  cambian."; confirm "Sí, desactivar"). The request is sent only after
+  the confirm — the same POST, the same `If-Match` and the same double-
+  click guard as before — and the dialog closes when it ends. A failure
+  shows the existing alert as before.
+- **Not destructive, stays immediate:** "Reactivar", "Confirmar" and
+  "Marcar como enviado" (and every other action of the app) run at the
+  first click.
+
 ## Titles, skip link and landmarks
 
 - **The document title names the page** (`src/lib/useDocumentTitle.ts`):

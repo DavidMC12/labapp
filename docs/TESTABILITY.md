@@ -37,7 +37,7 @@ title until the record arrives).
 | `aria-busy="true"` | A region is loading or submitting. |
 | `data-hydrated="true"` | Set on `<body>` once the client has hydrated, so tests never click a server-only render. |
 
-Errors from the API are shown in an element with `role="alert"` and a `data-testid`, containing the Spanish message from the response. A field-level error uses kind `error` (`customers-form-email-error`); a form- or page-level API error uses kind `alert` (`customers-form-alert`).
+Errors from the API are shown in an element with `role="alert"` and a `data-testid`, containing the Spanish message from the response. A field-level error uses kind `error` (`customers-form-email-error`); a form- or page-level API error uses kind `alert` (`customers-form-alert`). The app has two confirmation dialogs on the native `<dialog>`: `orders-cancel-confirm-dialog` (the cancel of an order) and `customers-deactivate-confirm-dialog` (the deactivation of a customer); every other action runs at the first click.
 
 ## Which kind to use
 

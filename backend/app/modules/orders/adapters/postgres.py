@@ -730,7 +730,7 @@ class PostgresOrderStore:
                             .values(stock=product.stock + line.quantity)
                         )
                 else:
-                    # A confirmed order keeps the rate frozen at confirmation.
+                    # Cancelling a draft stores the current rate.
                     tax_rate = self._current_tax_rate(connection)
 
             return self._write_order(

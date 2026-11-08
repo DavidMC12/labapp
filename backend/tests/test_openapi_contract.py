@@ -64,6 +64,12 @@ def test_no_operation_is_missing_an_operation_id() -> None:
             assert operation.get("operationId"), f"{method.upper()} {path} has no operationId"
 
 
+def test_the_contract_hides_the_test_controls() -> None:
+    paths = _committed_contract()["paths"]
+
+    assert not [path for path in paths if path.startswith("/__test__")]
+
+
 @pytest.mark.parametrize(("schema_name", "field_name"), MONEY_CASES)
 def test_money_fields_are_strings(schema_name: str, field_name: str) -> None:
     schemas = _committed_contract()["components"]["schemas"]

@@ -4,10 +4,12 @@ import { Alert } from "@/components/ui";
 import { Button, Link, ThemeSelect } from "@/components/ui";
 import { LedgerMark } from "@/components/LedgerMark";
 import { useLogout, useMe } from "@/features/auth/hooks";
+import { SESSION_EXPIRED_QUERY_KEY } from "@/features/auth/session";
 import { roleLabel } from "@/features/auth/types";
 import { ApiRequestError, INTERNAL_ERROR_DETAIL } from "@/lib/api";
 import type { TestId } from "@/lib/testid";
 import { usePathname, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
 /** A section link covers the section root and everything under it. */
@@ -64,18 +66,24 @@ export default function AppLayout({
   children: React.ReactNode;
 }>) {
   const me = useMe();
+  const queryClient = useQueryClient();
   const router = useRouter();
   const logout = useLogout();
   const loggingOutRef = useRef(false);
 
   const pathname = usePathname();
 
-  // No session: an expired or missing session redirects silently for now.
+  // No session: the redirect says why. A 401 SESSION_EXPIRED left the flag
+  // under SESSION_EXPIRED_QUERY_KEY (see noteUnauthorized), so the user
+  // gets /login?expired=1 and the login page shows the notice; any other
+  // way of losing the session goes to /login exactly as before.
   useEffect(() => {
     if (me.isSuccess && me.data === null) {
-      router.replace("/login");
+      const expired =
+        queryClient.getQueryData(SESSION_EXPIRED_QUERY_KEY) === true;
+      router.replace(expired ? "/login?expired=1" : "/login");
     }
-  }, [me.isSuccess, me.data, router]);
+  }, [me.isSuccess, me.data, queryClient, router]);
 
   async function handleLogout() {
     // The guard lives in the handler: state updates arrive too late for a

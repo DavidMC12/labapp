@@ -15,7 +15,7 @@ import {
   type UseQueryResult,
 } from "@tanstack/react-query";
 import { ApiRequestError } from "@/lib/api";
-import { ME_QUERY_KEY } from "@/features/auth/hooks";
+import { noteUnauthorized } from "@/features/auth/session";
 import { fetchSettings, updateTaxRate } from "./api";
 import type { Settings } from "./types";
 
@@ -25,12 +25,11 @@ export const SETTINGS_KEY = ["settings"] as const;
 /**
  * Any 401 of the settings endpoints means "no session": it writes `null`
  * into the `["auth", "me"]` cache entry so the shell redirects to the
- * login instead of showing "Reintentar" for ever.
+ * login instead of showing "Reintentar" for ever, and a 401
+ * `SESSION_EXPIRED` also raises the expired flag (see `noteUnauthorized`).
  */
 function note401(error: unknown, queryClient: QueryClient): void {
-  if (error instanceof ApiRequestError && error.problem.status === 401) {
-    queryClient.setQueryData(ME_QUERY_KEY, null);
-  }
+  noteUnauthorized(error, queryClient);
 }
 
 /** GET /api/settings — the settings every role sees. */

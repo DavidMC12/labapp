@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import re
 from decimal import ROUND_HALF_UP, Decimal
+from os import environ
 from urllib.parse import urlsplit
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _SCHEMA_PATTERN = re.compile(r"[a-z_][a-z0-9_]{0,62}")
@@ -80,6 +81,13 @@ class Settings(BaseSettings):
             stripped = value.strip()
             return stripped or None
         return value
+
+    @model_validator(mode="after")
+    def _refuse_test_mode_on_vercel(self) -> Settings:
+        """Keep TEST_MODE off in every public deployment."""
+        if self.test_mode and environ.get("VERCEL_ENV") in ("production", "preview"):
+            raise ValueError("TEST_MODE must be off on a Vercel deployment")
+        return self
 
     @property
     def allowed_origins(self) -> tuple[str, ...]:

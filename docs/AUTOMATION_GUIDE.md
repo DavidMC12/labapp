@@ -1,6 +1,6 @@
 # Automation guide
 
-LabApp is a small order-to-cash ERP (customers, orders, invoices, payments) built to be automated: it is the application a QA engineer drives with Playwright when learning the suite. This is **part 1: the web UI** — how to start it, how to locate everything, what the screens contain, and how the three core flows behave. Part 2 (the test controls — reset, seed, clock, faults — and the HTTP API contract) follows after those parts exist.
+LabApp is a small order-to-cash ERP (customers, orders, invoices, payments) built to be automated: it is the application a QA engineer drives with Playwright when learning the suite. This is **part 1: the web UI** — how to start it, how to locate everything, what the screens contain, how the three core flows behave and how a customer CSV is uploaded. Part 2, below, covers the HTTP API and the test controls.
 
 Every id, URL, label and message here was read from the code and the documents ([TESTABILITY](TESTABILITY.md), [TESTIDS](TESTIDS.md), [SEED](SEED.md), [SPEC section 2–6 and 8](SPEC.md)). The generated catalog [TESTIDS.md](TESTIDS.md) is the source for ids; this guide links it instead of copying it.
 
@@ -239,7 +239,7 @@ await expect(page.getByTestId("customers-import-error-message-cell-2"))
   .toHaveText("El formato no es válido.");
 ```
 
-A file above the limit is made in memory too: a buffer of 120 KB is safely above the 100 KB body limit, which covers the whole multipart request. The page answers with the 413 alert and no table:
+A file above the limit is made in memory too: a buffer of 120 KB is safely above the 100 KB body limit, which covers the whole multipart body. The page answers with the 413 alert and no table:
 
 ```ts
 // Illustrative, not run in CI. 120 KB of CSV: the header plus one padded row.
@@ -432,13 +432,13 @@ Each item below was verified in the code and the documents.
 
 ## 9. What is next
 
-Part 1 covered the web UI; **part 2** (the next sections of this document) covers the other half: the HTTP API under `/api` (section 10) and the test-only controls — reset, seed, clock, faults (section 11) — with recipes for the three flows over `curl` (section 12), how to isolate a run (section 13) and the online demo (section 14). The same sections teach the machinery the four lists gained since part 1 was drafted: their `sort` and `direction` parameters and their CSV downloads (section 12) and the headers every API answer carries (section 10). Before writing API tests, read in this order: [SPEC.md](SPEC.md) sections 2–3 (roles, sessions, the origin rule), 5–6 (orders, invoices and payments) and 7–9 (errors, formats, the seed contract); [openapi.json](openapi.json), the committed contract of every endpoint; and [backend/README.md](../backend/README.md) if you want the controls explained from the server side.
+Part 1 covered the web UI, including the one file upload: the customers import (section 5). **Part 2** (the next sections of this document) covers the other half: the HTTP API under `/api` (section 10) and the test-only controls — reset, seed, clock, faults (section 11) — with recipes for the three flows over `curl` (section 12), the customers import over HTTP (section 12), how to isolate a run (section 13) and the online demo (section 14). The same sections teach the machinery the four lists gained since part 1 was drafted: their `sort` and `direction` parameters, their CSV downloads and the customers CSV import (section 12) and the headers every API answer carries (section 10). Before writing API tests, read in this order: [SPEC.md](SPEC.md) sections 2–3 (roles, sessions, the origin rule), [4](SPEC.md#4-customers-flow-1) (customers, including the import rule), 5–6 (orders, invoices and payments) and 7–9 (errors, formats, the seed contract); [openapi.json](openapi.json), the committed contract of every endpoint; and [backend/README.md](../backend/README.md) if you want the controls explained from the server side.
 
 ---
 
 # Part 2: the HTTP API and the test controls
 
-Driving the UI is only half of what makes LabApp easy to automate. The other half is HTTP: every screenshot has an endpoint behind it, and the seed, reset, clock and faults exist so a test can arrange the world it needs. These sections cover the base path and authentication (with the headers every API answer carries), the committed contract, the seven test-control endpoints with recipes, the three core flows over `curl`, the `sort` and `direction` parameters and the CSV downloads of the four lists, the versioning and idempotency machinery, and how to isolate a run from other visitors of the demo.
+Driving the UI is only half of what makes LabApp easy to automate. The other half is HTTP: every screenshot has an endpoint behind it, and the seed, reset, clock and faults exist so a test can arrange the world it needs. These sections cover the base path and authentication (with the headers every API answer carries), the committed contract, the seven test-control endpoints with recipes, the three core flows over `curl`, the `sort` and `direction` parameters and the CSV downloads of the four lists, the customers CSV import and its round trip with the export, the versioning and idempotency machinery, and how to isolate a run from other visitors of the demo.
 
 Every endpoint, status code, header, field and message below was read from the backend code, [SPEC.md](SPEC.md) and the committed contract [openapi.json](openapi.json); each `curl` recipe was verified against the local server that `mise run dev` starts.
 
@@ -992,7 +992,7 @@ expect(items[0].email).toBe("ana.uno@example.test");
 - The first line is the header: the columns are `name`, `email`, `phone`, `tax_id` and `address`, case-sensitive, each at most once; `name` and `email` must be present.
 - There are 1 to 200 data rows. Each one follows the creation rules of a customer (trimming, lengths, formats); an empty optional value is stored as `null`, and the email is trimmed and lowercased. Values are stored as the file gives them after trimming: the import does not remove a leading single quote.
 - Any error rejects the file: nothing is created, the answer lists every error in file order, and the list stops at **100 entries**.
-- The request size limit covers the whole multipart body, headers included, so a file of about 100 KB already answers 413.
+- The request size limit covers the whole multipart body, the file and the multipart overhead included, so a file of about 100 KB already answers 413.
 
 **The line numbers.** `N` is the physical line in the file, not the position of the data row: the header is line 1, a blank line counts, and a quoted field with a line break covers as many lines as it spans. The header, a blank line, a row whose quoted `address` spans lines 3 and 4, a blank line and a bad row on line 6:
 
@@ -1088,11 +1088,10 @@ Three extra facts about the online world ([docs/DEPLOYMENT.md](DEPLOYMENT.md)):
 ## 15. What to read next
 
 - [openapi.json](openapi.json) — the committed contract; import it into your HTTP client instead of re-typing requests. The command that regenerates it when the API changes is `cd backend && uv run python -m app.cli openapi --output ../docs/openapi.json`.
-- [SPEC.md](SPEC.md) — sections [3](SPEC.md#3-authentication-and-sessions) (sessions, the origin rule, the rate limits), [5](SPEC.md#5-orders-flow-2) (orders and concurrency), [6](SPEC.md#6-invoices-and-payments-flow-3) (invoices, payments, idempotency), [7](SPEC.md#7-errors-and-validation-order) (the stable error codes) and [9](SPEC.md#9-seed-data) (what a reset and a seed restore).
-- In this guide, the machinery of the four lists: [Sort the four lists](#sort-the-four-lists) (the UI side); [Sorting the lists: sort and direction](#sorting-the-lists-sort-and-direction) and [Download the lists as CSV](#download-the-lists-as-csv) in section 12, and [The headers of every API answer](#the-headers-of-every-api-answer) in section 10.
+- [SPEC.md](SPEC.md) — sections [3](SPEC.md#3-authentication-and-sessions) (sessions, the origin rule, the rate limits), [4](SPEC.md#4-customers-flow-1) (customers and the import rule, all or nothing), [5](SPEC.md#5-orders-flow-2) (orders and concurrency), [6](SPEC.md#6-invoices-and-payments-flow-3) (invoices, payments, idempotency), [7](SPEC.md#7-errors-and-validation-order) (the stable error codes) and [9](SPEC.md#9-seed-data) (what a reset and a seed restore).
+- In this guide, the machinery of the four lists and the upload: [Sort the four lists](#sort-the-four-lists) and [Import customers from a CSV file](#import-customers-from-a-csv-file-admin-or-sales) (the UI side); [Sorting the lists: sort and direction](#sorting-the-lists-sort-and-direction), [Download the lists as CSV](#download-the-lists-as-csv), [Upload customers from a CSV file](#upload-customers-from-a-csv-file) and [Round trip: export, reshape and import](#round-trip-export-reshape-and-import) in section 12, and [The headers of every API answer](#the-headers-of-every-api-answer) in section 10.
 - [SEED.md](SEED.md) — the exact data every recipe above leans on.
 - [backend/README.md](../backend/README.md) — the same controls from the implementer's side ("Test controls", "Request controls", "OpenAPI contract").
 - [DEPLOYMENT.md](DEPLOYMENT.md) and [DEVELOPMENT.md](DEVELOPMENT.md) — where the demo lives and how to start the stack locally.
 - Part 1 of this guide, for the UI side of the same flows.
-
-- [PRACTICE.md](PRACTICE.md) — the catalog of practice scenarios: what to test, row by row, with the exact expected result from the specification, so every recipe of this guide has a scenario to land on.
+- [PRACTICE.md](PRACTICE.md) — the catalog of practice scenarios: what to test, row by row, with the exact expected result from the specification, so every recipe of this guide has a scenario to land on. Its [area J](PRACTICE.md#j-customers-import-file-upload) is the file upload in 30 rows, from a clean import to the export uploaded back.

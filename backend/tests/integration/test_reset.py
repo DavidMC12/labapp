@@ -123,6 +123,18 @@ def test_the_reset_keeps_the_sessions(database_settings: Settings) -> None:
     assert response.json()["email"] == "admin@labapp.test"
 
 
+def test_the_reset_clears_the_instance_rate_limits(database_settings: Settings) -> None:
+    with _app(database_settings) as app:
+        limiter = app.state.container.limiters.general
+        for _ in range(120):
+            limiter.hit("test-client")
+        assert limiter.hit("test-client").allowed is False
+
+        app.state.resetter.reset()
+
+        assert limiter.hit("test-client").allowed is True
+
+
 def test_the_sequences_restart_after_a_reset(database_settings: Settings) -> None:
     with _app(database_settings) as app:
         app.state.resetter.reset()
@@ -271,13 +283,12 @@ def test_the_reset_leaves_a_decoy_schema_untouched(database_settings: Settings) 
             poolclass=NullPool,
             hide_parameters=True,
             connect_args={"options": f"-c search_path={decoy}"},
-        )
+        ).execution_options(schema_translate_map={None: real})
         event.listen(
             engine,
             "begin",
             lambda connection: connection.exec_driver_sql("SET LOCAL lock_timeout = 5000"),
         )
-        engine = engine.execution_options(schema_translate_map={None: real})
         try:
             resetter = PostgresResetter(
                 engine,

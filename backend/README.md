@@ -314,6 +314,10 @@ What is stored where:
   and every fault rule is deleted. PostgreSQL does all of it in one transaction after
   `pg_advisory_xact_lock` (a key different from the session and fault-rule locks), so no
   request sees a half-restored database. `TRUNCATE` and raw `DELETE` are never used.
+- Every `replace_all` accepts `defer_sequences`. The reset collects the sequence
+  restarts there and runs them as the last statements of the transaction, because
+  `setval` is not undone by a rollback: a reset that fails in a data step leaves the
+  sequences as they were instead of at 1.
 - A reset keeps the sessions: the four users keep their ids (upsert and delete-missing,
   never touching `sessions`), so a stored cookie keeps working. It restores the data, the
   number sequences (the next order is `PED-0008`, the next invoice `FAC-0004`, the next

@@ -109,7 +109,14 @@ class MemoryResetter:
 
 
 class PostgresResetter:
-    """Reset PostgreSQL in one transaction, behind a transaction advisory lock."""
+    """Reset PostgreSQL in one transaction, behind a transaction advisory lock.
+
+    The data steps run first; every sequence restart is deferred to ``deferred`` and
+    executed as the last statements of the transaction. ``setval`` is not undone by a
+    rollback, so running it early would leave the sequences at 1 after a later step
+    failed. A failure in the deferred phase itself can still leave the sequences
+    changed, which is why the caller must retry the reset.
+    """
 
     def __init__(
         self,
@@ -132,26 +139,39 @@ class PostgresResetter:
     def reset(self) -> None:
         # Argon2 is slow; compute the hash outside the transaction that holds locks.
         users = seed_users(demo_password_hash())
+        deferred: list[Callable[[Connection], None]] = []
         with self._engine.begin() as connection:
             self._lock(connection)
-            self._restore_default(connection)
-            self._users.replace_all(users, connection=connection)
+            self._restore_default(connection, deferred)
+            self._users.replace_all(users, connection=connection, defer_sequences=deferred)
             self._write_clock(connection)
             connection.execute(delete(fault_rules))
+            self._run_deferred(connection, deferred)
         if self._reset_limiters is not None:
             self._reset_limiters()
 
     def seed(self, dataset: Dataset) -> None:
         users = seed_users(demo_password_hash())
+        deferred: list[Callable[[Connection], None]] = []
         with self._engine.begin() as connection:
             self._lock(connection)
             if dataset == "default":
-                self._restore_default(connection)
-                self._users.replace_all(users, connection=connection)
+                self._restore_default(connection, deferred)
+                self._users.replace_all(users, connection=connection, defer_sequences=deferred)
             elif dataset == "empty":
-                self._restore_empty(connection, users)
+                self._restore_empty(connection, users, deferred)
             else:
                 raise ValueError(f"Unknown dataset: {dataset}")
+            self._run_deferred(connection, deferred)
+
+    @staticmethod
+    def _run_deferred(
+        connection: Connection,
+        deferred: list[Callable[[Connection], None]],
+    ) -> None:
+        """Run the deferred sequence restarts as the last statements of the transaction."""
+        for restart in deferred:
+            restart(connection)
 
     @staticmethod
     def _lock(connection: Connection) -> None:
@@ -160,23 +180,54 @@ class PostgresResetter:
             {"key": RESET_LOCK_KEY},
         )
 
-    def _restore_default(self, connection: Connection) -> None:
-        self._invoices.replace_all([], [], connection=connection)
-        self._orders.replace_all([], [], self._tax_rate, connection=connection)
-        self._customers.replace_all(seed_customers(), connection=connection)
+    def _restore_default(
+        self,
+        connection: Connection,
+        deferred: list[Callable[[Connection], None]],
+    ) -> None:
+        self._invoices.replace_all([], [], connection=connection, defer_sequences=deferred)
+        self._orders.replace_all(
+            [],
+            [],
+            self._tax_rate,
+            connection=connection,
+            defer_sequences=deferred,
+        )
+        self._customers.replace_all(
+            seed_customers(),
+            connection=connection,
+            defer_sequences=deferred,
+        )
         self._orders.replace_all(
             seed_products(),
             seed_orders(),
             self._tax_rate,
             connection=connection,
+            defer_sequences=deferred,
         )
-        self._invoices.replace_all(seed_invoices(), seed_payments(), connection=connection)
+        self._invoices.replace_all(
+            seed_invoices(),
+            seed_payments(),
+            connection=connection,
+            defer_sequences=deferred,
+        )
 
-    def _restore_empty(self, connection: Connection, users: list[User]) -> None:
-        self._invoices.replace_all([], [], connection=connection)
-        self._orders.replace_all([], [], self._tax_rate, connection=connection)
-        self._customers.replace_all([], connection=connection)
-        self._users.replace_all(users, connection=connection)
+    def _restore_empty(
+        self,
+        connection: Connection,
+        users: list[User],
+        deferred: list[Callable[[Connection], None]],
+    ) -> None:
+        self._invoices.replace_all([], [], connection=connection, defer_sequences=deferred)
+        self._orders.replace_all(
+            [],
+            [],
+            self._tax_rate,
+            connection=connection,
+            defer_sequences=deferred,
+        )
+        self._customers.replace_all([], connection=connection, defer_sequences=deferred)
+        self._users.replace_all(users, connection=connection, defer_sequences=deferred)
         self._write_clock(connection)
         connection.execute(delete(fault_rules))
 

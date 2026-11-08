@@ -19,6 +19,20 @@ def test_the_invoice_tables_exist_in_the_test_schema(db: Connection, database_sc
     assert table_names(db, "public").isdisjoint(INVOICE_TABLES)
 
 
+def test_the_partial_unique_index_exists(db: Connection, database_schema: str) -> None:
+    definition = db.execute(
+        text(
+            "select indexdef from pg_indexes "
+            "where schemaname = :schema and indexname = 'uq_payments_one_approved_per_invoice'"
+        ),
+        {"schema": database_schema},
+    ).scalar_one()
+
+    assert "unique index" in definition.lower()
+    assert "where" in definition.lower()
+    assert "status = 'approved'" in definition
+
+
 def test_the_circular_foreign_key_sets_the_order_invoice_to_null(
     db: Connection, database_schema: str
 ) -> None:

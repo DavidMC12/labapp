@@ -76,6 +76,7 @@ Every route needs a session. Reading is open to every role; creating, editing, d
 | Request | Purpose | Answer |
 |---|---|---|
 | `GET /api/customers` | List, with the query parameters below | 200 `{items, page, page_size, total}` |
+| `GET /api/customers/export` | The customers of the list filters as a CSV file (section 8, "CSV export") | 200 `text/csv` |
 | `POST /api/customers` | Create | 201 `Customer`, `Location: /api/customers/{id}` |
 | `GET /api/customers/{id}` | Read one | 200 `Customer` |
 | `PATCH /api/customers/{id}` | Partial update; the body must carry `version` | 200 `Customer` |
@@ -151,6 +152,7 @@ Money in JSON is a string with exactly 2 decimals (`"19.90"`), never a number; t
 | `GET /api/settings` | Current settings (every role) | 200 `{tax_rate}` |
 | `PATCH /api/settings` | Change the tax rate (Admin) | 200 `{tax_rate}` |
 | `GET /api/orders` | List, with the query parameters below | 200 `{items: [OrderSummary], page, page_size, total}` |
+| `GET /api/orders/export` | The orders of the list filters as a CSV file (section 8, "CSV export") | 200 `text/csv` |
 | `POST /api/orders` | Create a draft: `{customer_id}` | 201 `Order`, `Location: /api/orders/{id}` |
 | `GET /api/orders/{id}` | Read one | 200 `Order` |
 | `PATCH /api/orders/{id}` | Change the customer of a draft: `{customer_id, version}` | 200 `Order` |
@@ -255,6 +257,7 @@ Every route needs a session. Reading is open to every role. Issuing an invoice a
 | Request | Purpose | Answer |
 |---|---|---|
 | `GET /api/invoices` | List, with the query parameters below | 200 `{items: [InvoiceSummary], page, page_size, total}` |
+| `GET /api/invoices/export` | The invoices of the list filters as a CSV file (section 8, "CSV export") | 200 `text/csv` |
 | `GET /api/invoices/{id}` | Read one | 200 `Invoice` |
 | `POST /api/orders/{id}/invoice` | Issue the invoice of a `confirmed` order; no body; optional `If-Match` (the version of the **order**) | 201 `Invoice`, `Location: /api/invoices/{id}` |
 | `POST /api/invoices/{id}/payments` | Register a payment; `Idempotency-Key` required; optional `If-Match` (the version of the **invoice**) | 201 `PaymentResult`, or an error below |
@@ -385,6 +388,7 @@ Order of checks. A request is rejected by the first rule that fails:
 - **Dates and times:** stored and shown in UTC, never converted to the viewer's time zone, because a conversion would change the date of an invoice depending on who looks at it. Dates look like `31/10/2026` and times like `02:30`, produced with `Intl.DateTimeFormat('es-US', {day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC'})` and `{hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: 'UTC'}`. Timestamps in the UI carry the suffix "UTC". Without the `2-digit` options, `es-US` does not zero-pad (`3/1/2026`).
 - **Errors:** RFC 9457 `application/problem+json` with `type`, `title`, `status`, `code` (stable), `detail` (Spanish) and, for validation, `errors[]` entries of `{field, code, message}`. Extension members such as `shortages`, `payment_id` and `reason` appear at the top level of the body. The UI shows the message in an element with `role="alert"`.
 - **Lists:** a fixed page size of 20 (the client cannot change it), ordered by `created_at` descending and then by `id` descending, returning `items`, `page`, `page_size` and `total`. Customers are searched by name or email and orders by number or customer name, with a case- and accent-insensitive "contains" match; both accept a `status` filter.
+- **CSV export:** `GET /api/customers/export`, `GET /api/orders/export` and `GET /api/invoices/export` return every row that the list of the same resource would return for the same filters, not one page. They take the list's filter and sort parameters (`q`, `status`, `sort`, `direction`, plus `customer_id` for orders and `order_id` for invoices) with exactly the same validation and the same 422 answers, and **no** `page` parameter: a `page` is ignored, as any other unknown query parameter is. Any signed-in role may export (reading is open to every role); without a session the answer is 401 as for every route. The answer is 200 with `Content-Type: text/csv; charset=utf-8`, `Content-Disposition: attachment; filename="<resource>-<YYYYMMDD>.csv"` (`customers`, `orders` or `invoices`; the date is the UTC date of the application clock, so the clock control moves it), `Cache-Control: no-store` and the usual `X-Request-Id`. The file is UTF-8 without a byte order mark; lines end with CRLF and the last line ends with CRLF too; the first line is the header. A field is wrapped in double quotes when it contains a comma, a double quote, a carriage return or a line feed, and a double quote inside it is doubled (RFC 4180). **Spreadsheet formulas:** a text field that starts with `=`, `+`, `-`, `@`, a tab or a carriage return is written with a single quote in front of it (`'=1+1`), so a spreadsheet never evaluates it; this applies to every text column below, not to the numeric ones. Empty values are empty fields. Money has exactly two decimals and no symbol (`110.00`), the tax rate has two decimals, timestamps are ISO 8601 in UTC with a trailing `Z` (`2026-10-31T14:30:00Z`), ids are integers. The columns, in this order: customers `id,name,email,phone,tax_id,address,status,created_at,updated_at`; orders `id,number,status,customer_id,customer_name,subtotal,tax_rate,tax,total,invoice_id,created_at,updated_at`; invoices `id,number,status,order_id,order_number,customer_name,tax_id,subtotal,tax_rate,tax,total,created_at,updated_at` (the customer name and tax id of an invoice are those of its snapshot). The order of the rows is the order of the list for the same `sort` and `direction`. There is no row limit and no paging.
 - **Request tracing:** every response carries an `X-Request-Id` header.
 
 ## 9. Seed data

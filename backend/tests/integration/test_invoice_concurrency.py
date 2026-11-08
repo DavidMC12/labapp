@@ -15,12 +15,31 @@ from app.domain.orders import OrderAction, OrderStatus
 from app.errors import ApiError
 from app.modules.customers.tables import customers
 from app.modules.invoices.adapters.postgres import PostgresInvoiceStore
-from app.modules.invoices.models import Invoice, Payment, StoredResponse
+from app.modules.invoices.models import (
+    Invoice,
+    InvoiceStatus,
+    Payment,
+    PaymentStatus,
+    StoredResponse,
+)
 from app.modules.orders.adapters.postgres import PostgresOrderStore
 from app.modules.orders.ports import VersionConflict
 from tests.invoices.contract_store import attempt, respond
 
 NOW = datetime(2026, 2, 1, 12, 0, tzinfo=UTC)
+RACE_ROUNDS = 20
+
+
+def _fresh_issued_invoice(
+    invoice_store: PostgresInvoiceStore,
+    order_store: PostgresOrderStore,
+) -> tuple[int, int, str]:
+    """Create one confirmed order with one line and issue its invoice."""
+    order = order_store.create_order(1, NOW)
+    order_store.add_line(order.id, 14, 1, None, NOW)
+    order_store.transition(order.id, OrderAction.CONFIRM, None, NOW)
+    invoice = invoice_store.issue_invoice(order.id, None, NOW)
+    return order.id, invoice.id, str(invoice.total)
 
 
 def _pay(
@@ -52,25 +71,65 @@ def _declined_response(payment: Payment, invoice: Invoice) -> StoredResponse:
     )
 
 
+def _pay_race(
+    store: PostgresInvoiceStore,
+    invoice_id: int,
+    key: str,
+    total: str,
+    barrier: Barrier,
+) -> str:
+    barrier.wait()
+    try:
+        _pay(store, invoice_id, key, key, amount=total)
+    except ApiError as error:
+        return error.code
+    return "approved"
+
+
+def _cancel_race(store: PostgresOrderStore, order_id: int, barrier: Barrier) -> str:
+    barrier.wait()
+    try:
+        store.transition(order_id, OrderAction.CANCEL, None, NOW)
+    except ApiError as error:
+        return error.code
+    return "cancelled"
+
+
 def test_two_different_keys_approve_once_without_deadlock(
     postgres_invoice_store: PostgresInvoiceStore,
+    postgres_order_store: PostgresOrderStore,
 ) -> None:
-    barrier = Barrier(2)
+    for round_number in range(RACE_ROUNDS):
+        order_id, invoice_id, total = _fresh_issued_invoice(
+            postgres_invoice_store,
+            postgres_order_store,
+        )
+        barrier = Barrier(2)
 
-    def pay(key: str) -> str:
-        barrier.wait()
-        try:
-            _pay(postgres_invoice_store, 1, key, key)
-        except ApiError as error:
-            return error.code
-        return "approved"
+        keys = (f"key-{round_number}-1", f"key-{round_number}-2")
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [
+                executor.submit(
+                    _pay_race,
+                    postgres_invoice_store,
+                    invoice_id,
+                    key,
+                    total,
+                    barrier,
+                )
+                for key in keys
+            ]
+            outcomes = [future.result(timeout=15) for future in futures]
 
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        futures = [executor.submit(pay, key) for key in ("key-1", "key-2")]
-        outcomes = [future.result(timeout=15) for future in futures]
-
-    assert sorted(outcomes) == ["INVOICE_NOT_PAYABLE", "approved"]
-    assert len(postgres_invoice_store.get_invoice(1).payments) == 3
+        assert sorted(outcomes) == ["INVOICE_NOT_PAYABLE", "approved"], round_number
+        invoice = postgres_invoice_store.get_invoice(invoice_id)
+        approved = [
+            payment for payment in invoice.payments if payment.status == PaymentStatus.APPROVED
+        ]
+        assert len(approved) == 1, round_number
+        assert invoice.status == InvoiceStatus.PAID
+        assert invoice.version == 2
+        assert postgres_order_store.get_order(order_id).status == OrderStatus.PAID
 
 
 def test_a_declined_key_replays_its_402_response(
@@ -147,41 +206,46 @@ def test_pay_and_cancel_race_ends_in_a_consistent_state(
     postgres_invoice_store: PostgresInvoiceStore,
     postgres_order_store: PostgresOrderStore,
 ) -> None:
-    barrier = Barrier(2)
+    for round_number in range(RACE_ROUNDS):
+        order_id, invoice_id, total = _fresh_issued_invoice(
+            postgres_invoice_store,
+            postgres_order_store,
+        )
+        barrier = Barrier(2)
+        key = f"key-race-{round_number}"
 
-    def pay() -> str:
-        barrier.wait()
-        try:
-            _pay(postgres_invoice_store, 1, "key-race", "fp-race")
-        except ApiError as error:
-            return error.code
-        return "approved"
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            futures = [
+                executor.submit(
+                    _pay_race,
+                    postgres_invoice_store,
+                    invoice_id,
+                    key,
+                    total,
+                    barrier,
+                ),
+                executor.submit(_cancel_race, postgres_order_store, order_id, barrier),
+            ]
+            outcomes = [future.result(timeout=15) for future in futures]
 
-    def cancel() -> str:
-        barrier.wait()
-        try:
-            postgres_order_store.transition(3, OrderAction.CANCEL, None, NOW)
-        except ApiError as error:
-            return error.code
-        return "cancelled"
-
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        futures = [executor.submit(pay), executor.submit(cancel)]
-        outcomes = [future.result(timeout=15) for future in futures]
-
-    assert sorted(outcomes) in (
-        ["INVALID_TRANSITION", "approved"],
-        ["INVOICE_NOT_PAYABLE", "cancelled"],
-    )
-    order = postgres_order_store.get_order(3)
-    invoice = postgres_invoice_store.get_invoice(1)
-    if order.status == OrderStatus.PAID:
-        assert invoice.status.value == "paid"
-        assert invoice.version == 2
-    else:
-        assert order.status == OrderStatus.CANCELLED
-        assert invoice.status.value == "void"
-        assert postgres_invoice_store.find_key(1, "key-race", NOW) is None
+        assert sorted(outcomes) in (
+            ["INVALID_TRANSITION", "approved"],
+            ["INVOICE_NOT_PAYABLE", "cancelled"],
+        ), round_number
+        order = postgres_order_store.get_order(order_id)
+        invoice = postgres_invoice_store.get_invoice(invoice_id)
+        approved = [
+            payment for payment in invoice.payments if payment.status == PaymentStatus.APPROVED
+        ]
+        if order.status == OrderStatus.PAID:
+            assert invoice.status == InvoiceStatus.PAID
+            assert invoice.version == 2
+            assert len(approved) == 1
+        else:
+            assert order.status == OrderStatus.CANCELLED
+            assert invoice.status == InvoiceStatus.VOID
+            assert approved == []
+            assert postgres_invoice_store.find_key(invoice_id, key, NOW) is None
 
 
 def test_issue_waits_for_the_committed_customer_snapshot(

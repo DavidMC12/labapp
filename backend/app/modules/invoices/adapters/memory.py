@@ -203,15 +203,20 @@ class InMemoryInvoiceStore:
         now: datetime,
     ) -> PaymentOutcome:
         with self._lock:
+            expired = [
+                stored_key
+                for stored_key, (_, _, created_at) in self._keys.items()
+                if stored_key[0] == invoice_id and now - created_at >= KEY_LIFETIME
+            ]
+            for stored_key in expired:
+                del self._keys[stored_key]
+
             stored = self._keys.get((invoice_id, key))
             if stored is not None:
-                stored_fingerprint, stored_response, created_at = stored
-                if now - created_at >= KEY_LIFETIME:
-                    del self._keys[(invoice_id, key)]
-                elif stored_fingerprint == fingerprint:
+                stored_fingerprint, stored_response, _ = stored
+                if stored_fingerprint == fingerprint:
                     return PaymentOutcome(stored_response, True)
-                else:
-                    raise rules.key_reused()
+                raise rules.key_reused()
 
             invoice = self._invoices.get(invoice_id)
             if invoice is None:
@@ -224,6 +229,9 @@ class InMemoryInvoiceStore:
             rules.ensure_payable(invoice.status)
             rules.ensure_amount(attempt.amount, invoice.total)
 
+            # A real gateway that raised or timed out would need its own handling:
+            # record a failed payment outside this transaction. Today only the fake
+            # gateway exists and the fault gateway raises nothing.
             decision = self._gateway.charge(attempt.method, attempt.amount, attempt.card_last4)
             payment = Payment(
                 id=self._next_payment_id,

@@ -397,18 +397,21 @@ curl -s -i -b $J "$BASE/api/openapi.json" | grep -iE '^(HTTP|x-content-type|cach
 
 ```ts
 // Illustrative, not run in CI. The browser context of the suite is logged in
-// (section 10); a fresh context is not.
+// (section 10); a fresh API request context is not.
+import { request as pwRequest } from "@playwright/test";
+
 const base = "http://127.0.0.1:8000";
 const ok = await request.get(`${base}/api/customers`);
 expect(ok.status()).toBe(200);
 expect(ok.headers()["x-content-type-options"]).toBe("nosniff");
 expect(ok.headers()["cache-control"]).toBe("no-store");
 
-const anon = await request.newContext();
+const anon = await pwRequest.newContext();          // no cookie jar
 const denied = await anon.get(`${base}/api/customers`);
 expect(denied.status()).toBe(401);
 expect(denied.headers()["x-content-type-options"]).toBe("nosniff");
 expect(denied.headers()["cache-control"]).toBe("no-store");
+await anon.dispose();
 ```
 
 The web pages have their own set — `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` and `Cross-Origin-Opener-Policy: same-origin`, plus `Content-Security-Policy` in production only — applied by `frontend/next.config.ts`. The API paths take no part in it: the pattern that applies those headers explicitly excludes `/api/*` and `/__test__/*`, so an API answer never carries the web app's policy, and the browser never mixes the two.

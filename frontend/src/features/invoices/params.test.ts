@@ -1,5 +1,64 @@
 import { describe, expect, it } from "vitest";
-import { parseInvoiceIdParam, parseInvoiceListParams, type InvoiceListParams } from "./params";
+import {
+  flipInvoiceSortDirection,
+  isDefaultInvoiceSort,
+  invoiceSortDefaultDirection,
+  invoiceSortLabel,
+  parseInvoiceIdParam,
+  parseInvoiceListParams,
+  resolveInvoiceSort,
+  type InvoiceListParams,
+} from "./params";
+
+describe("the invoices sort helpers", () => {
+  it("acts the default direction of each field out", () => {
+    expect(invoiceSortDefaultDirection("created_at")).toBe("desc");
+    expect(invoiceSortDefaultDirection("number")).toBe("asc");
+    expect(invoiceSortDefaultDirection("customer")).toBe("asc");
+    expect(invoiceSortDefaultDirection("total")).toBe("asc");
+  });
+
+  it("flips one direction and never leaves the valid pair", () => {
+    expect(flipInvoiceSortDirection("asc")).toBe("desc");
+    expect(flipInvoiceSortDirection("desc")).toBe("asc");
+  });
+
+  it("resolves the effective sort of the URL values", () => {
+    expect(resolveInvoiceSort({ sort: null, direction: null })).toEqual({
+      sort: "created_at",
+      direction: "desc",
+    });
+    expect(resolveInvoiceSort({ sort: "total", direction: null })).toEqual({
+      sort: "total",
+      direction: "asc",
+    });
+    // A present direction applies to the default field without `sort`.
+    expect(resolveInvoiceSort({ sort: null, direction: "asc" })).toEqual({
+      sort: "created_at",
+      direction: "asc",
+    });
+    expect(resolveInvoiceSort({ sort: "number", direction: "desc" })).toEqual({
+      sort: "number",
+      direction: "desc",
+    });
+  });
+
+  it("answers whether a sort is the one of the plain list", () => {
+    expect(isDefaultInvoiceSort({ sort: "created_at", direction: "desc" }))
+      .toBe(true);
+    expect(isDefaultInvoiceSort({ sort: "created_at", direction: "asc" }))
+      .toBe(false);
+    expect(isDefaultInvoiceSort({ sort: "total", direction: "desc" }))
+      .toBe(false);
+  });
+
+  it("labels each field in Spanish", () => {
+    expect(invoiceSortLabel("number")).toBe("Número");
+    expect(invoiceSortLabel("customer")).toBe("Cliente");
+    expect(invoiceSortLabel("total")).toBe("Total");
+    expect(invoiceSortLabel("created_at")).toBe("Creada");
+  });
+});
 
 describe("parseInvoiceIdParam", () => {
   it("accepts a positive integer id up to 2147483647", () => {
@@ -27,11 +86,19 @@ describe("parseInvoiceListParams", () => {
       page: 2,
       q: "fac",
       status: "paid",
+      sort: null,
+      direction: null,
     });
   });
 
   it("falls back to page 1 and no values on an empty URL", () => {
-    expect(read("")).toEqual({ page: 1, q: null, status: null });
+    expect(read("")).toEqual({
+      page: 1,
+      q: null,
+      status: null,
+      sort: null,
+      direction: null,
+    });
   });
 
   it("rejects every invalid page as page 1", () => {
@@ -57,5 +124,19 @@ describe("parseInvoiceListParams", () => {
     expect(read("status=green").status).toBeNull();
     expect(read("status=").status).toBeNull();
     expect(read("status=paid%20").status).toBeNull();
+  });
+
+  it("reads a valid sort and direction and falls back on invalid ones", () => {
+    expect(read("sort=total&direction=desc")).toMatchObject({
+      sort: "total",
+      direction: "desc",
+    });
+    expect(read("sort=created_at")).toMatchObject({
+      sort: "created_at",
+      direction: null,
+    });
+    // Any other value of either falls back like a broken status.
+    expect(read("sort=subtotal")).toMatchObject({ sort: null });
+    expect(read("direction=upwards")).toMatchObject({ direction: null });
   });
 });

@@ -347,6 +347,72 @@ The local start script sets `TEST_MODE=1`, so local runs need no header at all; 
 
 **The token and the rate limits.** The request rate limits (120 requests per minute and 10 login attempts per minute per client IP) apply only when `TEST_MODE=0`, and a request with a valid `X-Test-Token` is exempt from them even then — so adding the token header to every request of an online suite removes the risk of 429 entirely (it does nothing locally, where the limits are always off). Exceeding a limit answers 429 `RATE_LIMITED` with a `Retry-After` header and a `retry_after` member with the same seconds.
 
-**Recipes.** Each recipe is a short sequence checked against the local server: `BASE=http://127.0.0.1:8000` for the direct API (with `TEST_MODE=1` from `mise run dev`); the same paths work through the web origin as well.
+All three of the following have been verified against the local server: `BASE=http://127.0.0.1:8000` for the direct API (with `TEST_MODE=1` from `mise run dev`; the same paths also work through the web origin).
+
+### Reset before a suite
+
+```bash
+BASE=http://127.0.0.1:8000
+curl -s -X POST "$BASE/__test__/reset"   # {"status":"ok"}
+```
+
+A reset restores exactly what [docs/SEED.md](SEED.md) and [SPEC section 9](SPEC.md#9-seed-data) list: the ten customers, the fifteen products, the seven orders with their invoices and payments, the number sequences (the next order is `PED-0008`, the next invoice `FAC-0004`, the next payment id 5, the next customer id 11), the tax rate back to `DEFAULT_TAX_RATE`, the clock offset to 0, every fault rule deleted, and the stored idempotency keys and the rate-limit counters of the instance that served the reset.
+
+Two things a suite relies on, verified against the code and the live server:
+
+- **Sessions survive.** The reset upserts the four users without touching `sessions`, so a cookie saved from a login keeps working: a suite can log in once, keep the cookie jar, and reset between tests without logging in again.
+- **A reset is meant for a quiet system.** It runs as one transaction in PostgreSQL, but a request that happens to be in flight can make it answer 409 `RESET_CONFLICT` (`No se pudo reiniciar porque hay una operación en curso. Inténtalo de nuevo.`) or 503 `LOCK_TIMEOUT`; the recipe is to retry once ([backend/README.md](../backend/README.md)).
+
+### Seed a named dataset
+
+```bash
+curl -s -H 'Content-Type: application/json' \
+  -d '{"dataset": "empty"}' "$BASE/__test__/seed"    # {"dataset":"empty"}
+curl -s -H 'Content-Type: application/json' \
+  -d '{"dataset": "default"}' "$BASE/__test__/seed"  # {"dataset":"default"}
+```
+
+`default` loads the data of [SEED.md](SEED.md) without touching the clock, the faults or the rate-limit counters; `empty` keeps only the four users and the settings — every other table is emptied (a `GET /api/customers` right after it lists `{"items": [], "page": 1, "page_size": 20, "total": 0}`), the sequences restart and the tax rate is restored. Both answer `{"dataset": "<value>"}` with the requested name. An unknown `dataset`, an unknown extra field or a wrong type is a 422 `VALIDATION_ERROR` naming the offending field (`dataset`).
+
+### Move the clock
+
+```bash
+curl -s "$BASE/__test__/clock"
+# {"now":"2026-11-08T16:47:24.206680Z","offset_seconds":0.0}
+curl -s -H 'Content-Type: application/json' \
+  -d '{"advance_seconds": 3600}' "$BASE/__test__/clock"
+```
+
+The application time is the system clock plus an offset in seconds. `POST` takes **exactly one** of `{"offset_seconds": <number>}` (replace the offset) or `{"advance_seconds": <number>}` (add to it); neither or both is a 422 `VALIDATION_ERROR` with the field `body`, a string where a number belongs is a 422 on that field, and the offset must stay within ±315,360,000 seconds (± ten years: `El valor debe estar entre -315360000 y 315360000.`). The returned `now` and `offset_seconds` show the result, so a test can assert the state it just set.
+
+**Provoke `SESSION_EXPIRED`.** A session expires after **8 hours without activity** (a sliding window; every request extends it), measured with the application clock: advance past the idle time, then use the session once and watch it die ([SPEC section 3](SPEC.md#3-authentication-and-sessions)):
+
+```bash
+curl -s -H 'Content-Type: application/json' \
+  -d '{"advance_seconds": 28801}' "$BASE/__test__/clock"   # 8 h plus a second
+curl -s -b /tmp/labapp-cookies "$BASE/api/auth/me"
+# 401 {"code":"SESSION_EXPIRED","detail":"Tu sesión expiró. Inicia sesión de nuevo.", ...}
+curl -s -H 'Content-Type: application/json' \
+  -d '{"offset_seconds": 0}' "$BASE/__test__/clock"        # put the clock back
+```
+
+In the browser, the same advance ends with the UI redirecting to `/login?expired=1`, where the login shows the notice `Tu sesión expiró. Inicia sesión de nuevo.` (part 1, section 8). Moving the clock that far also expires every other session of the demo, so log in again afterwards; setting the offset back to 0 does not restore sessions that already expired.
+
+**Provoke `CARD_EXPIRED`.** A card's `MM/YY` expiry month is valid through its last day, compared against the application clock. The expiry `12/30` therefore means December **2030**:
+
+```bash
+curl -s -H 'Content-Type: application/json' \
+  -d '{"advance_seconds": 4752000}' "$BASE/__test__/clock"
+# the application date is now early January 2027: an expiry of "12/30" is still valid,
+# so a card payment with it is accepted as usual.
+curl -s -H 'Content-Type: application/json' \
+  -d '{"advance_seconds": 136248000}' "$BASE/__test__/clock"
+# the advance is cumulative; the date is now past December 2030, and the same card
+# payment now answers:
+# 422 {"code":"VALIDATION_ERROR","errors":[{"field":"card.expiry","code":"CARD_EXPIRED",
+#       "message":"La tarjeta está vencida."}], ...}
+```
+
+As with the session recipe, an advance this large expires the sessions, so log in after moving the clock and set the offset back to 0 at the end.
 
 - Stable codes pointer… (placeholder)

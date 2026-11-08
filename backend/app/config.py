@@ -87,13 +87,11 @@ class Settings(BaseSettings):
         """Keep TEST_MODE off in every public deployment."""
         if not self.test_mode:
             return self
-        for variable in ("VERCEL_ENV", "AWS_LAMBDA_FUNCTION_NAME", "VERCEL"):
-            value = environ.get(variable)
-            if not value:
-                continue
-            if variable == "VERCEL_ENV" and value not in ("production", "preview"):
-                continue
-            raise ValueError(f"TEST_MODE must be off when {variable} is set")
+        if environ.get("VERCEL_ENV") in ("production", "preview"):
+            raise ValueError("TEST_MODE must be off when VERCEL_ENV is set")
+        for variable in ("AWS_LAMBDA_FUNCTION_NAME", "VERCEL"):
+            if variable in environ:
+                raise ValueError(f"TEST_MODE must be off when {variable} is set")
         return self
 
     @property

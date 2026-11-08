@@ -19,13 +19,22 @@ def test_test_mode_is_refused_on_vercel(
         Settings(session_secret="test-secret", test_mode=True)
 
 
-@pytest.mark.parametrize("variable", ["AWS_LAMBDA_FUNCTION_NAME", "VERCEL"])
+@pytest.mark.parametrize(
+    ("variable", "value"),
+    [
+        ("AWS_LAMBDA_FUNCTION_NAME", "function"),
+        ("AWS_LAMBDA_FUNCTION_NAME", ""),
+        ("VERCEL", "1"),
+        ("VERCEL", ""),
+    ],
+)
 def test_test_mode_is_refused_on_the_platform(
     monkeypatch: pytest.MonkeyPatch,
     variable: str,
+    value: str,
 ) -> None:
     monkeypatch.delenv("VERCEL_ENV", raising=False)
-    monkeypatch.setenv(variable, "1")
+    monkeypatch.setenv(variable, value)
 
     with pytest.raises(ValidationError, match=variable):
         Settings(session_secret="test-secret", test_mode=True)

@@ -594,4 +594,16 @@ The search parameter `q` is the same on the three modules: trimmed, ignored when
 
 A wrongly shaped filter value is a 422 too: `status` outside its list is `INVALID_FORMAT` on `status`; a non-integer `customer_id`/`order_id` is `INVALID_FORMAT`, and one outside 1–2147483647 is `OUT_OF_RANGE`. An id that simply does not exist is not an error: it matches nothing. Finally, `GET /api/products` is the whole read-only catalog in one answer (`{"items": [...]}`, ordered by `id`, no paging) and `GET /api/settings` answers `{"tax_rate": "10.00"}`.
 
+## 13. Isolating tests
+
+A test that assumes a clean world will eventually meet someone else's data. The reset controls give three patterns; choose one per project and keep it.
+
+**1. Reset before each suite (the local default).** One `POST /__test__/reset` in the suite setup, one cookie login after it, and the world is back to the seed even in the middle of a day of runs. The seed is a contract, so assertions can be exact: `PED-0002` confirmed with total `$121.00`, `FAC-0001` carrying one declined and one failed attempt. Trade-offs: you own the environment, because a reset is a bad neighbour online; and the reset wants a quiet system — a request that is still in flight can make the reset answer 409 `RESET_CONFLICT` (retry once) or 503 `LOCK_TIMEOUT`.
+
+**2. Reset per worker against the shared online demo — unsafe.** The online dataset is one and shared: every visitor works on the same customers and orders (part 1, section 1). A reset from your worker erases the strangers' data in the middle of their run, and their writes erase your assumptions right back; between your reset and your next request, someone else's click can deactivate the very customer you just asserted on. If a suite needs resets online, it must be the only user of the demo — a staging URL, or the production URL outside public hours. Never assume a reset stays true for more than a request.
+
+**3. Create your own data with unique names (the polite pattern for the shared demo).** Instead of relying on seed rows, log in once and create everything a test needs, with names and emails that cannot collide — a prefix per project plus a timestamp (`Contoso 1731…`, `prueba-1731099@example.test`). Find your rows again with the literal, accent-insensitive `q` (section 12) or by the ids the create answers give, and assert only on your own records. Trade-offs: the data accumulates until the nightly reset, your rows age down the list (the ordering is `created_at` descending), and you still cannot stop others from touching *their* records — but yours are safe.
+
+**Parallel runs and the per-IP rate limit.** Locally (`TEST_MODE=1`) there are no limits and each `mise run dev` process has its own memory, so parallel suites on different ports do not even share data. Online, the limits are per client IP: 120 requests per minute and 10 login attempts per minute shared by everything that runs from one machine — parallel workers count together and the group gets 429 `RATE_LIMITED` with a `Retry-After` header (the body member `retry_after` carries the same seconds). Two outs: spread the workers' requests below the limits, or add a valid `X-Test-Token` header to every request of an online suite — a token-bearing request is exempt from the limits even then (section 11).
+
 - Stable codes pointer… (placeholder)

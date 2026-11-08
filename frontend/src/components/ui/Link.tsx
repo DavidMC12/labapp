@@ -5,20 +5,27 @@ import type { TestId } from "@/lib/testid";
 export type LinkVariant = "text" | "primary" | "secondary" | "rail";
 
 /**
+ * The classes of the `text` variant: an in-line underlined link, with no
+ * minimum height (inline text links and table cell links are not touch
+ * targets on their own). Exported so the plain `<a>` elements that must
+ * not use the client router (the download links of the CSV export, served
+ * by the API) can carry exactly the same look, defined once here.
+ */
+export const TEXT_LINK_CLASSES = [
+  "text-accent underline underline-offset-2 hover:decoration-2",
+  // The only allowed transition: 120ms of color.
+  "transition-colors duration-120",
+].join(" ");
+
+/**
  * The variants of the "Libro mayor" theme, matching the Button look where
- * the link acts as a button ("Nuevo cliente"). `text` is the default: an
- * in-line underlined link, with no minimum height (inline text links and
- * table cell links are not touch targets on their own). `rail` is for the
+ * the link acts as a button ("Nuevo cliente"). `rail` is for the
  * navigation rail: it carries no text color of its own, so the brand and
  * the nav links set their token class (`text-rail-ink`, `text-rail-muted`)
  * without a class conflict.
  */
 const VARIANT_CLASSES: Record<LinkVariant, string> = {
-  text: [
-    "text-accent underline underline-offset-2 hover:decoration-2",
-    // The only allowed transition: 120ms of color.
-    "transition-colors duration-120",
-  ].join(" "),
+  text: TEXT_LINK_CLASSES,
   primary: [
     "no-underline",
     "inline-flex items-center justify-center gap-2 rounded-md px-[14px] py-[9px] font-semibold",

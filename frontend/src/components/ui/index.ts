@@ -3,7 +3,7 @@ export { Button } from "./Button";
 export { ConfirmDialog } from "./ConfirmDialog";
 export { Field, fieldControlProps } from "./Field";
 export { Input } from "./Input";
-export { Link } from "./Link";
+export { Link, TEXT_LINK_CLASSES } from "./Link";
 export { Select } from "./Select";
 export { SortableHeader, type SortableHeaderState } from "./SortableHeader";
 export { TableScroll } from "./TableScroll";

@@ -268,4 +268,367 @@ Each item below was verified in the code and the documents.
 
 ## 9. What is next
 
-Part 2 of this guide covers the test controls (reset, seed, controllable clock, fault injection) and the HTTP API contract; it lands once those tasks are merged (see [docs/SEED.md](SEED.md) for the reset contract and [docs/SPEC.md](SPEC.md) section 7 for the error catalog).
+Part 1 covered the web UI; **part 2** (the next sections of this document) covers the other half: the HTTP API under `/api` (section 10) and the test-only controls — reset, seed, clock, faults (section 11) — with recipes for the three flows over `curl` (section 12), how to isolate a run (section 13) and the online demo (section 14). Before writing API tests, read in this order: [SPEC.md](SPEC.md) sections 2–3 (roles, sessions, the origin rule), 5–6 (orders, invoices and payments) and 7–9 (errors, formats, the seed contract); [openapi.json](openapi.json), the committed contract of every endpoint; and [backend/README.md](../backend/README.md) if you want the controls explained from the server side.
+
+---
+
+# Part 2: the HTTP API and the test controls
+
+Driving the UI is only half of what makes LabApp easy to automate. The other half is HTTP: every screenshot has an endpoint behind it, and the seed, reset, clock and faults exist so a test can arrange the world it needs. These sections cover the base path and authentication, the committed contract, the seven test-control endpoints with recipes, the three core flows over `curl`, the versioning and idempotency machinery, and how to isolate a run from other visitors of the demo.
+
+Every endpoint, status code, header, field and message below was read from the backend code, [SPEC.md](SPEC.md) and the committed contract [openapi.json](openapi.json); each `curl` recipe was verified against the local server that `mise run dev` starts.
+
+## 10. Where the API is
+
+**One origin, two path roots.** The web app and the API are served from the same origin: locally the Next.js dev server on `http://localhost:3000` forwards `/api/*` and `/__test__/*` to the FastAPI process ([docs/DEVELOPMENT.md](DEVELOPMENT.md)); online, the Vercel project routes the same two prefixes to the API service ([docs/ARCHITECTURE.md](ARCHITECTURE.md)). Point `curl` and Playwright `request` contexts at `http://localhost:3000` (or directly at the API, `http://127.0.0.1:8000`, from a script that does not need cookie-sharing with the browser). Endpoints live under `/api`; the test controls live under `/__test__`, at the root of the API, never under `/api`.
+
+**Logging in with a request.** `POST /api/auth/login` takes `{"email", "password"}` (the email is trimmed and lowercased before the lookup) and answers 200 with the user plus a `Set-Cookie` header. Keep the cookie in a jar; the cookie name is `labapp_session`, and it is `HttpOnly` and `SameSite=Lax` (`Secure` too whenever the origin starts with `https://`):
+
+```bash
+BASE=http://localhost:3000
+curl -s -c /tmp/labapp-cookies -H 'Content-Type: application/json' \
+  -d '{"email":"sales@labapp.test","password":"Demo-LabApp-2026!"}' \
+  "$BASE/api/auth/login"
+# {"id":2,"name":"Ventas Demo","email":"sales@labapp.test","role":"sales"}
+```
+
+`GET /api/auth/me` returns the current user; `POST /api/auth/logout` ends the session and answers 204, and is idempotent: it answers 204 with or without a session. What an API suite can meet on the way in:
+
+| Situation | HTTP | Code | Message |
+|---|---|---|---|
+| Wrong email or password | 401 | `INVALID_CREDENTIALS` | `Email o contraseña incorrectos.` |
+| No session on a protected route | 401 | `UNAUTHENTICATED` | `Inicia sesión para continuar.` |
+| Session idle for more than 8 hours | 401 | `SESSION_EXPIRED` | `Tu sesión expiró. Inicia sesión de nuevo.` |
+
+The same error shape for both wrong email and wrong password is deliberate: accounts cannot be enumerated. Only `POST /api/auth/login`, `POST /api/auth/logout` and `GET /api/health` work without a session.
+
+**The `Origin` rule (CSRF).** State-changing requests — `POST`, `PUT`, `PATCH`, `DELETE` — that carry an `Origin` header must match the application origin; a mismatch answers 403 `CSRF_ORIGIN_MISMATCH` with `La solicitud no proviene de la aplicación.` ([SPEC section 3](SPEC.md#3-authentication-and-sessions)). The comparison is against `APP_ORIGIN` (locally `http://localhost:3000`); online it also accepts the Vercel preview origins built from the platform variables, so a test against a preview URL works. Two details a test suite cares about:
+
+- A request **without** an `Origin` header is always allowed — API clients and test suites send none, because the cookie is `SameSite=Lax` and cannot be sent cross-site in the harmful direction. Do not add `Origin` to your requests unless you are testing this rule.
+- The rule applies to `/api/*` paths only; it is a global guard, and it runs before the route's own checks ([SPEC section 7](SPEC.md#7-errors-and-validation-order)), so a bad `Origin` answers 403 even before authentication could answer 401.
+
+**The contract file.** [docs/openapi.json](openapi.json) is the committed OpenAPI 3 document of every `/api` route: request bodies, query parameters, response shapes and every error answer each operation can give (the `/__test__` controls are deliberately left out of it). FastAPI generates it; the command `cd backend && uv run python -m app.cli openapi --output ../docs/openapi.json` regenerates it, CI fails when the committed file and the application disagree ([backend/README.md](../backend/README.md)), and the running API serves the same document at `/api/openapi.json` of its own origin, with an interactive Swagger UI at `/api/docs` (log in on the web app first: "Try it out" sends the session cookie). Import `docs/openapi.json` into Postman, Insomnia or any OpenAPI client to get every request pre-built; it is also what code generators consume.
+
+**The error format.** Every error answer is `application/problem+json` ([SPEC section 8](SPEC.md#8-formats-and-conventions)) with `type`, `title` (HTTP status name), `status`, `code` (stable), `detail` (Spanish message) and, when the problem is field-level, `errors[]` with one entry per field:
+
+```json
+{"type": "about:blank", "title": "Unprocessable Content", "status": 422,
+ "code": "VALIDATION_ERROR", "detail": "Revisa los datos ingresados.",
+ "errors": [{"field": "quantity", "code": "OUT_OF_RANGE",
+             "message": "El valor debe estar entre 1 y 999."}]}
+```
+
+Other problem bodies carry extra members at the top level: `shortages[]` on a 409 `INSUFFICIENT_STOCK`, `payment_id` and `reason` on a 402 `PAYMENT_DECLINED` or a 503 `PAYMENT_GATEWAY_UNAVAILABLE`, and `retry_after` on a 429 `RATE_LIMITED` (the same seconds the `Retry-After` header carries). The stable codes and their messages are catalogued in [SPEC section 7](SPEC.md#7-errors-and-validation-order); a test should assert the `code`, not the wording, which may change. Every response — success or error — carries an `X-Request-Id` header; send your own (1–64 characters of `[A-Za-z0-9._-]`) to have it echoed into logs.
+
+## 11. The test controls
+
+Seven endpoints under `/__test__` let a script arrange the world instead of assuming it: reset and seed own the data, the clock owns time, the faults own failure. They answer without a session, they are not in [openapi.json](openapi.json), and they are guarded by the test token.
+
+| Method | Path | Body | Answer |
+|---|---|---|---|
+| `POST` | `/__test__/reset` | none | 200 `{"status": "ok"}` |
+| `POST` | `/__test__/seed` | `{"dataset": "default" \| "empty"}` | 200 `{"dataset": "<value>"}` |
+| `GET` | `/__test__/clock` | none | 200 `{"now": "<ISO 8601 UTC>", "offset_seconds": <number>}` |
+| `POST` | `/__test__/clock` | exactly one of `{"offset_seconds": <number>}` or `{"advance_seconds": <number>}` | the same shape as `GET` |
+| `POST` | `/__test__/faults` | a fault rule (below) | 201, the stored rule with its `id` |
+| `GET` | `/__test__/faults` | none | 200, the list of non-exhausted rules |
+| `DELETE` | `/__test__/faults` | none | 204, no body |
+
+**The token.** Every answer depends on the guard:
+
+| `TEST_MODE` | `X-Test-Token` header | Result |
+|---|---|---|
+| `1` | any | Allowed. |
+| `0` | equals a non-empty `TEST_TOKEN` | Allowed. |
+| `0` | missing or different | 404 `NOT_FOUND`, as if the route did not exist. |
+| `0` with an empty `TEST_TOKEN` | any / missing | 404 `NOT_FOUND`. |
+
+The local start script sets `TEST_MODE=1`, so local runs need no header at all; a public deployment keeps `TEST_MODE=0` and reveals the controls only to a request that sends `X-Test-Token: <TEST_TOKEN>` ([docs/DEPLOYMENT.md](DEPLOYMENT.md) names the variable). The guard runs twice: as a middleware before routing and again inside the router, and the token is compared in constant time. The 404 answer is a problem document, `application/problem+json` with `code: "NOT_FOUND"` and `No se encontró el recurso solicitado.`, so an unguarded probe looks exactly like a mistyped path.
+
+**The token and the rate limits.** The request rate limits (120 requests per minute and 10 login attempts per minute per client IP) apply only when `TEST_MODE=0`, and a request with a valid `X-Test-Token` is exempt from them even then — so adding the token header to every request of an online suite removes the risk of 429 entirely (it does nothing locally, where the limits are always off). Exceeding a limit answers 429 `RATE_LIMITED` with a `Retry-After` header and a `retry_after` member with the same seconds.
+
+The recipes below were verified request by request against the local server: `BASE=http://127.0.0.1:8000` for the direct API (with `TEST_MODE=1` from `mise run dev`; the same paths also work through the web origin).
+
+### Reset before a suite
+
+```bash
+BASE=http://127.0.0.1:8000
+curl -s -X POST "$BASE/__test__/reset"   # {"status":"ok"}
+```
+
+A reset restores exactly what [docs/SEED.md](SEED.md) and [SPEC section 9](SPEC.md#9-seed-data) list: the ten customers, the fifteen products, the seven orders with their invoices and payments, the number sequences (the next order is `PED-0008`, the next invoice `FAC-0004`, the next payment id 5, the next customer id 11), the tax rate back to `DEFAULT_TAX_RATE`, the clock offset to 0, every fault rule deleted, and the stored idempotency keys and the rate-limit counters of the instance that served the reset.
+
+Two things a suite relies on, verified against the code and the live server:
+
+- **Sessions survive.** The reset upserts the four users without touching `sessions`, so a cookie saved from a login keeps working: a suite can log in once, keep the cookie jar, and reset between tests without logging in again.
+- **A reset is meant for a quiet system.** It runs as one transaction in PostgreSQL, but a request that happens to be in flight can make it answer 409 `RESET_CONFLICT` (`No se pudo reiniciar porque hay una operación en curso. Inténtalo de nuevo.`) or 503 `LOCK_TIMEOUT`; the recipe is to retry once ([backend/README.md](../backend/README.md)).
+
+### Seed a named dataset
+
+```bash
+curl -s -H 'Content-Type: application/json' \
+  -d '{"dataset": "empty"}' "$BASE/__test__/seed"    # {"dataset":"empty"}
+curl -s -H 'Content-Type: application/json' \
+  -d '{"dataset": "default"}' "$BASE/__test__/seed"  # {"dataset":"default"}
+```
+
+`default` loads the data of [SEED.md](SEED.md) without touching the clock, the faults or the rate-limit counters; `empty` keeps only the four users and the settings — every other table is emptied (a `GET /api/customers` right after it lists `{"items": [], "page": 1, "page_size": 20, "total": 0}`), the sequences restart and the tax rate is restored. Both answer `{"dataset": "<value>"}` with the requested name. An unknown `dataset`, an unknown extra field or a wrong type is a 422 `VALIDATION_ERROR` naming the offending field (`dataset`).
+
+### Move the clock
+
+```bash
+curl -s "$BASE/__test__/clock"
+# {"now":"2026-11-08T16:47:24.206680Z","offset_seconds":0.0}
+curl -s -H 'Content-Type: application/json' \
+  -d '{"advance_seconds": 3600}' "$BASE/__test__/clock"
+```
+
+The application time is the system clock plus an offset in seconds. `POST` takes **exactly one** of `{"offset_seconds": <number>}` (replace the offset) or `{"advance_seconds": <number>}` (add to it); neither or both is a 422 `VALIDATION_ERROR` with the field `body`, a string where a number belongs is a 422 on that field, and the offset must stay within ±315,360,000 seconds (± ten years: `El valor debe estar entre -315360000 y 315360000.`). The returned `now` and `offset_seconds` show the result, so a test can assert the state it just set.
+
+**Provoke `SESSION_EXPIRED`.** A session expires after **8 hours without activity** (a sliding window; every request extends it), measured with the application clock: advance past the idle time, then use the session once and watch it die ([SPEC section 3](SPEC.md#3-authentication-and-sessions)):
+
+```bash
+curl -s -H 'Content-Type: application/json' \
+  -d '{"advance_seconds": 28801}' "$BASE/__test__/clock"   # 8 h plus a second
+curl -s -b /tmp/labapp-cookies "$BASE/api/auth/me"
+# 401 {"code":"SESSION_EXPIRED","detail":"Tu sesión expiró. Inicia sesión de nuevo.", ...}
+curl -s -H 'Content-Type: application/json' \
+  -d '{"offset_seconds": 0}' "$BASE/__test__/clock"        # put the clock back
+```
+
+In the browser, the same advance ends with the UI redirecting to `/login?expired=1`, where the login shows the notice `Tu sesión expiró. Inicia sesión de nuevo.` (part 1, section 8). The expiry is only a comparison of the application clock against the session's idle window — the session itself is not deleted, and a cookie that answered `SESSION_EXPIRED` works again once the offset is back below the window (verified against the server; a login purges only sessions idle for more than 32 hours). Moving the clock as this recipe does expires every other session of the demo for as long as the offset stays up, so log in again after moving it and set the offset back to 0 at the end.
+
+**Provoke `CARD_EXPIRED`.** A card's `MM/YY` expiry month is valid through its last day, compared against the application clock. The expiry `12/30` therefore means December **2030**:
+
+```bash
+curl -s -H 'Content-Type: application/json' \
+  -d '{"advance_seconds": 4752000}' "$BASE/__test__/clock"
+# the application date is now early January 2027: an expiry of "12/30" is still valid,
+# so a card payment with it is accepted as usual.
+curl -s -H 'Content-Type: application/json' \
+  -d '{"advance_seconds": 136248000}' "$BASE/__test__/clock"
+# the advance is cumulative; the date is now past December 2030, and the same card
+# payment now answers:
+# 422 {"code":"VALIDATION_ERROR","errors":[{"field":"card.expiry","code":"CARD_EXPIRED",
+#       "message":"La tarjeta está vencida."}], ...}
+```
+
+As with the session recipe, an advance this large expires the sessions, so log in after moving the clock and set the offset back to 0 at the end.
+
+### Inject faults
+
+A fault rule tells the server to delay a request and/or to answer it with a configured status before the application runs. `POST /__test__/faults` stores the rule and answers 201 with it; `GET /__test__/faults` lists the rules that are not exhausted; `DELETE /__test__/faults` removes every rule and answers 204. A rule is consumed once per matching request: with `times` it stops matching after that many, and an exhausted rule disappears from the list.
+
+```bash
+curl -s -H 'Content-Type: application/json' \
+  -d '{"target": "route", "method": "GET", "path": "/api/customers", "status": 500, "times": 2}' \
+  "$BASE/__test__/faults"
+# 201 {"id":2,"target":"route","method":"GET","path":"/api/customers",
+#      "latency_ms":0,"status":500,"remaining":2}
+curl -s -b /tmp/labapp-cookies "$BASE/api/customers"     # 500 INJECTED_FAULT
+curl -s -b /tmp/labapp-cookies "$BASE/api/customers"     # 500 INJECTED_FAULT (last one)
+curl -s -b /tmp/labapp-cookies "$BASE/api/customers"     # 200, the rule is exhausted
+curl -s "$BASE/__test__/faults"                          # []
+curl -s -X DELETE "$BASE/__test__/faults"                # 204
+```
+
+The two failed requests answer the problem document `{"status": 500, "code": "INJECTED_FAULT", "detail": "Falla inyectada para pruebas."}` — the fault is decided before the route runs, so it needs no data and works on any method and path.
+
+**Latency.** A rule with `latency_ms` and no `status` only delays the request:
+
+```bash
+curl -s -H 'Content-Type: application/json' \
+  -d '{"target": "route", "method": "GET", "path": "/api/customers", "latency_ms": 1000, "times": 1}' \
+  "$BASE/__test__/faults"
+time curl -s -b /tmp/labapp-cookies "$BASE/api/customers"   # real 1.0s
+```
+
+The wait happens in the middleware, before the application — even a request that only ends in a 401 pays the delay. This is how slow-network behaviour (spinners, `aria-busy`, disabled buttons) is tested deterministically; combine it with a `times` count to hit only one request.
+
+**Make the gateway unavailable.** A `gateway` rule targets the payment gateway instead of a route: the next payment call — any method — waits the rule's latency and fails with 503 `PAYMENT_GATEWAY_UNAVAILABLE` (`La pasarela de pago no está disponible. Inténtalo de nuevo.`) without reaching the fake gateway. The body carries the extra members `payment_id` and `reason: "GATEWAY_UNAVAILABLE"`, and the attempt is kept in the invoice history with the `failed` status, exactly like the seed's `PED-0003` ([docs/SEED.md](SEED.md)):
+
+```bash
+curl -s -H 'Content-Type: application/json' -d '{"target": "gateway", "times": 1}' \
+  "$BASE/__test__/faults"
+# then, as Finance, with an Idempotency-Key of your choice:
+curl -s -i -b /tmp/labapp-cookies -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: gw-1' \
+  -d '{"method": "card", "amount": "327.80", "card": {"number": "4242 4242 4242 4242", "expiry": "12/30", "cvc": "123"}}' \
+  "$BASE/api/invoices/1/payments"
+# 503 {"code":"PAYMENT_GATEWAY_UNAVAILABLE","detail":"La pasarela de pago no está disponible. Inténtalo de nuevo.",
+#      "payment_id":7,"reason":"GATEWAY_UNAVAILABLE"}
+```
+
+`payment_id` is the id of the stored attempt and depends on what exists: after a fresh reset the next payment id is 5 ([docs/SEED.md](SEED.md)).
+
+A golden rule of the idempotency machinery applies here (section 12): the failed attempt consumed the key, so a retry of this payment needs a **new** key.
+
+**What a rule can and cannot.** A `route` rule matches one HTTP method (any method when `method` is absent) and an **exact path**: no prefixes, no patterns, no query strings (`/api/customers` does not match `/api/customers/11`, and the query parameters are not part of the path). A `gateway` rule takes none of `method`, `path` or `status` — sending any of them is a 422 on that field. The rule fields and their limits, validated before the rule is stored (each problem is a 422 `VALIDATION_ERROR` entry):
+
+| Field | Rule |
+|---|---|
+| `target` | `route` or `gateway` (anything else: `INVALID_FORMAT`). |
+| `method` | optional, one of `GET`, `POST`, `PUT`, `PATCH`, `DELETE`; only for a `route` rule. |
+| `path` | required for `route`, must start with `/`, at most 2048 characters, no control characters, never starting with `/__test__`, and `/api/health` is rejected by name (`La ruta /api/health no puede tener una falla inyectada.`). |
+| `latency_ms` | 0 to 10000; a `route` rule needs a positive latency or a status (`La regla necesita latencia o un estado.`). |
+| `status` | optional, 400 to 599, `route` only; the injected answer uses it verbatim. |
+| `times` | optional, 1 to 1000 (`El valor debe estar entre 1 y 1000.`); without it the rule stays until `DELETE /__test__/faults` or a reset removes it. |
+
+At most **50 non-exhausted rules** exist; when they are full the answer is a 422 on `target` reading `Ya hay 50 reglas activas. Elimina alguna con DELETE /__test__/faults.` — clear first, then add. The `/__test__/*` routes themselves and `GET /api/health` are never affected by a fault, so a test cannot lock itself out. A reset also deletes every rule, moves the clock back to 0, and is the cheapest way to start a scenario from a clean slate.
+
+**The same recipes in Playwright.** For API-level tests the `request` fixture plays the role of curl (illustrative, not run in CI):
+
+```ts
+// Illustrative, not run in CI. Local: TEST_MODE=1, no token needed.
+const base = "http://127.0.0.1:8000";
+const controls = await request.newContext();           // no cookie jar needed
+await controls.post(`${base}/__test__/reset`);
+await controls.post(`${base}/__test__/clock`, { data: { advance_seconds: 28801 } });
+const me = await request.get(`${base}/api/auth/me`);   // your existing logged-in context
+expect(me.status()).toBe(401);
+expect((await me.json()).code).toBe("SESSION_EXPIRED");
+```
+
+## 12. Orders and invoices through the API
+
+The standard path of a test run: log in, create the customer, build and confirm the order, issue the invoice, pay. After a reset the ids are deterministic — the first new customer is 11, the first new order `PED-0008`, the first new invoice `FAC-0004`, the first new payment id 5 — so a suite can assert on them.
+
+```bash
+BASE=http://127.0.0.1:8000
+J=/tmp/labapp-cookies
+
+# 1. Log in as Sales (Admin works too): create customers and orders.
+curl -s -c $J -H 'Content-Type: application/json' \
+  -d '{"email":"sales@labapp.test","password":"Demo-LabApp-2026!"}' "$BASE/api/auth/login"
+
+# 2. Create the customer. 201, Location: /api/customers/11, ETag: "1".
+curl -s -i -b $J -H 'Content-Type: application/json' \
+  -d '{"name":"Cliente de Prueba","email":"prueba-api@example.test","tax_id":"PRUE-123"}' \
+  "$BASE/api/customers"
+
+# 3. Create a draft order for it. 201, Location: /api/orders/8, ETag: "1",
+#    number "PED-0008", empty lines, totals "0.00", tax_rate preview "10.00".
+curl -s -i -b $J -H 'Content-Type: application/json' -d '{"customer_id": 11}' "$BASE/api/orders"
+
+# 4. Add two units of product 1 (KB-100). 201, ETag: "2", total "43.78" (10% tax).
+curl -s -i -b $J -H 'Content-Type: application/json' \
+  -d '{"product_id": 1, "quantity": 2, "version": 1}' "$BASE/api/orders/8/lines"
+
+# 5. Confirm. 200, ETag: "3", status "confirmed"; the stock of KB-100 drops by 2
+#    and the totals and the tax rate freeze.
+curl -s -i -b $J -X POST -H 'If-Match: "2"' "$BASE/api/orders/8/confirm"
+
+# 6. Log in as Finance (Admin works too): issue invoices and pay.
+curl -s -c $J -H 'Content-Type: application/json' \
+  -d '{"email":"finance@labapp.test","password":"Demo-LabApp-2026!"}' "$BASE/api/auth/login"
+
+# 7. Issue the invoice. 201, Location: /api/invoices/4, ETag: "1", number "FAC-0004";
+#    the order is linked (its invoice_id set and its version bumped to 4), the issue
+#    email ("Factura FAC-0004 emitida") is only written to the log.
+curl -s -i -b $J -X POST "$BASE/api/orders/8/invoice"
+
+# 8. Pay with the always-approved card. 201 with a PaymentResult:
+#    {"payment": {"id": 5, "method": "card", "status": "approved", "amount": "43.78",
+#                 "reference": null, "card_last4": "4242", "reason": null, ...},
+#     "invoice": {"status": "paid", "version": 2, ...}}
+#    ETag: "2" (the invoice's new version); the order is "paid" as well.
+curl -s -i -b $J -H 'Content-Type: application/json' -H 'Idempotency-Key: pay-0001' \
+  -d '{"method":"card","amount":"43.78",
+       "card":{"number":"4242 4242 4242 4242","expiry":"12/30","cvc":"123"}}' \
+  "$BASE/api/invoices/4/payments"
+```
+
+The guards a test meets on the way ([SPEC sections 4–6](SPEC.md)): every route needs a session; creating customers, orders and lines, editing them, and confirming/cancelling/shipping are for Admin and Sales (`403 FORBIDDEN` otherwise); issuing an invoice and registering a payment are for Admin and Finance. Money is always a JSON string with exactly two decimals (`"43.78"`), never a number; the tax rate is `"10.00"` too.
+
+### Optimistic concurrency: `version`, `ETag`, `If-Match`
+
+Every customer, order and invoice carries an integer `version` starting at 1, +1 on every change, and every response that returns one of them carries `ETag: "<version>"` — including create, update and transition answers. Use it to assert *how many* changes happened, and to send a conditional request the next time. Which route takes the version, and how:
+
+| Route | Where the version goes |
+|---|---|
+| `PATCH /api/customers/{id}` | `version` in the JSON body (required there) |
+| `POST /api/customers/{id}/deactivate`, `/reactivate` | optional `If-Match: "<version>"` header |
+| `PATCH /api/orders/{id}` (change the customer of a draft) | `version` in the body |
+| `POST /api/orders/{id}/lines` | `version` in the body |
+| `PATCH /api/orders/{id}/lines/{line_id}` | `version` in the body |
+| `DELETE /api/orders/{id}/lines/{line_id}` | optional `If-Match` (the order's) |
+| `POST` `/api/orders/{id}/confirm`, `/cancel`, `/ship` | optional `If-Match` (the order's) |
+| `POST /api/orders/{id}/invoice` | optional `If-Match` (the **order's**) |
+| `POST /api/invoices/{id}/payments` | optional `If-Match` (the **invoice's**) |
+
+A stale version answers 409 `VERSION_CONFLICT` with `El registro cambió mientras lo editabas. Recarga e inténtalo de nuevo.`; no version sent skips the check (then a repeated transition answers the business conflict instead — `INVALID_TRANSITION` or `INVOICE_NOT_PAYABLE`). A malformed header — an unnecessary pair of quotes, non-digits, or anything outside 1–2147483647 — is a 422 `VALIDATION_ERROR` with `{"field": "If-Match", "code": "INVALID_FORMAT"}`. Requests that change nothing do not bump the version: an update with identical values, for example, answers 200 leaving `version` and `updated_at` untouched ([SPEC section 4](SPEC.md#4-customers-flow-1)).
+
+### The idempotency key of a payment
+
+`POST /api/invoices/{id}/payments` requires a header `Idempotency-Key` of 1–64 characters from `[A-Za-z0-9._-]` — missing is 422 `IDEMPOTENCY_KEY_REQUIRED` (`Falta la cabecera Idempotency-Key.`); a malformed one is 422 `VALIDATION_ERROR` with the field `Idempotency-Key`. The rules, all from [SPEC section 6](SPEC.md#6-invoices-and-payments-flow-3) and verified in the adapter code:
+
+- The key is scoped to one invoice and remembered for 24 hours. Two requests with the same key and the same body produce **one** payment: the second gets the stored status and body back, plus the response header `Idempotency-Replayed: true`. This covers error answers too — a replay of a declined (402) or gateway-unavailable (503) payment replays that same 402/503 problem.
+- Only an outcome that created a payment row consumes the key: `approved`, `declined`, `failed`. A request rejected earlier — no session, permission, unknown invoice, replay lookup, body validation, stale `version`, not payable, amount mismatch — does **not** consume it, so a corrected retry with the same key works.
+- The same key with a **different** body is 422 `IDEMPOTENCY_KEY_REUSED` (`Esa clave de idempotencia ya se usó con otros datos.`). The comparison is an HMAC over the canonical body with the card number reduced to its last 4 digits and the CVC dropped — neither is ever stored or returned.
+- Therefore: a retry after a decline (402) or a gateway failure (503) is a genuinely **new** attempt and must use a **new** key. Expecting a second decline with the same key to "replay" is a bug in the test; the UI renews its key after exactly those answers (part 1, section 6).
+
+```bash
+curl -s -b $J -H 'Content-Type: application/json' -H 'Idempotency-Key: pay-0001' \
+  -d '{"method":"card","amount":"43.78",
+       "card":{"number":"4242 4242 4242 4242","expiry":"12/30","cvc":"123"}}' \
+  "$BASE/api/invoices/4/payments"      # 201 PaymentResult
+curl -s -i -b $J -H 'Content-Type: application/json' -H 'Idempotency-Key: pay-0001' \
+  -d '{"method":"card","amount":"43.78",
+       "card":{"number":"4242 4242 4242 4242","expiry":"12/30","cvc":"123"}}' \
+  "$BASE/api/invoices/4/payments"      # same 201 body, Idempotency-Replayed: true
+```
+
+The declined and unavailable outcomes do not change the invoice or the order. `4000 0000 0000 0002` (or a gateway fault) answers 402 with extra `payment_id` and `reason`, the attempt is stored and appears in the invoice's `payments` array; `4000 0000 0009 0003` answers 503 the same way with `reason: "GATEWAY_UNAVAILABLE"` ([SPEC section 6](SPEC.md#6-invoices-and-payments-flow-3) lists both problems verbatim).
+
+### The lists: paging, search and filters
+
+All four list endpoints share one shape ([SPEC section 8](SPEC.md#8-formats-and-conventions)): `{"items": [...], "page", "page_size": 20, "total"}`. The page size is fixed at 20 — the client cannot change it — `total` counts every match and not only the current page, the order is `created_at` descending then `id` descending, and asking for a page beyond the last one answers 200 with an empty `items` array. `page` is an integer from 1 to 1000000: a non-integer is 422 `INVALID_FORMAT` on `page`, any other value 422 `OUT_OF_RANGE`.
+
+The search parameter `q` is the same on the three modules: trimmed, ignored when empty, at most 100 characters, no control characters, and **literal** — `%`, `_` and `\` mean themselves, there is no pattern syntax. The match is a "contains" that ignores case and accents (verified: `?q=ferreteria` finds the invoice of `Ferretería Fénix`):
+
+| Endpoint | `q` matches | Filters |
+|---|---|---|
+| `GET /api/customers` | the name or the email | `status=active\|inactive` |
+| `GET /api/orders` | the order number or the customer's name | `status=` one of `draft, confirmed, paid, shipped, cancelled`; `customer_id=` an integer id |
+| `GET /api/invoices` | the invoice number or the snapshot customer name | `status=` one of `issued, paid, void`; `order_id=` an integer id |
+
+A wrongly shaped filter value is a 422 too: `status` outside its list is `INVALID_FORMAT` on `status`; a non-integer `customer_id`/`order_id` is `INVALID_FORMAT`, and one outside 1–2147483647 is `OUT_OF_RANGE`. An id that simply does not exist is not an error: it matches nothing. Finally, `GET /api/products` is the whole read-only catalog in one answer (`{"items": [...]}`, ordered by `id`, no paging) and `GET /api/settings` answers `{"tax_rate": "10.00"}`.
+
+## 13. Isolating tests
+
+A test that assumes a clean world will eventually meet someone else's data. The reset controls give three patterns; choose one per project and keep it.
+
+**1. Reset before each suite (the local default).** One `POST /__test__/reset` in the suite setup, one cookie login after it, and the world is back to the seed even in the middle of a day of runs. The seed is a contract, so assertions can be exact: `PED-0002` confirmed with total `$121.00`, `FAC-0001` carrying one declined and one failed attempt. Trade-offs: you own the environment, because a reset is a bad neighbour online; and the reset wants a quiet system — a request that is still in flight can make the reset answer 409 `RESET_CONFLICT` (retry once) or 503 `LOCK_TIMEOUT`.
+
+**2. Reset per worker against the shared online demo — unsafe.** The online dataset is one and shared: every visitor works on the same customers and orders (part 1, section 1). A reset from your worker erases the strangers' data in the middle of their run, and their writes erase your assumptions right back; between your reset and your next request, someone else's click can deactivate the very customer you just asserted on. If a suite needs resets online, it must be the only user of the demo — a staging URL, or the production URL outside public hours. Never assume a reset stays true for more than a request.
+
+**3. Create your own data with unique names (the polite pattern for the shared demo).** Instead of relying on seed rows, log in once and create everything a test needs, with names and emails that cannot collide — a prefix per project plus a timestamp (`Contoso 1731…`, `prueba-1731099@example.test`). Find your rows again with the literal, accent-insensitive `q` (section 12) or by the ids the create answers give, and assert only on your own records. Trade-offs: the data accumulates until the nightly reset, your rows age down the list (the ordering is `created_at` descending), and you still cannot stop others from touching *their* records — but yours are safe.
+
+**Parallel runs and the per-IP rate limit.** Locally (`TEST_MODE=1`) there are no limits and each `mise run dev` process has its own memory, so parallel suites on different ports do not even share data. Online, the limits are per client IP: 120 requests per minute and 10 login attempts per minute shared by everything that runs from one machine — parallel workers count together and the group gets 429 `RATE_LIMITED` with a `Retry-After` header (the body member `retry_after` carries the same seconds). Two outs: spread the workers' requests below the limits, or add a valid `X-Test-Token` header to every request of an online suite — a token-bearing request is exempt from the limits even then (section 11).
+
+## 14. The online demo
+
+Everything above describes the local server. The demo lives on the project's Vercel URL and **is not deployed yet**: the configuration exists ([docs/DEPLOYMENT.md](DEPLOYMENT.md)) but the first deployment is still pending, so until it happens there is no online URL to automate against. When it arrives, this changes from local:
+
+| Aspect | Local | Online |
+|---|---|---|
+| Controls guard | `TEST_MODE=1`: no token needed | `TEST_MODE=0`: 404 without `X-Test-Token: <TEST_TOKEN>` |
+| Data | in memory, from the seed, lost on restart | PostgreSQL, **one shared dataset** all visitors move |
+| Rate limits | off | on: 120 requests/min and 10 logins/min per client IP (429 `RATE_LIMITED`) |
+| Nightly state | `mise run dev` restarts clean | a GitHub Actions workflow resets at **03:17 UTC** |
+| Cold starts | none | possible: the first request after a quiet period can be slow (warm it with `GET /api/health`) |
+
+Three extra facts about the online world ([docs/DEPLOYMENT.md](DEPLOYMENT.md)):
+
+- The nightly reset workflow ([`nightly-reset.yml`](../.github/workflows/nightly-reset.yml)) can only run once the test controls are deployed; it needs the repository settings `DEMO_URL` (variable) and `TEST_TOKEN` (secret), counts only an exact HTTP 200 of `POST /__test__/reset` as success (a redirect fails and is never followed, so the token cannot leave the configured host), and can be started by hand from the Actions tab. Note for a long-lived repo: GitHub disables scheduled workflows after 60 days of inactivity — the nightly reset then stops silently until the next push or a re-enable.
+- Preview deployments get a URL of their own and answer the same API; they share the production database unless the Neon integration carves a branch per preview, so treat preview data as even less stable.
+- The origin check accepts each preview's Vercel origin automatically, so API or UI tests against a preview URL need no extra header handling — requests without an `Origin` never raise the 403 at all.
+
+## 15. What to read next
+
+- [openapi.json](openapi.json) — the committed contract; import it into your HTTP client instead of re-typing requests. The command that regenerates it when the API changes is `cd backend && uv run python -m app.cli openapi --output ../docs/openapi.json`.
+- [SPEC.md](SPEC.md) — sections [3](SPEC.md#3-authentication-and-sessions) (sessions, the origin rule, the rate limits), [5](SPEC.md#5-orders-flow-2) (orders and concurrency), [6](SPEC.md#6-invoices-and-payments-flow-3) (invoices, payments, idempotency), [7](SPEC.md#7-errors-and-validation-order) (the stable error codes) and [9](SPEC.md#9-seed-data) (what a reset and a seed restore).
+- [SEED.md](SEED.md) — the exact data every recipe above leans on.
+- [backend/README.md](../backend/README.md) — the same controls from the implementer's side ("Test controls", "Request controls", "OpenAPI contract").
+- [DEPLOYMENT.md](DEPLOYMENT.md) and [DEVELOPMENT.md](DEVELOPMENT.md) — where the demo lives and how to start the stack locally.
+- Part 1 of this guide, for the UI side of the same flows.

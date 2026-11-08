@@ -233,7 +233,7 @@ def _summary_out(view: OrderSummaryView) -> schemas.OrderSummary:
     )
 
 
-@router.get("/products", response_model=schemas.ProductListOut, responses=_READ_RESPONSES)
+@router.get("/products", response_model=schemas.ProductListOut, responses=_LIST_RESPONSES)
 def list_products(
     user: Annotated[User, Depends(get_current_user)],
     service: Annotated[OrderService, Depends(get_service)],

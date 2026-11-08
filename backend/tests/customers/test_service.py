@@ -198,3 +198,45 @@ def test_deactivate_and_reactivate() -> None:
     reactivated = service.reactivate(1, 2)
     assert reactivated.status == CustomerStatus.ACTIVE
     assert reactivated.version == 3
+
+
+@pytest.mark.parametrize("customer_id", [0, 2_147_483_648])
+def test_update_with_an_out_of_range_id_is_not_found(customer_id: int) -> None:
+    service = _service()
+
+    with pytest.raises(ApiError) as error:
+        service.update(customer_id, {"name": "New Name"}, 1)
+
+    assert error.value.status == 404
+    assert error.value.code == "NOT_FOUND"
+
+
+def test_update_of_an_unknown_customer_is_not_found() -> None:
+    service = _service()
+
+    with pytest.raises(ApiError) as error:
+        service.update(99, {"name": "New Name"}, 1)
+
+    assert error.value.status == 404
+    assert error.value.code == "NOT_FOUND"
+
+
+@pytest.mark.parametrize("customer_id", [0, 2_147_483_648])
+def test_deactivate_with_an_out_of_range_id_is_not_found(customer_id: int) -> None:
+    service = _service()
+
+    with pytest.raises(ApiError) as error:
+        service.deactivate(customer_id, 1)
+
+    assert error.value.status == 404
+    assert error.value.code == "NOT_FOUND"
+
+
+def test_deactivate_of_an_unknown_customer_is_not_found() -> None:
+    service = _service()
+
+    with pytest.raises(ApiError) as error:
+        service.deactivate(99, 1)
+
+    assert error.value.status == 404
+    assert error.value.code == "NOT_FOUND"

@@ -311,6 +311,36 @@ function LoginPageContent() {
                 {DEMO_PASSWORD_TEXT}
               </p>
             </section>
+
+            {/*
+             * The targets of these two anchors are served by the API on
+             * the same origin (the `/api` rewrite of next.config.ts), not
+             * by Next.js routes: a client-side navigation would 404, so
+             * they are plain anchors (full page load) and not `Link`,
+             * which wraps the router. The link styling is the `text`
+             * variant of the theme's Link.
+             */}
+            <p
+              data-testid="auth-login-api-text"
+              className="mt-3 text-[13px] text-muted"
+            >
+              Para probar la API:{" "}
+              <a
+                href="/api/docs"
+                data-testid="auth-login-api-docs-link"
+                className="text-accent underline underline-offset-2 hover:decoration-2 transition-colors duration-120"
+              >
+                Documentación interactiva
+              </a>{" "}
+              ·{" "}
+              <a
+                href="/api/openapi.json"
+                data-testid="auth-login-api-contract-link"
+                className="text-accent underline underline-offset-2 hover:decoration-2 transition-colors duration-120"
+              >
+                Contrato OpenAPI
+              </a>
+            </p>
           </div>
         </div>
       </main>

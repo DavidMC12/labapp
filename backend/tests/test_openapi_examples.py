@@ -77,6 +77,7 @@ RESPONSE_EXAMPLE_KEYS: dict[tuple[str, str, str], set[str]] = {
     ("post", "/api/orders/{id}/invoice", "201"): {"issued"},
     ("post", "/api/invoices/{id}/payments", "201"): {"approved"},
     ("post", "/api/invoices/{id}/payments", "402"): {"declined"},
+    ("post", "/api/customers", "409"): {"email-taken"},
 }
 
 COMMON_PROBLEM_EXAMPLES = {
@@ -86,6 +87,15 @@ COMMON_PROBLEM_EXAMPLES = {
     "409": {"version-conflict"},
     "422": {"validation-error"},
 }
+
+PROBLEM_EXAMPLE_EXCEPTIONS = {
+    ("post", "/api/auth/login", "401"): {"invalid-credentials"},
+    ("post", "/api/auth/login", "403"): {"origin-mismatch"},
+    ("post", "/api/auth/logout", "403"): {"origin-mismatch"},
+    ("post", "/api/customers", "409"): {"email-taken"},
+}
+
+CODE_IN_DESCRIPTION = re.compile(r"`([A-Z][A-Z0-9_]*)`")
 
 MODELS = {
     "CustomerOut": CustomerOut,
@@ -196,12 +206,33 @@ def test_every_common_problem_answer_reuses_the_same_example() -> None:
                 if response is None:
                     continue
                 media = _media_with_examples(response)
-                if (method, path, status) == ("post", "/api/auth/login", "401"):
-                    assert set(media.get("examples", {})) == {"invalid-credentials"}
-                else:
-                    assert set(media.get("examples", {})) == names, (
-                        f"{method.upper()} {path} {status}"
+                expected = PROBLEM_EXAMPLE_EXCEPTIONS.get((method, path, status), names)
+                assert set(media.get("examples", {})) == expected, (
+                    f"{method.upper()} {path} {status}"
+                )
+
+
+def test_every_problem_example_code_is_named_in_its_response_description() -> None:
+    contract = openapi_document()
+    checked = 0
+
+    for path, operations in contract["paths"].items():
+        for method, operation in operations.items():
+            for status, response in operation.get("responses", {}).items():
+                if not status.isdigit() or int(status) < 400:
+                    continue
+                examples = _media_with_examples(response).get("examples", {})
+                if not examples:
+                    continue
+                named_codes = set(CODE_IN_DESCRIPTION.findall(response["description"]))
+                assert named_codes, f"{method.upper()} {path} {status} names no code"
+                for name, example in examples.items():
+                    assert example["value"]["code"] in named_codes, (
+                        f"{method.upper()} {path} {status} {name}: "
+                        f"{example['value']['code']} is not one of {sorted(named_codes)}"
                     )
+                    checked += 1
+    assert checked
 
 
 def test_every_response_example_validates_against_its_response_model() -> None:

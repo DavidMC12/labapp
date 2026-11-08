@@ -11,14 +11,18 @@
 //     answer 4xx on purpose);
 //   - a page that declares no site icon while /favicon.ico answers 4xx or 5xx, or whose declared
 //     icon answers 4xx or 5xx: the audit fetches the address a real browser loads (the pure
-//     check is also in resources.mjs).
+//     check is also in resources.mjs);
+//   - a keyboard problem on a walk of real Tab presses through every audited state after it is
+//     ready: an element that takes the focus and shows no visible focus indicator (WCAG 2.4.7),
+//     a keyboard trap or a visible tabbable element the walk never reaches (WCAG 2.1.2); the
+//     pure check is in keyboard.mjs and --no-keyboard skips the walk.
 // It prints the states it covered: the 100% goal is measured over those states. Exit code 1 when anything fails.
-//
+
 // Needs a running application (API and web) at "baseUrl" and the frontend dependencies installed.
 // A state may have "viewport": { "width": 390, "height": 844 } (a phone or a tablet), "catalog": false (left out of the catalog,
 // for a state that repeats the ids of another one), and "steps": [{ "click": "<test id>", "waitFor": "<test id that must become visible>" }] to reach a state
 // that needs an interaction (a dialog).
-// Usage: node tools/audit/browser-audit.mjs [--base http://localhost:3000] [--only name,name] [--theme light|dark] [--catalog file.md] [--json]
+// Usage: node tools/audit/browser-audit.mjs [--base http://localhost:3000] [--only name,name] [--theme light|dark] [--catalog file.md] [--json] [--no-keyboard]
 //   --catalog writes the test ids found in every state as a Markdown catalog (docs/TESTIDS.md); CI compares it with the committed copy.
 //   --theme pins the explicit choice of the theme selector (the localStorage key of frontend/src/lib/theme.ts) before every
 //   page loads and checks that <html data-theme> took it, so the same states can be audited in both voices of the design;
@@ -28,6 +32,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { keyboardFailures, MAX_TAB_PRESSES } from "./keyboard.mjs";
 import { iconFailures, resourceFailures } from "./resources.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -48,6 +53,9 @@ if (catalogPath && only) {
   console.error("--catalog describes every state, so it cannot be combined with --only");
   process.exit(2);
 }
+// --no-keyboard skips the keyboard walk (task 062): a quick run without the visible-focus
+// and no-keyboard-trap check, at the cost of the guarantee.
+const keyboard = !args.includes("--no-keyboard");
 // --theme light|dark or --theme=light|dark; any other spelling or value stops the audit before it starts,
 // so a typo can never turn into a silently unpinned run.
 const themeArgs = args.filter((arg) => arg === "--theme" || arg.startsWith("--theme"));
@@ -118,6 +126,77 @@ const PAGE_CHECK = `(() => {
   };
 })()`;
 
+// Runs inside the page: the tabbable elements of the state (the keyboard
+// check, task 062) with the unfocused computed-style snapshot of each. The
+// walk presses the Tab key; the alert that receives the focus
+// programmatically has tabindex="-1" and is not tabbable; a scrollable
+// region with tabindex="0" (the project's TableScroll) is. An element
+// inside a closed dialog or with inert stays out, and so does the element a
+// modal dialog makes unreadable: the browser itself cannot tab into them.
+// Runs inside the page: the tabbable elements of the state (the keyboard
+// check, task 062) with the unfocused computed-style snapshot of each. The
+// walk presses the Tab key; the alert that receives the focus
+// programmatically has tabindex="-1" and is not tabbable; a scrollable
+// region with tabindex="0" (the project's TableScroll) is. An element
+// inside a closed dialog or with inert stays out, and so does the element a
+// modal dialog makes unreadable: the browser itself cannot tab into them.
+const TAB_PROPERTIES = ["outlineStyle", "outlineWidth", "outlineColor", "boxShadow", "borderTopColor", "borderTopWidth", "backgroundColor", "color", "textDecorationLine"];
+const PAGE_TABBABLE = `(() => {
+  const rules = "nextjs-portal, [data-nextjs-dev-tools-button], [data-next-badge-root]";
+  const visible = (el) => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+  const node = (el) => {
+    const testId = el.getAttribute("data-testid");
+    if (testId) return testId;
+    const tag = el.tagName.toLowerCase();
+    const attribute = (name) => (el.getAttribute(name) ?? "").trim();
+    const labelledby = attribute("aria-labelledby")
+      ? attribute("aria-labelledby").split(/\\s+/).map((id) => document.getElementById(id)?.textContent ?? "").join(" ").replace(/\\s+/g, " ").trim()
+      : "";
+    const name = attribute("aria-label") || labelledby || attribute("title") || (el.textContent ?? "").replace(/\\s+/g, " ").trim();
+    return name ? tag + " " + JSON.stringify(name.slice(0, 60)) : tag;
+  };
+  const style = (el) => {
+    const s = getComputedStyle(el);
+    return { outlineStyle: s.outlineStyle, outlineWidth: s.outlineWidth, outlineColor: s.outlineColor, boxShadow: s.boxShadow,
+      borderTopColor: s.borderTopColor, borderTopWidth: s.borderTopWidth, backgroundColor: s.backgroundColor, color: s.color, textDecorationLine: s.textDecorationLine };
+  };
+  const tabbable = [...document.querySelectorAll("a[href], button, input:not([type=hidden]), select, textarea, summary, [contenteditable], [tabindex]:not([tabindex='-1'])")]
+    .filter((el) => visible(el) && !el.closest(rules) && !el.inert
+      && !(el.matches("button, input, select, textarea") && el.disabled)
+      && !(el.closest("dialog") && !el.closest("dialog").open)
+      && !(document.querySelector("dialog:modal") && !document.querySelector("dialog:modal").contains(el)));
+  window.__labappTabbable = tabbable;
+  return tabbable.map((el) => ({ label: node(el), unfocused: style(el) }));
+})()`;
+
+// Runs after a Tab press: the element the focus is on, whether it is inside
+// the page's document, its visibility and its focused computed-style
+// snapshot. When the focus left the page content (document.body reports the
+// browser chrome, which is the end of a cycle) the walk is over; a focus
+// that lands on a tool element of the dev server (the Next.js devtools) is
+// not the page either, but it is not a trap: the walk presses on.
+const PAGE_STOP = `(() => {
+  const active = document.activeElement;
+  if (!(active instanceof Element) || active === document.body || active === document.documentElement) return { left: true };
+  if (active.closest("nextjs-portal, [data-nextjs-dev-tools-button], [data-next-badge-root]")) return { tools: true };
+  const node = (el) => {
+    const testId = el.getAttribute("data-testid");
+    if (testId) return testId;
+    const tag = el.tagName.toLowerCase();
+    const attribute = (name) => (el.getAttribute(name) ?? "").trim();
+    const labelledby = attribute("aria-labelledby")
+      ? attribute("aria-labelledby").split(/\\s+/).map((id) => document.getElementById(id)?.textContent ?? "").join(" ").replace(/\\s+/g, " ").trim()
+      : "";
+    const name = attribute("aria-label") || labelledby || attribute("title") || (el.textContent ?? "").replace(/\\s+/g, " ").trim();
+    return name ? tag + " " + JSON.stringify(name.slice(0, 60)) : tag;
+  };
+  return {
+    index: window.__labappTabbable.indexOf(active),
+    label: node(active),
+    visible: !!(active.offsetWidth || active.offsetHeight || active.getClientRects().length),
+    focused: ${JSON.stringify(TAB_PROPERTIES)}.reduce((styles, property) => ((styles[property] = getComputedStyle(active)[property]), styles), {}),
+  };
+})()`;
 // Natural order, independent of the locale: digit runs compare as numbers, everything else by code unit.
 function naturalCompare(a, b) {
   const partsA = a.match(/\d+|\D+/g) ?? [];
@@ -213,6 +292,7 @@ async function main() {
 
     const cookies = new Map();
     const report = [];
+    let tabStops = 0;
     for (const state of config.states) {
       if (only && !only.includes(state.name)) continue;
       await send("Network.clearBrowserCookies");
@@ -298,16 +378,73 @@ async function main() {
         const text = `axe ${v.id} (${v.impact}): ${v.help} -> ${v.nodes.join(" | ")}`;
         (v.impact === "serious" || v.impact === "critical" ? entry.failures : entry.warnings).push(text);
       }
+      // The keyboard walk (task 062): real Tab keystrokes through the DevTools Input
+      // domain, never a programmatic .focus(). First the unfocused snapshot of every
+      // tabbable element in one pass, then the presses: up to MAX_TAB_PRESSES, or
+      // until the focus leaves the page content or returns to the first element of
+      // the walk. The stops are judged by keyboard.mjs: a visible focus indicator
+      // (WCAG 2.4.7), no trap (WCAG 2.1.2) and every visible tabbable element reached.
+      // The keyboard walk (task 062): real Tab keystrokes through the DevTools Input
+      // domain, never a programmatic .focus(). First the unfocused snapshot of every
+      // tabbable element in one pass, then the presses: up to MAX_TAB_PRESSES, or until
+      // the focus leaves the page content and returns to the start (the browser chrome —
+      // document.body —, and the walk goes on pressing until it is back inside the
+      // content on the first element again; Chromium enters the content fresh after the
+      // visit to the chrome, so a single pass out is not proof of reachability yet). The
+      // stops are judged by keyboard.mjs: a visible focus indicator (WCAG 2.4.7), no trap
+      // (WCAG 2.1.2) and every visible tabbable element reached.
+      if (keyboard) {
+        const tabbable = await evaluate(PAGE_TABBABLE);
+        let presses = 0;
+        const stops = [];
+        // The element that owns the focus when the walk starts (the "Volver"
+        // button of a confirmation dialog, given it by showModal) is reached
+        // at the start: it is the first stop, before any press. An element
+        // that is not tabbable (the alert that receives the focus
+        // programmatically) is not part of the walk.
+        let previous = await evaluate(PAGE_STOP);
+        while (previous.tools && presses < MAX_TAB_PRESSES) {
+          // A tool element of the dev server sitting on the Tab path is not
+          // the page and not a trap: press on.
+          presses++;
+          await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Tab", code: "Tab", windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
+          await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Tab", code: "Tab", windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
+          previous = await evaluate(PAGE_STOP);
+        }
+        if (!previous.left) stops.push({ ...previous, tab: false });
+        let left = false;
+        while (presses < MAX_TAB_PRESSES) {
+          presses++;
+          await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Tab", code: "Tab", windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
+          await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Tab", code: "Tab", windowsVirtualKeyCode: 9, nativeVirtualKeyCode: 9 });
+          const stop = await evaluate(PAGE_STOP);
+          if (stop.tools) continue;
+          // document.body again: the browser chrome between the cycles of the
+          // content. The walk presses on: the cycle re-enters the content
+          // where its tab order begins.
+          if (stop.left) { left = true; continue; }
+          stops.push({ ...stop, tab: true });
+          const key = (s) => (typeof s.index === "number" ? s.index : s.label);
+          const stuck = key(stop);
+          // A trap cannot repair itself: five presses on the same element are enough to say so.
+          if (stops.length >= 5 && stops.slice(-4).every((s) => key(s) === stuck)) break;
+          // The cycle is over when the focus is back on the first element of the walk.
+          if (stops.length > 1 && key(stop) === key(stops[0])) break;
+        }
+        entry.tabStops = stops.length;
+        tabStops += stops.length;
+        for (const failure of keyboardFailures({ tabbable, stops, presses, leftContent: left })) entry.failures.push(failure);
+      }
       report.push(entry);
     }
     ws.close();
-    return report;
+    return { report, tabStops };
   } finally {
     cleanup();
   }
 }
 
-const report = await main();
+const { report, tabStops } = await main();
 if (catalogPath) {
   const incomplete = report.filter((entry) => !entry.elements);
   if (incomplete.length > 0) {
@@ -325,5 +462,5 @@ for (const entry of report) {
   if (!asJson) for (const w of entry.warnings) console.log(`       ~ ${w}`);
   failed += entry.failures.length;
 }
-console.log(`Browser audit${theme ? ` (${theme} theme)` : ""}: ${report.length} state(s) covered, ${failed} failure(s).`);
+console.log(`Browser audit${theme ? ` (${theme} theme)` : ""}: ${report.length} state(s) covered, ${failed} failure(s)${keyboard ? `, ${tabStops} Tab stops walked` : ", without the keyboard check (--no-keyboard)"}.`);
 process.exit(failed === 0 ? 0 : 1);

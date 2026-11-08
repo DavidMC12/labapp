@@ -415,4 +415,78 @@ curl -s -H 'Content-Type: application/json' \
 
 As with the session recipe, an advance this large expires the sessions, so log in after moving the clock and set the offset back to 0 at the end.
 
+### Inject faults
+
+A fault rule tells the server to delay a request and/or to answer it with a configured status before the application runs. `POST /__test__/faults` stores the rule and answers 201 with it; `GET /__test__/faults` lists the rules that are not exhausted; `DELETE /__test__/faults` removes every rule and answers 204. A rule is consumed once per matching request: with `times` it stops matching after that many, and an exhausted rule disappears from the list.
+
+```bash
+curl -s -H 'Content-Type: application/json' \
+  -d '{"target": "route", "method": "GET", "path": "/api/customers", "status": 500, "times": 2}' \
+  "$BASE/__test__/faults"
+# 201 {"id":2,"target":"route","method":"GET","path":"/api/customers",
+#      "latency_ms":0,"status":500,"remaining":2}
+curl -s -b /tmp/labapp-cookies "$BASE/api/customers"     # 500 INJECTED_FAULT
+curl -s -b /tmp/labapp-cookies "$BASE/api/customers"     # 500 INJECTED_FAULT (last one)
+curl -s -b /tmp/labapp-cookies "$BASE/api/customers"     # 200, the rule is exhausted
+curl -s "$BASE/__test__/faults"                          # []
+curl -s -X DELETE "$BASE/__test__/faults"                # 204
+```
+
+The two failed requests answer the problem document `{"status": 500, "code": "INJECTED_FAULT", "detail": "Falla inyectada para pruebas."}` — the fault is decided before the route runs, so it needs no data and works on any method and path.
+
+**Latency.** A rule with `latency_ms` and no `status` only delays the request:
+
+```bash
+curl -s -H 'Content-Type: application/json' \
+  -d '{"target": "route", "method": "GET", "path": "/api/customers", "latency_ms": 1000, "times": 1}' \
+  "$BASE/__test__/faults"
+time curl -s -b /tmp/labapp-cookies "$BASE/api/customers"   # real 1.0s
+```
+
+The wait happens in the middleware, before the application — even a request that only ends in a 401 pays the delay. This is how slow-network behaviour (spinners, `aria-busy`, disabled buttons) is tested deterministically; combine it with a `times` count to hit only one request.
+
+**Make the gateway unavailable.** A `gateway` rule targets the payment gateway instead of a route: the next payment call — any method — waits the rule's latency and fails with 503 `PAYMENT_GATEWAY_UNAVAILABLE` (`La pasarela de pago no está disponible. Inténtalo de nuevo.`) without reaching the fake gateway. The body carries the extra members `payment_id` and `reason: "GATEWAY_UNAVAILABLE"`, and the attempt is kept in the invoice history with the `failed` status, exactly like the seed's `PED-0003` ([docs/SEED.md](SEED.md)):
+
+```bash
+curl -s -H 'Content-Type: application/json' -d '{"target": "gateway", "times": 1}' \
+  "$BASE/__test__/faults"
+# then, as Finance, with an Idempotency-Key of your choice:
+curl -s -i -b /tmp/labapp-cookies -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: gw-1' \
+  -d '{"method": "card", "amount": "327.80", "card": {"number": "4242 4242 4242 4242", "expiry": "12/30", "cvc": "123"}}' \
+  "$BASE/api/invoices/1/payments"
+# 503 {"code":"PAYMENT_GATEWAY_UNAVAILABLE","detail":"La pasarela de pago no está disponible. Inténtalo de nuevo.",
+#      "payment_id":7,"reason":"GATEWAY_UNAVAILABLE"}
+```
+
+`payment_id` is the id of the stored attempt and depends on what exists: after a fresh reset the next payment id is 5 ([docs/SEED.md](SEED.md)).
+
+A golden rule of the idempotency machinery applies here (section 13): the failed attempt consumed the key, so a retry of this payment needs a **new** key.
+
+**What a rule can and cannot.** A `route` rule matches one HTTP method (any method when `method` is absent) and an **exact path**: no prefixes, no patterns, no query strings (`/api/customers` does not match `/api/customers/11`, and the query parameters are not part of the path). A `gateway` rule takes none of `method`, `path` or `status` — sending any of them is a 422 on that field. The rule fields and their limits, validated before the rule is stored (each problem is a 422 `VALIDATION_ERROR` entry):
+
+| Field | Rule |
+|---|---|
+| `target` | `route` or `gateway` (anything else: `INVALID_FORMAT`). |
+| `method` | optional, one of `GET`, `POST`, `PUT`, `PATCH`, `DELETE`; only for a `route` rule. |
+| `path` | required for `route`, must start with `/`, at most 2048 characters, no control characters, never starting with `/__test__`, and `/api/health` is rejected by name (`La ruta /api/health no puede tener una falla inyectada.`). |
+| `latency_ms` | 0 to 10000; a `route` rule needs a positive latency or a status (`La regla necesita latencia o un estado.`). |
+| `status` | optional, 400 to 599, `route` only; the injected answer uses it verbatim. |
+| `times` | optional, 1 to 1000 (`El valor debe estar entre 1 y 1000.`); without it the rule stays until `DELETE /__test__/faults` or a reset removes it. |
+
+At most **50 non-exhausted rules** exist; when they are full the answer is a 422 on `target` reading `Ya hay 50 reglas activas. Elimina alguna con DELETE /__test__/faults.` — clear first, then add. The `/__test__/*` routes themselves and `GET /api/health` are never affected by a fault, so a test cannot lock itself out. A reset also deletes every rule, moves the clock back to 0, and is the cheapest way to start a scenario from a clean slate.
+
+**The same recipes in Playwright.** For API-level tests the `request` fixture plays the role of curl (illustrative, not run in CI):
+
+```ts
+// Illustrative, not run in CI. Local: TEST_MODE=1, no token needed.
+const base = "http://127.0.0.1:8000";
+const controls = await request.newContext();           // no cookie jar needed
+await controls.post(`${base}/__test__/reset`);
+await controls.post(`${base}/__test__/clock`, { data: { advance_seconds: 28801 } });
+const me = await request.get(`${base}/api/auth/me`);   // your existing logged-in context
+expect(me.status()).toBe(401);
+expect((await me.json()).code).toBe("SESSION_EXPIRED");
+```
+
 - Stable codes pointer… (placeholder)

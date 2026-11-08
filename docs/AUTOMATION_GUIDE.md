@@ -632,3 +632,5 @@ Three extra facts about the online world ([docs/DEPLOYMENT.md](DEPLOYMENT.md)):
 - [backend/README.md](../backend/README.md) — the same controls from the implementer's side ("Test controls", "Request controls", "OpenAPI contract").
 - [DEPLOYMENT.md](DEPLOYMENT.md) and [DEVELOPMENT.md](DEVELOPMENT.md) — where the demo lives and how to start the stack locally.
 - Part 1 of this guide, for the UI side of the same flows.
+
+- [PRACTICE.md](PRACTICE.md) — the catalog of practice scenarios: what to test, row by row, with the exact expected result from the specification, so every recipe of this guide has a scenario to land on.

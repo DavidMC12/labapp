@@ -91,3 +91,26 @@ Notes a test can rely on:
 - `app-nav-home-link` is the brand "LabApp" in the rail; the section links are `app-nav-customers-link`, `app-nav-orders-link`, `app-nav-products-link`, `app-nav-invoices-link`, `app-nav-settings-link` — visible to every role.
 - Every shell page shares the skip link (`app-skip-link`) and the logout button (`app-logout-button`); "Salir" goes to `/login`.
 - Unknown customer, order or invoice ids render their section's error alert (for example `customers-detail-error-alert` with `No se encontró el recurso solicitado.`) and keep the section title, not a 404 page ([states.json](../tools/audit/states.json) `customers-not-found`).
+
+## 4. Seed data cheat sheet
+
+The exact data ([docs/SEED.md](SEED.md)) is a contract. "I want to test X, use Y":
+
+| I want to test… | Use | Facts |
+|---|---|---|
+| A customer that cannot be invoiced | Customer 3, `Cafetería La Esquina` (`cafe@example.test`) | Active but no tax ID; order `PED-0007` is confirmed and issuing its invoice fails with `CUSTOMER_TAX_ID_REQUIRED` |
+| Inactive customers | Customer 5 `Estudio Épsilon`, customer 8 `Hotel Horizonte` (also without tax ID) | Deactivated: no new orders ([detail state](../tools/audit/states.json) `/customers/5`) |
+| An active customer with a very long name | Customer 7 `Grupo Gamma Servicios Profesionales y Consultoría Internacional de Latinoamérica Sociedad por Acciones Simplificada` | 115 of the 120 allowed characters |
+| A draft order | `PED-0001` (order id 1), customer 1, line `KB-100` x 2, total `$43.78` | Drafts reserve no stock |
+| A confirmed order with no invoice | `PED-0002` (id 2), customer 2, total `$121.00` | Ready to invoice as Finance |
+| An invoice already issued, with failed payment attempts | `PED-0003` (id 3) → invoice `FAC-0001` (id 1), customer 4, total `$327.80` | Payment history: card ···· 0002 declined, card ···· 0003 gateway unavailable |
+| A paid order (then ship it) | `PED-0004` (id 4), customer 6, total `$197.97` → invoice `FAC-0002` (id 2), paid by transfer (`TRF-2026-0001`) | Shipping is the only transition left |
+| A paid invoice paid in cash | `PED-0005` (id 5) → invoice `FAC-0003` (id 3), customer 9, `$768.90` | Shipped; the history shows the cash approval |
+| A cancelled order | `PED-0006` (id 6), customer 10 | Cancelled draft; its stock never left: `SW-8P` shows stock 25 |
+| A low-stock product | Product 7, `Cámara web HD` (`WC-720`), stock 3, `$34.50` | The Stock cell shows the badge `Poco stock` (stock 1–5) |
+| An out-of-stock product | Product 9, `Impresora láser` (`PR-400`), stock 0, `$189.90` | Badge `Agotado` |
+| A declined card | `4000 0000 0000 0002` | Ends in 0002 → HTTP 402 `PAYMENT_DECLINED` |
+| The gateway unavailable by card | `4000 0000 0009 0003` | Ends in 0003 → HTTP 503 `PAYMENT_GATEWAY_UNAVAILABLE` |
+| A card that always approves | `4242 4242 4242 4242` | Any valid expiry not in the past, any 3-digit CVC |
+
+All three test cards pass the Luhn check, so the gateway outcome alone decides ([SPEC section 6](SPEC.md)). Tax rate in the seed: 10.00 %; the totals above assume it. User password: `Demo-LabApp-2026!`. After a fresh start the next numbers are order `PED-0008`, invoice `FAC-0004`, payment id 5.

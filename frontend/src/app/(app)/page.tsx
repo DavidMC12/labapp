@@ -64,7 +64,8 @@ function CounterCard({ counter }: { counter: SummaryCounter }) {
  * One section of the summary: its heading, the counters of the group in a
  * responsive grid (one column on a phone, up to four on a wide screen)
  * and a "Reintentar" button only while any counter of the section has
- * failed.
+ * failed. The orders group has five counters, so on a wide screen its
+ * grid holds all five in one row.
  */
 function SummarySection({ group }: { group: SummaryGroup }) {
   const failed = group.counters.some((counter) => counter.list.isError);
@@ -72,7 +73,14 @@ function SummarySection({ group }: { group: SummaryGroup }) {
   return (
     <section className="mt-6 min-w-0">
       <h2 data-testid={group.headingTestId}>{GROUP_TITLES[group.key]}</h2>
-      <div className="mt-3 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
+      <div
+        className={[
+          "mt-3 grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2",
+          group.key === "orders"
+            ? "md:grid-cols-4 lg:grid-cols-5"
+            : "md:grid-cols-4",
+        ].join(" ")}
+      >
         {group.counters.map((counter) => (
           <CounterCard key={counter.status} counter={counter} />
         ))}

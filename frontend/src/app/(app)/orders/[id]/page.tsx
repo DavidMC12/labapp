@@ -1094,19 +1094,22 @@ function OrderDetail({ id }: { id: number }) {
       ) : null}
 
       {/* Issue the invoice: Admin and Finance on a confirmed order with
-          no invoice; the navigation goes to the new invoice. */}
+          no invoice; the navigation goes to the new invoice. Same vertical
+          spacing as the other action rows. */}
       {canInvoice
       && order
       && order.status === "confirmed"
       && order.invoice_id === null ? (
-        <Button
-          testId="orders-detail-invoice-button"
-          loading={pendingIssue}
-          disabled={mutationsPending}
-          onClick={() => void handleIssueInvoice()}
-        >
-          Facturar
-        </Button>
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <Button
+            testId="orders-detail-invoice-button"
+            loading={pendingIssue}
+            disabled={mutationsPending}
+            onClick={() => void handleIssueInvoice()}
+          >
+            Facturar
+          </Button>
+        </div>
       ) : null}
 
       <div className="mt-6">

@@ -545,3 +545,197 @@ describe("the orders list permission", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe("the customer filter of the orders list", () => {
+  /** The seed customer 4, as /api/customers/4 answers it. */
+  const customer4 = {
+    id: 4,
+    name: "Distribuidora Delta",
+    email: "delta@example.test",
+    phone: null,
+    tax_id: null,
+    address: null,
+    status: "active",
+    version: 1,
+    created_at: "2026-01-01T09:04:00Z",
+    updated_at: "2026-01-01T09:04:00Z",
+  };
+
+  function customerFilterRequests(): string[] {
+    return fetchMock.mock.calls
+      .map((call) => String(call[0]))
+      .filter((url) => url.startsWith("/api/customers/"));
+  }
+
+  async function assertFilterLine(
+    expected: string,
+  ): Promise<void> {
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("orders-list-customerfilter-text"),
+      ).toHaveTextContent(expected);
+    });
+  }
+
+  it("sends the request with and without the customer_id filter", async () => {
+    respondList(listPageOf([], 3));
+    renderAt("customer_id=4");
+    await waitFor(() => {
+      expect(listRequests().some((url) => url === "/api/orders?page=1&customer_id=4")).toBe(
+        true,
+      );
+    });
+
+    // Without the parameter the request must not carry it.
+    fetchMock.mockClear();
+    renderAt("");
+    await waitFor(() => {
+      expect(listRequests().some((url) => url === "/api/orders?page=1")).toBe(
+        true,
+      );
+    });
+    expect(
+      listRequests().every((url) => !url.includes("customer_id")),
+    ).toBe(true);
+  });
+
+  it("sends the filter together with q, status and page", async () => {
+    respondList(listPageOf([], 3));
+    renderAt("page=2&q=ped&status=draft&customer_id=4");
+
+    await waitFor(() => {
+      expect(listRequests().at(-1)).toBe(
+        "/api/orders?page=2&q=ped&status=draft&customer_id=4",
+      );
+    });
+  });
+
+  it("shows the customer name once it loads", async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/auth/me") {
+        return jsonResponse(meUser);
+      }
+      if (url === "/api/customers/4") {
+        return jsonResponse(customer4);
+      }
+      if (url.startsWith("/api/orders")) {
+        return jsonResponse(listBody ?? listPageOf([]), listStatus);
+      }
+      return problemResponse(
+        404,
+        "NOT_FOUND",
+        "No se encontró el recurso solicitado.",
+      );
+    });
+    respondList(listPageOf([], 3));
+    renderAt("customer_id=4");
+
+    await assertFilterLine("Pedidos de Distribuidora Delta");
+  });
+
+  it("keeps the id while the customer loads", async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/auth/me") {
+        return jsonResponse(meUser);
+      }
+      if (url === "/api/customers/4") {
+        return new Promise<Response>(() => {});
+      }
+      return problemResponse(
+        404,
+        "NOT_FOUND",
+        "No se encontró el recurso solicitado.",
+      );
+    });
+    respondList(listPageOf([], 3));
+    renderAt("customer_id=4");
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("orders-list-customerfilter-text"),
+      ).toBeInTheDocument();
+    });
+    expect(customerFilterRequests()).toContain("/api/customers/4");
+    await assertFilterLine("Pedidos del cliente #4");
+  });
+
+  it("keeps the id when the customer does not exist", async () => {
+    // The default mock 404s /api/customers/{id}.
+    respondList(listPageOf([], 3));
+    renderAt("customer_id=4");
+
+    await assertFilterLine("Pedidos del cliente #4");
+    expect(customerFilterRequests()).toContain("/api/customers/4");
+  });
+
+  it("links Quitar filtro to the list without customer_id, keeping the rest", async () => {
+    respondList(listPageOf([], 3));
+    renderAt("customer_id=4&page=2&q=ped&status=draft");
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("orders-list-customerfilter-clear-link"),
+      ).toHaveAttribute("href", "/orders?page=2&q=ped&status=draft");
+    });
+  });
+
+  it("keeps the customer filter when searching", async () => {
+    respondList(listPageOf([], 3));
+    renderAt("customer_id=4");
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("orders-list-customerfilter-text"),
+      ).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    await user.type(
+      screen.getByTestId("orders-list-search-input"),
+      "PED-000",
+    );
+    await user.click(screen.getByTestId("orders-list-search-button"));
+
+    expect(state.router.push).toHaveBeenCalledWith(
+      "/orders?page=1&q=PED-000&customer_id=4",
+    );
+  });
+
+  it("keeps the customer filter when changing the status filter", async () => {
+    respondList(listPageOf([], 3));
+    renderAt("customer_id=4");
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("orders-list-customerfilter-text"),
+      ).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    await user.selectOptions(
+      screen.getByTestId("orders-list-status-select"),
+      "cancelled",
+    );
+    await user.click(screen.getByTestId("orders-list-search-button"));
+
+    expect(state.router.push).toHaveBeenCalledWith(
+      "/orders?page=1&status=cancelled&customer_id=4",
+    );
+  });
+
+  it("keeps the customer filter when paging", async () => {
+    respondList(listPageOf(Array.from({ length: 20 }, (_, i) => summary(i + 1)), 50));
+    renderAt("customer_id=4");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("orders-list-table")).toBeInTheDocument();
+    });
+
+    await userEvent.setup().click(screen.getByTestId("orders-list-next-button"));
+    expect(state.router.push).toHaveBeenCalledWith(
+      "/orders?page=2&customer_id=4",
+    );
+  });
+});

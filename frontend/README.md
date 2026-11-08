@@ -234,8 +234,13 @@ src/
   `formatTime`, `formatDateTime`, both in UTC).
 - URL parameters of the list: `page` (integer up to 1000000, valid or page
   1), `q` (trimmed, only when it has a value, matched against the order
-  number or the customer name) and `status` (one of the five states, no
-  filter when absent). Search goes to page 1; a page beyond the last is
+  number or the customer name), `status` (one of the five states, no
+  filter when absent) and `customer_id` (a strict positive integer up to
+  2147483647, ignored when invalid; the customer detail links here).
+  While `customer_id` is set, a line under the heading names the customer
+  ("Pedidos de {name}", "Pedidos del cliente #{id}" while loading or for
+  an unknown one) with a "Quitar filtro" link that keeps the other
+  parameters. Search goes to page 1; a page beyond the last is
   `max(1, ceil(total / 20))` and the URL is replaced by it.
 - Keys: `["orders","list",{page,q,status}]`, `["orders","detail",id]`
   (numbers always), `["products"]`. Every successful order mutation
@@ -305,6 +310,9 @@ Spanish.
   `status` (`active`/`inactive`, no filter when absent). Submitting the
   search goes back to page 1; a page beyond the last one is replaced in
   the URL by the last page (`max(1, ceil(total / 20))`).
+- The detail page has a "Pedidos" section ("Ver pedidos de este cliente")
+  that links to `/orders?customer_id={id}` — visible to every role, for
+  active and inactive customers alike.
 - Data layer on TanStack Query, all with `retry: false`:
   `useCustomers({page, q, status})`, `useCustomer(id)`,
   `useCreateCustomer()`, `useUpdateCustomer()` and

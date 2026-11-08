@@ -145,6 +145,18 @@ describe("the home summary structure", () => {
     ]) {
       expect(screen.getByTestId(heading)).toBeInTheDocument();
     }
+
+    // The five order counters hold one wide row (five columns), the
+    // two-counter groups stay at four.
+    const ordersGrid =
+      screen.getByTestId("home-orders-heading").nextElementSibling ??
+      undefined;
+    expect(ordersGrid?.className).toContain("lg:grid-cols-5");
+    expect(
+      screen
+        .getByTestId("home-customers-heading")
+        .nextElementSibling?.className,
+    ).not.toContain("lg:grid-cols-5");
   });
   it("requests exactly the ten filtered lists of page 1", async () => {
     meUser = null;

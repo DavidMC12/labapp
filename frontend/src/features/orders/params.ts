@@ -46,13 +46,18 @@ export type OrderListParams = {
   page: number;
   q: string | null;
   status: OrderStatus | null;
+  /** The `customer_id` filter, or null when the URL has none or a bad one. */
+  customerId: number | null;
 };
 
 /**
  * Reads the list URL parameters, with every invalid value falling back: a
- * `page` that is not a positive integer up to 1000000 becomes 1, and a
- * `status` that is not one of the five states becomes no status. `q` is
- * trimmed; an empty-after-trimming `q` is no value at all.
+ * `page` that is not a positive integer up to 1000000 becomes 1, a
+ * `status` that is not one of the five states becomes no status, and a
+ * `customer_id` that is not a positive integer up to 2147483647 becomes
+ * no filter. `q` is trimmed; an empty-after-trimming `q` is no value at
+ * all. `URLSearchParams.get` reads the first occurrence of a repeated
+ * parameter; the rest are ignored.
  */
 export function parseOrderListParams(
   searchParams: URLSearchParams,
@@ -72,5 +77,11 @@ export function parseOrderListParams(
     ? (statusRaw as OrderStatus)
     : null;
 
-  return { page, q, status };
+  const customerIdRaw = searchParams.get("customer_id") ?? "";
+  const customerId = ID_PATTERN.test(customerIdRaw)
+    && Number(customerIdRaw) <= MAX_ID
+    ? Number(customerIdRaw)
+    : null;
+
+  return { page, q, status, customerId };
 }

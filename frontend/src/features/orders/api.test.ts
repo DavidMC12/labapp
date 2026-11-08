@@ -83,6 +83,15 @@ describe("buildOrderListQuery", () => {
       "/api/orders?page=1&q=R%26D",
     );
   });
+
+  it("includes customer_id only when it has a value", () => {
+    expect(orderListUrl({ page: 1, customerId: undefined })).toBe(
+      "/api/orders?page=1",
+    );
+    expect(
+      orderListUrl({ page: 1, customerId: 4, q: "ped", status: "draft" }),
+    ).toBe("/api/orders?page=1&q=ped&status=draft&customer_id=4");
+  });
 });
 
 describe("the orders requests", () => {

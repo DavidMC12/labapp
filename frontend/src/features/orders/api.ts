@@ -19,13 +19,19 @@ export type OrderListRequest = {
   page: number;
   q?: string;
   status?: OrderStatus;
+  /**
+   * The `customer_id` filter of the list (a positive integer the parser
+   * validated). Present only when the URL carries a valid one.
+   */
+  customerId?: number;
 };
 
 /**
  * Builds the `URLSearchParams` of the list request: `page` is always
- * present, while `q` and `status` are present only when they have a value
- * (an empty `status=` would be a 422 from the real API). `URLSearchParams`
- * encodes reserved characters such as `&`, so `q=R&D` becomes `q=R%26D`.
+ * present, while `q`, `status` and `customer_id` are present only when
+ * they have a value (an empty `status=` would be a 422 from the real
+ * API). `URLSearchParams` encodes reserved characters such as `&`, so
+ * `q=R&D` becomes `q=R%26D`.
  */
 export function buildOrderListQuery(
   params: OrderListRequest,
@@ -37,6 +43,9 @@ export function buildOrderListQuery(
   }
   if (params.status) {
     search.set("status", params.status);
+  }
+  if (params.customerId) {
+    search.set("customer_id", String(params.customerId));
   }
   return search;
 }

@@ -36,6 +36,9 @@ Present in every logged-in state.
 
 | Test id | Element |
 |---|---|
+| `auth-login-api-contract-link` | `a` |
+| `auth-login-api-docs-link` | `a` |
+| `auth-login-api-text` | `p` |
 | `auth-login-demo-item-1` | `li` |
 | `auth-login-demo-item-2` | `li` |
 | `auth-login-demo-item-3` | `li` |
@@ -59,6 +62,9 @@ Present in every logged-in state.
 
 | Test id | Element |
 |---|---|
+| `auth-login-api-contract-link` | `a` |
+| `auth-login-api-docs-link` | `a` |
+| `auth-login-api-text` | `p` |
 | `auth-login-demo-item-1` | `li` |
 | `auth-login-demo-item-2` | `li` |
 | `auth-login-demo-item-3` | `li` |

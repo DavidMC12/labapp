@@ -144,6 +144,39 @@ CUSTOMER_CREATED_EXAMPLES: NamedExamples = {
     "created": named("The new customer", CUSTOMER_CREATED_201)
 }
 
+CUSTOMER_IMPORT_CREATED_201: Example = {
+    "created": 2,
+    "items": [
+        {
+            "id": 11,
+            "name": "Northwind Import S.A.",
+            "email": "northwind@example.test",
+            "phone": "+1 555 010 0200",
+            "tax_id": "NORTH-123456",
+            "address": "Calle 50, edificio 12\nPiso 3",
+            "status": "active",
+            "version": 1,
+            "created_at": "2026-11-05T15:00:00Z",
+            "updated_at": "2026-11-05T15:00:00Z",
+        },
+        {
+            "id": 12,
+            "name": "Aurora Servicios S.A.",
+            "email": "aurora@example.test",
+            "phone": None,
+            "tax_id": None,
+            "address": None,
+            "status": "active",
+            "version": 1,
+            "created_at": "2026-11-05T15:00:00Z",
+            "updated_at": "2026-11-05T15:00:00Z",
+        },
+    ],
+}
+CUSTOMER_IMPORT_CREATED_EXAMPLES: NamedExamples = {
+    "imported": named("The customers of the file, in file order", CUSTOMER_IMPORT_CREATED_201)
+}
+
 ORDER_CREATED_201: Example = {
     "id": 8,
     "number": "PED-0008",
@@ -358,6 +391,25 @@ CUSTOMER_EMAIL_TAKEN_409: Example = {
     "code": "CUSTOMER_EMAIL_TAKEN",
     "detail": "Ya existe un cliente con ese email.",
 }
+CUSTOMER_IMPORT_VALIDATION_422: Example = {
+    "type": "about:blank",
+    "title": "Unprocessable Content",
+    "status": 422,
+    "code": "VALIDATION_ERROR",
+    "detail": "Revisa los datos ingresados.",
+    "errors": [
+        {
+            "field": "rows[2].name",
+            "code": "TOO_SHORT",
+            "message": "Debe tener al menos 2 caracteres.",
+        },
+        {
+            "field": "rows[2].email",
+            "code": "CUSTOMER_EMAIL_TAKEN",
+            "message": "Ya existe un cliente con ese email.",
+        },
+    ],
+}
 CSRF_ORIGIN_MISMATCH_403: Example = {
     "type": "about:blank",
     "title": "Forbidden",
@@ -395,6 +447,9 @@ INVALID_CREDENTIALS_EXAMPLES: NamedExamples = {
 CUSTOMER_EMAIL_TAKEN_EXAMPLES: NamedExamples = {
     "email-taken": named("The email already belongs to another customer", CUSTOMER_EMAIL_TAKEN_409)
 }
+CUSTOMER_IMPORT_VALIDATION_EXAMPLES: NamedExamples = {
+    "import-errors": named("The rows rejected by the file", CUSTOMER_IMPORT_VALIDATION_422)
+}
 CSRF_ORIGIN_MISMATCH_EXAMPLES: NamedExamples = {
     "origin-mismatch": named(
         "The Origin is not the application origin",
@@ -413,6 +468,12 @@ OPERATION_EXAMPLES: dict[tuple[str, str], dict[str, Any]] = {
     ("POST", "/api/customers"): {
         "request": CUSTOMER_CREATE_EXAMPLES,
         "responses": {"201": CUSTOMER_CREATED_EXAMPLES},
+    },
+    ("POST", "/api/customers/import"): {
+        "responses": {
+            "201": CUSTOMER_IMPORT_CREATED_EXAMPLES,
+            "422": CUSTOMER_IMPORT_VALIDATION_EXAMPLES,
+        },
     },
     ("PATCH", "/api/customers/{id}"): {"request": CUSTOMER_PATCH_EXAMPLES},
     ("POST", "/api/orders"): {

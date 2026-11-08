@@ -38,6 +38,13 @@ class CustomerListOut(BaseModel):
     total: int
 
 
+class CustomerImportOut(BaseModel):
+    """The customers created by one imported file."""
+
+    created: int
+    items: list[CustomerOut]
+
+
 class CustomerCreate(BaseModel):
     """The creation payload; validation happens in the service."""
 

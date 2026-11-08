@@ -9,14 +9,17 @@ from threading import Barrier
 import pytest
 from sqlalchemy import Connection, Engine
 
+from app.errors import ApiError
 from app.modules.customers.adapters.postgres import PostgresCustomerRepository
 from app.modules.customers.ports import EmailTaken
+from app.modules.customers.service import CustomerService
 from tests.customers.contract_repository import (
     NOW,
     CustomerRepositoryContract,
     customer,
     new_customer,
 )
+from tests.infra.helpers import FixedClock
 
 
 class TestPostgresCustomerRepository(CustomerRepositoryContract):
@@ -98,6 +101,39 @@ def test_identity_sequence_continues_after_replace_all(
     created = customer_repository.add(new_customer(email="six@example.test"), NOW)
 
     assert created.id == 6
+
+
+def test_concurrent_imports_of_the_same_email_leave_one_winner(
+    customer_repository: PostgresCustomerRepository,
+) -> None:
+    service = CustomerService(customer_repository, FixedClock(NOW))
+    barrier = Barrier(2)
+    files = {
+        "winner": (
+            "name,email\nWinner A,race@example.test\nWinner Only,winner-only@example.test\n"
+        ),
+        "loser": ("name,email\nLoser A,race@example.test\nLoser Only,loser-only@example.test\n"),
+    }
+
+    def import_file(name: str) -> str:
+        barrier.wait()
+        try:
+            service.import_customers(files[name].encode("utf-8"), f"{name}.csv")
+        except ApiError as error:
+            assert error.code == "CUSTOMER_EMAIL_TAKEN"
+            assert error.status in (409, 422)
+            return "rejected"
+        return "created"
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        outcomes = list(executor.map(import_file, files))
+
+    assert sorted(outcomes) == ["created", "rejected"]
+    items, total = customer_repository.list(query=None, status=None, page=1, page_size=20)
+    assert total == 2
+    emails = {item.email for item in items}
+    assert "race@example.test" in emails
+    assert len(emails & {"winner-only@example.test", "loser-only@example.test"}) == 1
 
 
 def test_concurrent_adds_of_the_same_email_leave_one_winner(

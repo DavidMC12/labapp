@@ -9,6 +9,7 @@ dependencies = [
     "fastapi",
     "psycopg[binary]>=3,<4",
     "pydantic-settings",
+    "python-multipart>=0.0.33",
     "sqlalchemy>=2,<3",
     "uvicorn[standard]",
 ]

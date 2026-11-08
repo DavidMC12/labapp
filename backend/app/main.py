@@ -129,7 +129,7 @@ def create_app(
     app.include_router(customers_router)
     app.include_router(orders_router)
     payment_gateway = FakeGateway()
-    faulty_gateway = FaultyGateway(payment_gateway, fault_store)
+    faulty_gateway = FaultyGateway(payment_gateway, fault_store, enabled=controls_enabled)
     invoice_store: InMemoryInvoiceStore | PostgresInvoiceStore
     if database_engine is None:
         invoice_store = InMemoryInvoiceStore(

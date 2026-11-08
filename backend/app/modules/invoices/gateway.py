@@ -36,17 +36,24 @@ class FakeGateway:
 
 
 class FaultyGateway:
-    """A gateway that consumes test faults before asking the inner gateway."""
+    """A gateway that consumes test faults before asking the inner gateway.
+
+    ``enabled`` is false in production, so the store is never queried and a stale
+    rule cannot affect payments.
+    """
 
     def __init__(
         self,
         inner: PaymentGateway,
         store: FaultStore,
         sleep: Callable[[float], None] = time.sleep,
+        *,
+        enabled: bool = True,
     ) -> None:
         self._inner = inner
         self._store = store
         self._sleep = sleep
+        self._enabled = enabled
 
     def charge(
         self,
@@ -55,6 +62,9 @@ class FaultyGateway:
         card_last4: str | None,
     ) -> GatewayDecision:
         """Inject an unavailable answer when a gateway rule is consumed."""
+        if not self._enabled:
+            return self._inner.charge(method, amount, card_last4)
+
         decision = self._store.take_gateway()
         if decision is None:
             return self._inner.charge(method, amount, card_last4)

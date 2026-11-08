@@ -50,6 +50,17 @@ def test_without_a_decision_it_calls_the_inner_gateway() -> None:
     assert inner.calls == 1
 
 
+def test_a_disabled_gateway_never_reads_the_store() -> None:
+    inner = RecordingGateway()
+    store = FixedFaultStore(FaultDecision(20_000, None))
+    gateway = FaultyGateway(inner, store, sleep=Sleeper(), enabled=False)
+
+    decision = gateway.charge("card", Decimal("10.00"), "4242")
+
+    assert decision.outcome == "approved"
+    assert inner.calls == 1
+
+
 def test_a_gateway_rule_skips_the_inner_gateway_and_caps_the_latency() -> None:
     inner = RecordingGateway()
     sleeper = Sleeper()

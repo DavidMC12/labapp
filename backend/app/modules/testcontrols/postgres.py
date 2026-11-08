@@ -13,7 +13,11 @@ from sqlalchemy.engine import Connection, Engine
 from app.infra.db import qualified_table_name
 from app.modules.orders.tables import settings as settings_table
 from app.modules.testcontrols.models import FaultDecision, NewRule, Rule
-from app.modules.testcontrols.ports import MAX_FAULT_RULES, TooManyFaultRules
+from app.modules.testcontrols.ports import (
+    MAX_CLOCK_OFFSET_SECONDS,
+    MAX_FAULT_RULES,
+    TooManyFaultRules,
+)
 from app.modules.testcontrols.tables import fault_rules
 
 CLOCK_OFFSET_KEY = "clock_offset_seconds"
@@ -63,22 +67,33 @@ class PostgresClockOffsetStore:
         )
         connection.execute(statement)
 
-    def advance(self, seconds: float, *, connection: Connection | None = None) -> float:
+    def advance(
+        self,
+        seconds: float,
+        *,
+        limit: float = MAX_CLOCK_OFFSET_SECONDS,
+        connection: Connection | None = None,
+    ) -> float | None:
         with _using(self._engine, connection) as active:
-            return self._advance(active, seconds)
+            return self._advance(active, seconds, limit)
 
-    def _advance(self, connection: Connection, seconds: float) -> float:
+    def _advance(self, connection: Connection, seconds: float, limit: float) -> float | None:
         table = qualified_table_name(self._engine, settings_table)
         delta = float(seconds)
+        maximum = float(limit)
         updated = connection.execute(
             text(
                 f"UPDATE {table} SET value = (value::float8 + :delta)::text "
-                f"WHERE key = '{CLOCK_OFFSET_KEY}' RETURNING value"
+                f"WHERE key = '{CLOCK_OFFSET_KEY}' "
+                "AND abs(value::float8 + :delta) <= :max RETURNING value"
             ),
-            {"delta": delta},
+            {"delta": delta, "max": maximum},
         ).scalar_one_or_none()
         if updated is not None:
             return float(updated)
+
+        if abs(delta) > maximum:
+            return None
 
         inserted = connection.execute(
             text(
@@ -86,11 +101,12 @@ class PostgresClockOffsetStore:
                 f"VALUES ('{CLOCK_OFFSET_KEY}', CAST(:delta AS float8)::text) "
                 "ON CONFLICT (key) DO UPDATE "
                 "SET value = (stored.value::float8 + :delta)::text "
+                "WHERE abs(stored.value::float8 + :delta) <= :max "
                 "RETURNING value"
             ),
-            {"delta": delta},
-        ).scalar_one()
-        return float(inserted)
+            {"delta": delta, "max": maximum},
+        ).scalar_one_or_none()
+        return None if inserted is None else float(inserted)
 
 
 def _active_condition():

@@ -9,6 +9,7 @@ from sqlalchemy.engine import Connection
 from app.modules.testcontrols.models import FaultDecision, NewRule, Rule
 
 MAX_FAULT_RULES = 50
+MAX_CLOCK_OFFSET_SECONDS = 10 * 365 * 24 * 60 * 60.0
 
 
 class TooManyFaultRules(Exception):
@@ -30,8 +31,18 @@ class ClockOffsetStore(Protocol):
         """Replace the stored offset."""
         ...
 
-    def advance(self, seconds: float, *, connection: Connection | None = None) -> float:
-        """Add ``seconds`` atomically and return the new offset."""
+    def advance(
+        self,
+        seconds: float,
+        *,
+        limit: float = MAX_CLOCK_OFFSET_SECONDS,
+        connection: Connection | None = None,
+    ) -> float | None:
+        """Add ``seconds`` atomically and return the new offset.
+
+        When the new offset would fall outside plus or minus ``limit`` seconds, nothing
+        changes and the result is ``None``; the caller answers 422.
+        """
         ...
 
 

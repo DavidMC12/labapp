@@ -10,7 +10,11 @@ from sqlalchemy.engine import Connection
 
 from app.infra.clock import OffsetClock
 from app.modules.testcontrols.models import FaultDecision, NewRule, Rule
-from app.modules.testcontrols.ports import MAX_FAULT_RULES, TooManyFaultRules
+from app.modules.testcontrols.ports import (
+    MAX_CLOCK_OFFSET_SECONDS,
+    MAX_FAULT_RULES,
+    TooManyFaultRules,
+)
 
 
 class InMemoryClockOffsetStore:
@@ -25,9 +29,19 @@ class InMemoryClockOffsetStore:
     def set(self, seconds: float, *, connection: Connection | None = None) -> None:
         self._clock.set_offset(timedelta(seconds=seconds))
 
-    def advance(self, seconds: float, *, connection: Connection | None = None) -> float:
-        self._clock.advance(timedelta(seconds=seconds))
-        return self.get()
+    def advance(
+        self,
+        seconds: float,
+        *,
+        limit: float = MAX_CLOCK_OFFSET_SECONDS,
+        connection: Connection | None = None,
+    ) -> float | None:
+        current = self.get()
+        updated = current + seconds
+        if abs(updated) > limit:
+            return None
+        self._clock.set_offset(timedelta(seconds=updated))
+        return updated
 
 
 class InMemoryFaultStore:

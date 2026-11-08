@@ -357,6 +357,18 @@ with code 2 when it refuses.
 uv run pytest -q
 ```
 
+## Documents and code
+
+`tests/docs/` keeps `docs/SEED.md` and the error, label, permission and transition
+tables of `docs/SPEC.md` in agreement with the code. The tests read the Markdown
+files and call the same pure functions the application uses; they do not start a
+server or a database.
+
+When one fails, change the document and the code in the same commit. Do not edit
+the test to accept the difference. A test marked `xfail(strict=True)` records a
+known disagreement: its reason names both sides, and the mark comes off once the
+document and the code agree.
+
 ## Lint and format
 
 ```bash

@@ -1,8 +1,26 @@
 "use client";
 
-import { Alert, Button, Input, Link, Select, TableScroll } from "@/components/ui";
+import {
+  Alert,
+  Button,
+  Input,
+  Link,
+  Select,
+  SortableHeader,
+  type SortableHeaderState,
+  TableScroll,
+} from "@/components/ui";
 import { useInvoices } from "@/features/invoices/hooks";
-import { parseInvoiceListParams } from "@/features/invoices/params";
+import {
+  flipInvoiceSortDirection,
+  invoiceSortDefaultDirection,
+  invoiceSortLabel,
+  isDefaultInvoiceSort,
+  parseInvoiceListParams,
+  resolveInvoiceSort,
+  type InvoiceSort,
+  type InvoiceSortField,
+} from "@/features/invoices/params";
 import {
   invoiceStatusLabel,
 } from "@/features/invoices/types";
@@ -10,13 +28,19 @@ import { ApiRequestError, INTERNAL_ERROR_DETAIL } from "@/lib/api";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { formatDate, formatMoney } from "@/lib/format";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 
 /**
- * The list URL of the screen: page (always) plus the search values that
- * have one. This is what every navigation writes, so links can be shared.
+ * The list URL of the screen: page (always) plus the search values and
+ * the sort when it is not the plain-list one. This is what every
+ * navigation writes, so links can be shared.
  */
-function listUrl(page: number, q: string | null, status: string | null): string {
+function listUrl(
+  page: number,
+  q: string | null,
+  status: string | null,
+  sort: InvoiceSort,
+): string {
   const search = new URLSearchParams();
   search.set("page", String(page));
   if (q) {
@@ -24,6 +48,10 @@ function listUrl(page: number, q: string | null, status: string | null): string 
   }
   if (status) {
     search.set("status", status);
+  }
+  if (!isDefaultInvoiceSort(sort)) {
+    search.set("sort", sort.sort);
+    search.set("direction", sort.direction);
   }
   return `/invoices?${search.toString()}`;
 }
@@ -64,10 +92,26 @@ function InvoicesListContent() {
   const searchParams = useSearchParams();
 
   const params = parseInvoiceListParams(searchParams);
+  // The resolved sort is stable while the URL values are (see the
+  // customers list): the correction effect must not repeat itself.
+  const sort = useMemo(
+    () =>
+      resolveInvoiceSort({
+        sort: params.sort,
+        direction: params.direction,
+      }),
+    [params.sort, params.direction],
+  );
+  // The default order travels without parameters: both the URL and the
+  // list request stay the ones of the plain list.
+  const sortRequest = isDefaultInvoiceSort(sort)
+    ? {}
+    : { sort: sort.sort, direction: sort.direction };
   const list = useInvoices({
     page: params.page,
     q: params.q ?? undefined,
     status: params.status ?? undefined,
+    ...sortRequest,
   });
 
   // The fields of the search form are local; submitting them writes the
@@ -100,17 +144,40 @@ function InvoicesListContent() {
     if (params.page <= last) {
       return;
     }
-    router.replace(listUrl(last, params.q, params.status));
-  }, [data, params.page, params.q, params.status, router]);
+    router.replace(listUrl(last, params.q, params.status, sort));
+  }, [data, params.page, params.q, params.status, sort, router]);
 
   function handleSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     // Submitting goes back to page 1 with the trimmed values.
-    router.push(listUrl(1, qInput.trim() || null, statusInput || null));
+    router.push(listUrl(1, qInput.trim() || null, statusInput || null, sort));
   }
 
   function goToPage(page: number) {
-    router.push(listUrl(page, params.q, params.status));
+    router.push(listUrl(page, params.q, params.status, sort));
+  }
+
+  /**
+   * Sorting from a header: a new column sorts with the default direction
+   * of its field (`created_at` descending), the sorted one flips; either
+   * way the page goes back to 1 and the filters stay.
+   */
+  function toggleSort(field: InvoiceSortField) {
+    const next: InvoiceSort = field === sort.sort
+      ? {
+        sort: field,
+        direction: flipInvoiceSortDirection(sort.direction),
+      }
+      : { sort: field, direction: invoiceSortDefaultDirection(field) };
+    router.push(listUrl(1, params.q, params.status, next));
+  }
+
+  /** The header state of one sortable column, the `aria-sort` value. */
+  function headerState(field: InvoiceSortField): SortableHeaderState {
+    if (sort.sort !== field) {
+      return "none";
+    }
+    return sort.direction === "asc" ? "ascending" : "descending";
   }
 
   function problemDetail(): string {
@@ -129,6 +196,20 @@ function InvoicesListContent() {
          * order.
          */}
       </div>
+
+      {/*
+       * The live announcement of the order of the table (the same one the
+       * other lists have), hidden from the visual layout.
+       */}
+      <p
+        role="status"
+        data-testid="invoices-list-sort-text"
+        className="sr-only"
+      >
+        {`Ordenado por ${invoiceSortLabel(sort.sort)}, ${
+          sort.direction === "asc" ? "ascendente" : "descendente"
+        }`}
+      </p>
 
       <form
         data-testid="invoices-list-search-form"
@@ -209,12 +290,36 @@ function InvoicesListContent() {
             >
               <thead>
                 <tr>
-                  <th scope="col" className={TABLE_HEAD_CLASSES}>Número</th>
+                  <SortableHeader
+                    label="Número"
+                    testId="invoices-list-sort-number-button"
+                    state={headerState("number")}
+                    className={TABLE_HEAD_CLASSES}
+                    onClick={() => toggleSort("number")}
+                  />
                   <th scope="col" className={TABLE_HEAD_CLASSES}>Pedido</th>
-                  <th scope="col" className={TABLE_HEAD_CLASSES}>Cliente</th>
+                  <SortableHeader
+                    label="Cliente"
+                    testId="invoices-list-sort-customer-button"
+                    state={headerState("customer")}
+                    className={TABLE_HEAD_CLASSES}
+                    onClick={() => toggleSort("customer")}
+                  />
                   <th scope="col" className={TABLE_HEAD_CLASSES}>Estado</th>
-                  <th scope="col" className={TABLE_HEAD_CLASSES}>Total</th>
-                  <th scope="col" className={TABLE_HEAD_CLASSES}>Creada</th>
+                  <SortableHeader
+                    label="Total"
+                    testId="invoices-list-sort-total-button"
+                    state={headerState("total")}
+                    className={TABLE_HEAD_CLASSES}
+                    onClick={() => toggleSort("total")}
+                  />
+                  <SortableHeader
+                    label="Creada"
+                    testId="invoices-list-sort-created-button"
+                    state={headerState("created_at")}
+                    className={TABLE_HEAD_CLASSES}
+                    onClick={() => toggleSort("created_at")}
+                  />
                 </tr>
               </thead>
               <tbody>

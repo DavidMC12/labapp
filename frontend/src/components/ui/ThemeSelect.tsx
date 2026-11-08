@@ -18,6 +18,8 @@ type ThemeSelectProps = {
   testId: TestId;
   /** Extra classes for the label, for example a rail color. */
   labelClassName?: string;
+  /** Sizes to its content on the phone; fills its column from md up. */
+  compact?: boolean;
 };
 
 /**
@@ -32,7 +34,7 @@ type ThemeSelectProps = {
  * over right after, never during a render. With blocked storage every
  * operation degrades silently to the system theme.
  */
-export function ThemeSelect({ id, testId, labelClassName }: ThemeSelectProps) {
+export function ThemeSelect({ id, testId, labelClassName, compact }: ThemeSelectProps) {
   const setting = useSyncExternalStore(
     subscribeToThemeChanges,
     currentThemeSetting,
@@ -51,6 +53,7 @@ export function ThemeSelect({ id, testId, labelClassName }: ThemeSelectProps) {
       testId={testId}
       label="Tema"
       labelClassName={labelClassName}
+      compact={compact}
       value={setting}
       onChange={handleChange}
     >

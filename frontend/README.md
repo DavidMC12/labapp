@@ -324,6 +324,42 @@ src/
 - The navigation link "Configuración" (`app-nav-settings-link`) is
   visible to every role; the current-section highlight covers it.
 
+## Products
+
+- Page `/products` ("Productos"), the read-only catalog of flow 2; screen
+  under `src/app/(app)/products/`, data layer in
+  `src/features/products/`. Every role sees it (the link
+  "Productos" `app-nav-products-link` sits in the rail between "Pedidos"
+  and "Facturas", with the same current-section highlight).
+- The data layer is a thin re-export of the orders module's
+  `useProducts` / `fetchProducts` / `Product` / `PRODUCTS_KEY`
+  (`["products"]`), so a catalog visit and an open draft editor share one
+  request and one cache entry; nothing is duplicated.
+- Columns: SKU, Producto, Precio (`formatMoney`, right aligned) and
+  Stock (an integer, right aligned), in the order the API returns
+  (`GET /api/products`, by id, no paging — one request per visit).
+- The search filters **on the client**, on the rows already loaded
+  (`src/features/products/search.ts`): case- and accent-insensitive
+  "contains" on the SKU or the name (Unicode NFKD, combining marks
+  removed, lowercased on both sides — `mouse óptico` matches
+  "Mouse óptico" and "mouse optico" alike). No request is made to apply it.
+- URL state: only `?q=` (trimmed by `parseProductListParams`, like the
+  other lists), written by the form (button or Enter) through the
+  router. Without a value the url is plain `/products`.
+- **The stock cue** (`src/features/products/stock.ts`): a stock of 0 shows
+  the badge "Agotado" and a stock of 1–5 shows "Poco stock" next to the
+  number in the Stock cell (`products-list-stockstate-status-{id}`,
+  `bg-danger-bg text-danger` for "Agotado", `bg-off-bg text-muted` for
+  "Poco stock" — text is always the cue, never color alone). Above 5 only
+  the number. The thresholds (`OUT_OF_STOCK_MAX = 0`,
+  `LOW_STOCK_MAX = 5`) are constants in that one file and are tested.
+- The ledger footer (`products-list-footer-item`) counts the **filtered**
+  rows ("1 producto" / "N productos"), exactly what a test can assert
+  after searching. Stock is live: after a confirm or cancel elsewhere,
+  this screen shows it again on its next fetch. Empty (no match,
+  `products-list-empty-status` "No hay productos que coincidan"), loading
+  and error states follow the pattern of the other list screens.
+
 ## Customers
 
 Feature code in `src/features/customers/`, screens under

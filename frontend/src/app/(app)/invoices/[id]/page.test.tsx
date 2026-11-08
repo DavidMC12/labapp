@@ -317,11 +317,39 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  document.title = "LabApp";
   vi.unstubAllGlobals();
   mutateAnswer = null;
 });
 
 describe("the invoice detail states", () => {
+  it("titles the tab with the section while loading and with the number loaded", async () => {
+    // The invoice request stays in the air first: the tab answers the
+    // section title while nothing else is on screen.
+    let respond!: (response: Response) => void;
+    const heldInvoice = new Promise<Response>((resolve) => {
+      respond = resolve;
+    });
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      if (String(input) === "/api/invoices/1") {
+        return heldInvoice;
+      }
+      return jsonResponse(meUser);
+    });
+    renderDetail();
+    expect(document.title).toBe("Facturas · LabApp");
+
+    // The waiting request answers and the number replaces the section.
+    respond(jsonResponse(invoiceBody ?? issuedInvoice()));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("invoices-detail-heading")).toHaveTextContent(
+        "FAC-0001",
+      );
+    });
+    expect(document.title).toBe("Factura FAC-0001 · LabApp");
+  });
+
   it("shows the not-found alert with the back link and without retry", async () => {
     invoiceStatus = 503;
     invoiceBody = issuedInvoice();

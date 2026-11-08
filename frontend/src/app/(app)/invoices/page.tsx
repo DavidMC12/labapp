@@ -7,6 +7,7 @@ import {
   invoiceStatusLabel,
 } from "@/features/invoices/types";
 import { ApiRequestError, INTERNAL_ERROR_DETAIL } from "@/lib/api";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { formatDate, formatMoney } from "@/lib/format";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
@@ -327,6 +328,8 @@ function InvoicesListContent() {
 }
 
 export default function InvoicesPage() {
+  useDocumentTitle("Facturas");
+
   return (
     <Suspense
       fallback={

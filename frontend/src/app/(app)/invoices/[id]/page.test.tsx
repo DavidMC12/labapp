@@ -1422,6 +1422,49 @@ describe("the focus and the server fields of a strict 422", () => {
     );
   });
 
+  it("focuses the amount field when only it fails on the server", async () => {
+    mutateAnswer = () =>
+      jsonResponse(
+        {
+          type: "about:blank",
+          title: "Unprocessable Content",
+          status: 422,
+          code: "VALIDATION_ERROR",
+          detail: "Revisa los datos ingresados.",
+          errors: [
+            {
+              field: "amount",
+              code: "OUT_OF_RANGE",
+              message: "El monto no cubre el total pendiente.",
+            },
+          ],
+        },
+        422,
+      );
+    await renderIssuedDetail();
+
+    const user = userEvent.setup();
+    await user.type(
+      screen.getByTestId("payments-register-cardnumber-input"),
+      "4242424242424242",
+    );
+    await user.type(
+      screen.getByTestId("payments-register-cardexpiry-input"),
+      "31/12/2027",
+    );
+    await user.type(screen.getByTestId("payments-register-cardcvc-input"), "123");
+    await user.click(screen.getByTestId("payments-register-submit-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("payments-register-amount-error"))
+        .toHaveTextContent("El monto no cubre el total pendiente.");
+    });
+    expect(document.activeElement).toHaveAttribute(
+      "data-testid",
+      "payments-register-amount-input",
+    );
+  });
+
   it("focuses the card expiry when only it fails on the server", async () => {
     mutateAnswer = () =>
       jsonResponse(

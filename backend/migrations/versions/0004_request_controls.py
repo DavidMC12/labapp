@@ -51,7 +51,10 @@ def upgrade() -> None:
         ),
         sa.CheckConstraint("remaining >= 0", name=op.f("ck_fault_rules_remaining")),
     )
-    op.execute("INSERT INTO settings (key, value) VALUES ('clock_offset_seconds', '0')")
+    op.execute(
+        "INSERT INTO settings (key, value) VALUES ('clock_offset_seconds', '0') "
+        "ON CONFLICT (key) DO NOTHING"
+    )
 
 
 def downgrade() -> None:

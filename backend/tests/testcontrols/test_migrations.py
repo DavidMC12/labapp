@@ -28,3 +28,36 @@ def test_the_revision_chain_is_0003_then_0004() -> None:
     assert fourth.down_revision == third.revision  # type: ignore[attr-defined]
     assert callable(fourth.upgrade)  # type: ignore[attr-defined]
     assert callable(fourth.downgrade)  # type: ignore[attr-defined]
+
+
+class _RecordingOp:
+    """Record the statements of the migration without touching a database."""
+
+    def __init__(self) -> None:
+        self.statements: list[str] = []
+
+    def create_table(self, *args: object, **kwargs: object) -> None:
+        pass
+
+    def drop_table(self, *args: object, **kwargs: object) -> None:
+        pass
+
+    def f(self, name: str) -> str:
+        return name
+
+    def execute(self, statement: object) -> None:
+        self.statements.append(str(statement))
+
+
+def test_the_migration_keeps_an_existing_clock_row() -> None:
+    migration = _load_revision(REVISION_4_PATH, "migration_0004")
+    recorder = _RecordingOp()
+    migration.op = recorder  # type: ignore[attr-defined]
+
+    migration.upgrade()  # type: ignore[attr-defined]
+
+    inserts = [
+        statement for statement in recorder.statements if "INSERT INTO settings" in statement
+    ]
+    assert len(inserts) == 1
+    assert "ON CONFLICT (key) DO NOTHING" in inserts[0]

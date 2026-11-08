@@ -10,6 +10,8 @@
 // It prints the states it covered: the 100% goal is measured over those states. Exit code 1 when anything fails.
 //
 // Needs a running application (API and web) at "baseUrl" and the frontend dependencies installed.
+// A state may have "steps": [{ "click": "<test id>", "waitFor": "<test id that must become visible>" }] to reach a state
+// that needs an interaction (a dialog).
 // Usage: node tools/audit/browser-audit.mjs [--base http://localhost:3000] [--only name,name] [--theme light|dark] [--catalog file.md] [--json]
 //   --catalog writes the test ids found in every state as a Markdown catalog (docs/TESTIDS.md); CI compares it with the committed copy.
 //   --theme pins the explicit choice of the theme selector (the localStorage key of frontend/src/lib/theme.ts) before every
@@ -229,6 +231,21 @@ async function main() {
         continue;
       }
       await sleep(300);
+      // Interaction steps (a state that needs a click to reach it, a dialog for example): click the element with the
+      // test id, then wait until the element named by "waitFor" is visible on the page.
+      let stepFailed = false;
+      for (const step of state.steps ?? []) {
+        const clicked = await evaluate(`(() => { const el = document.querySelector('[data-testid="${step.click}"]'); if (!el) return false; el.click(); return true; })()`);
+        if (!clicked) { entry.failures.push(`step: no element with the test id "${step.click}" to click`); stepFailed = true; break; }
+        let shown = false;
+        for (let i = 0; i < 40 && !shown; i++) {
+          await sleep(100);
+          shown = await evaluate(`(() => { const el = document.querySelector('[data-testid="${step.waitFor}"]'); return !!el && !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length); })()`).catch(() => false);
+        }
+        if (!shown) { entry.failures.push(`step: "${step.waitFor}" never became visible after clicking "${step.click}"`); stepFailed = true; break; }
+      }
+      if (stepFailed) { report.push(entry); continue; }
+      if (state.steps?.length) await sleep(300);
       if (theme) {
         // The run is only worth something if the page really took the theme it was asked for.
         const applied = await evaluate(`document.documentElement.getAttribute("data-theme")`);

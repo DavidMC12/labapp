@@ -89,6 +89,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  document.title = "LabApp";
   vi.unstubAllGlobals();
 });
 
@@ -164,6 +165,8 @@ describe("the settings screen views", () => {
     expect(screen.getByTestId("settings-page-heading")).toHaveTextContent(
       "Configuración",
     );
+    // The tab answers "Configuración · LabApp" (useDocumentTitle).
+    expect(document.title).toBe("Configuración · LabApp");
     expect(screen.getByTestId("settings-taxrate-heading")).toHaveTextContent(
       "Impuesto",
     );

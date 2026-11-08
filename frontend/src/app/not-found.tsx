@@ -1,4 +1,9 @@
 import { Link } from "@/components/ui";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Página no encontrada",
+};
 
 /**
  * The 404 page of any unknown route (the root `not-found.tsx` is what

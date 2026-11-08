@@ -1,6 +1,7 @@
 "use client";
 
 import { Button, Link } from "@/components/ui";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 
 /**
  * The error boundary of every segment under the root layout. The crash
@@ -16,6 +17,8 @@ export default function AppError({
   error: unknown;
   reset: () => void;
 }) {
+  useDocumentTitle("Algo salió mal");
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-4 py-10 text-center">
       <h1 data-testid="app-error-heading">Algo salió mal</h1>

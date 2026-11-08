@@ -142,10 +142,20 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  document.title = "LabApp";
   vi.unstubAllGlobals();
 });
 
 describe("the create page structure", () => {
+  it("titles the document Nuevo pedido before anything loads", async () => {
+    renderPage();
+
+    expect(document.title).toBe("Nuevo pedido · LabApp");
+    await waitFor(() => {
+      expect(screen.getByTestId("orders-customer-form")).toBeInTheDocument();
+    });
+  });
+
   it("renders the heading, the two forms and the picker", async () => {
     renderPage();
 

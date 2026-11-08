@@ -27,6 +27,10 @@ export default defineConfig({ use: { testIdAttribute: 'data-testid' } });
 
 ## Observable state
 
+The document title names the page: `{page} · LabApp` (the
+`useDocumentTitle` hook of the frontend; the details keep their section
+title until the record arrives).
+
 | Attribute | Meaning |
 |---|---|
 | `data-state` | The current state of a component (for example `idle`, `loading`, `success`, `error`). |

@@ -100,6 +100,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  document.title = "LabApp";
   vi.unstubAllGlobals();
 });
 
@@ -138,6 +139,8 @@ describe("the home summary structure", () => {
     expect(screen.getByTestId("app-home-heading")).toHaveTextContent(
       "Resumen",
     );
+    // The tab answers "Resumen · LabApp" (useDocumentTitle).
+    expect(document.title).toBe("Resumen · LabApp");
     for (const heading of [
       "home-customers-heading",
       "home-orders-heading",

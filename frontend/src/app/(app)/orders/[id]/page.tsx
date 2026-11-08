@@ -21,6 +21,7 @@ import {
 import { useCustomers } from "@/features/customers/hooks";
 import type { CustomerList } from "@/features/customers/types";
 import { ApiRequestError, INTERNAL_ERROR_DETAIL } from "@/lib/api";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import type { ApiFieldError, ApiProblem } from "@/lib/api";
 import { formatDateTime, formatMoney } from "@/lib/format";
 import type {
@@ -504,6 +505,12 @@ function OrderDetail({ id }: { id: number }) {
   const me = useMe();
   const orderQuery = useOrder(id);
   const router = useRouter();
+
+  // The tab: the section while the record is in the air (and while a
+  // failed request is on screen), the order number after it arrives.
+  useDocumentTitle(
+    orderQuery.isSuccess ? `Pedido ${orderQuery.data.number}` : "Pedidos",
+  );
 
   const setCustomer = useSetOrderCustomer();
   const addLine = useAddLine();
@@ -1122,6 +1129,9 @@ function OrderDetail({ id }: { id: number }) {
 }
 
 export default function OrderDetailPage() {
+  // The section title covers the invalid-id screen too; the content
+  // component replaces it with the order number once it arrives.
+  useDocumentTitle("Pedidos");
   const id = parseOrderIdParam(useParams().id);
 
   if (id === null) {

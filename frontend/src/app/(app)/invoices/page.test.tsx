@@ -121,10 +121,17 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  document.title = "LabApp";
   vi.unstubAllGlobals();
 });
 
 describe("the invoices list structure", () => {
+  it("answers the section title in the tab from the first paint", () => {
+    renderAt("");
+
+    expect(document.title).toBe("Facturas · LabApp");
+  });
+
   it("renders heading, search form, table and pagination from seed data", async () => {
     respondList(
       listPageOf(

@@ -10,6 +10,7 @@ import { parseCustomerIdParam } from "@/features/customers/params";
 import { canManageCustomers } from "@/features/customers/permissions";
 import { statusLabel } from "@/features/customers/types";
 import { ApiRequestError, INTERNAL_ERROR_DETAIL } from "@/lib/api";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { useParams } from "next/navigation";
 import { useRef, useState } from "react";
 
@@ -29,6 +30,9 @@ function DetailRow({ label, children }: {
 }
 
 export default function CustomerDetailPage() {
+  // The section title covers the invalid-id screen too; the content
+  // component replaces it with the customer's name once it arrives.
+  useDocumentTitle("Clientes");
   const id = parseCustomerIdParam(useParams().id);
 
   if (id === null) {
@@ -55,6 +59,12 @@ function CustomerDetail({ id }: { id: number }) {
   const me = useMe();
   const customer = useCustomer(id);
   const statusMutation = useSetCustomerStatus();
+
+  // The tab: the section while the record is in the air (and while a
+  // failed request is on screen), the name after it arrives.
+  useDocumentTitle(
+    customer.isSuccess ? `Cliente ${customer.data.name}` : "Clientes",
+  );
 
   const [actionError, setActionError] = useState<string | null>(null);
   // The busy guard lives in the handler: a state update would not be

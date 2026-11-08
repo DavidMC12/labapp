@@ -5,6 +5,7 @@ import { useMe } from "@/features/auth/hooks";
 import { useSettings, useUpdateTaxRate } from "@/features/settings/hooks";
 import { canChangeTaxRate } from "@/features/settings/permissions";
 import { ApiRequestError, INTERNAL_ERROR_DETAIL } from "@/lib/api";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { useEffect, useRef, useState } from "react";
 
 /**
@@ -17,6 +18,7 @@ import { useEffect, useRef, useState } from "react";
  * the spec (format, range, permission) are asserted by the API itself.
  */
 export default function SettingsPage() {
+  useDocumentTitle("Configuración");
   const me = useMe();
   const settings = useSettings();
   const updateMutation = useUpdateTaxRate();

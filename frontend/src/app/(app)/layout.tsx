@@ -198,89 +198,114 @@ export default function AppLayout({
   ];
 
   // The rail on 768px and up; a full-width top bar below. The DOM order
-  // (brand, navigation, user block with the logout) is the tab order in
-  // both layouts; the mobile top bar is a row of the user block under the
-  // navigation, never on the brand row.
+  // (skip link, brand, navigation, user block with the logout) is the tab
+  // order in both layouts; the mobile top bar is a row of the user block
+  // under the navigation, never on the brand row.
   return (
-    <div className="min-h-screen md:grid md:grid-cols-[212px_minmax(0,1fr)]">
-      <aside className="flex flex-col bg-rail text-rail-ink md:sticky md:top-0 md:h-screen">
-        <div className="px-4 py-3 md:px-3 md:pt-4">
-          <Link
-            href="/"
-            testId="app-nav-home-link"
-            variant="rail"
-            className="font-serif text-lg font-semibold text-rail-ink"
-          >
-            <LedgerMark />
-            LabApp
-          </Link>
-        </div>
-
-        <nav
-          aria-label="Principal"
-          className="flex flex-wrap gap-1 p-1.5 md:mt-4 md:flex-col md:px-3"
-        >
-          {navItems.map((item) => {
-            const current = isCurrentSection(pathname, item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                testId={item.testId}
-                variant="rail"
-                aria-current={current ? "page" : undefined}
-                className={[
-                  "whitespace-nowrap",
-                  current
-                    ? "bg-rail-active font-semibold text-rail-active-ink"
-                    : "text-rail-muted",
-                ].join(" ")}
-              >
-                {item.icon}
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="flex flex-wrap items-center gap-3 px-4 pb-2 md:mt-auto md:flex-col md:items-stretch md:border-t md:border-rail-muted/40 md:px-3 md:py-3">
-          <p
-            data-testid="app-user-name-text"
-            className="text-[15px] font-medium"
-          >
-            {user.name}
-          </p>
-          <p
-            data-testid="app-user-role-text"
-            className="text-[13px] text-rail-muted"
-          >
-            {roleLabel(user.role)}
-          </p>
-          {/*
-           * The theme selector lives in the user block: at the bottom of
-           * the rail on desktop, in the same block under the links on the
-           * phone layout. On the phone it takes a row of its own.
-           */}
-          <div className="w-full basis-full md:w-auto md:basis-auto">
-            <ThemeSelect
-              testId="app-theme-select"
-              id="app-theme"
-              labelClassName="text-rail-ink"
-            />
+    <>
+      {/*
+       * The first focusable element of the page (WCAG 2.4.1 bypass
+       * blocks): hidden until it receives focus, then a solid chip over
+       * the paper background. It jumps to the main landmark below.
+       */}
+      <a
+        href="#main-content"
+        data-testid="app-skip-link"
+        className={[
+          "sr-only focus:not-sr-only",
+          "focus:fixed focus:left-2 focus:top-2 focus:z-50",
+          "focus:rounded-md focus:bg-surface focus:px-3 focus:py-2",
+          "focus:font-medium focus:text-ink",
+        ].join(" ")}
+      >
+        Saltar al contenido
+      </a>
+      <div className="min-h-screen md:grid md:grid-cols-[212px_minmax(0,1fr)]">
+        <aside className="flex flex-col bg-rail text-rail-ink md:sticky md:top-0 md:h-screen">
+          <div className="px-4 py-3 md:px-3 md:pt-4">
+            <Link
+              href="/"
+              testId="app-nav-home-link"
+              variant="rail"
+              className="font-serif text-lg font-semibold text-rail-ink"
+            >
+              <LedgerMark />
+              LabApp
+            </Link>
           </div>
-          <Button
-            testId="app-logout-button"
-            variant="rail"
-            className="ml-auto md:ml-0 md:w-full"
-            loading={logout.isPending}
-            onClick={() => void handleLogout()}
-          >
-            Salir
-          </Button>
-        </div>
-      </aside>
 
-      <main className="min-w-0 flex-1 px-4 py-6 md:px-6">{children}</main>
-    </div>
+          <nav
+            aria-label="Principal"
+            className="flex flex-wrap gap-1 p-1.5 md:mt-4 md:flex-col md:px-3"
+          >
+            {navItems.map((item) => {
+              const current = isCurrentSection(pathname, item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  testId={item.testId}
+                  variant="rail"
+                  aria-current={current ? "page" : undefined}
+                  className={[
+                    "whitespace-nowrap",
+                    current
+                      ? "bg-rail-active font-semibold text-rail-active-ink"
+                      : "text-rail-muted",
+                  ].join(" ")}
+                >
+                  {item.icon}
+                  {item.label}
+                </Link>
+              );
+            })}
+          </nav>
+
+          <div className="flex flex-wrap items-center gap-3 px-4 pb-2 md:mt-auto md:flex-col md:items-stretch md:border-t md:border-rail-muted/40 md:px-3 md:py-3">
+            <p
+              data-testid="app-user-name-text"
+              className="text-[15px] font-medium"
+            >
+              {user.name}
+            </p>
+            <p
+              data-testid="app-user-role-text"
+              className="text-[13px] text-rail-muted"
+            >
+              {roleLabel(user.role)}
+            </p>
+            {/*
+             * The theme selector lives in the user block: at the bottom of
+             * the rail on desktop, in the same block under the links on the
+             * phone layout. On the phone it takes a row of its own.
+             */}
+            <div className="w-full basis-full md:w-auto md:basis-auto">
+              <ThemeSelect
+                testId="app-theme-select"
+                id="app-theme"
+                labelClassName="text-rail-ink"
+              />
+            </div>
+            <Button
+              testId="app-logout-button"
+              variant="rail"
+              className="ml-auto md:ml-0 md:w-full"
+              loading={logout.isPending}
+              onClick={() => void handleLogout()}
+            >
+              Salir
+            </Button>
+          </div>
+        </aside>
+
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="min-w-0 flex-1 px-4 py-6 md:px-6"
+        >
+          {children}
+        </main>
+      </div>
+    </>
   );
 }

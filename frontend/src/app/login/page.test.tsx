@@ -69,12 +69,15 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  document.title = "LabApp";
   vi.unstubAllGlobals();
 });
 
 describe("login page structure", () => {
   it("renders heading, fields, submit button and demo box", () => {
     renderLoginPage();
+
+    expect(document.title).toBe("Iniciar sesión · LabApp");
 
     expect(
       screen.getByRole("heading", { name: "Iniciar sesión" }),
@@ -111,6 +114,44 @@ describe("login page structure", () => {
     });
     expect(screen.getByTestId("auth-login-demo-password-text"))
       .toHaveTextContent("Contraseña para todos: Demo-LabApp-2026!");
+  });
+});
+
+describe("the skip link and the landmarks of the login page", () => {
+  it("puts the skip link first in the tab order, with the target ready", async () => {
+    renderLoginPage();
+
+    const skipLink = screen.getByTestId("auth-login-skip-link");
+    expect(skipLink).toHaveTextContent("Saltar al contenido");
+    expect(skipLink).toHaveAttribute("href", "#main-content");
+
+    // First focusable element: the first Tab of a fresh page reaches it,
+    // ahead of the theme select, the fields and the demo box.
+    const user = userEvent.setup();
+    await user.tab();
+    expect(document.activeElement).toBe(skipLink);
+
+    // The screen content is one heading further.
+    await user.tab();
+    expect(document.activeElement).not.toBe(skipLink);
+    expect(document.activeElement).toHaveAttribute("data-testid",
+      "auth-login-theme-select");
+  });
+
+  it("moves the page content into a main landmark with the id", () => {
+    renderLoginPage();
+
+    const main = document.querySelector("main");
+    expect(main).not.toBeNull();
+    expect(main).toHaveAttribute("id", "main-content");
+    expect(main).toHaveAttribute("tabindex", "-1");
+
+    // Everything of the page lives inside it, the demo credentials too.
+    expect(
+      main?.addEventListener,
+    ).toBeDefined();
+    expect(main).toContainElement(screen.getByTestId("auth-login-form"));
+    expect(main).toContainElement(screen.getByTestId("auth-login-demo-list"));
   });
 });
 

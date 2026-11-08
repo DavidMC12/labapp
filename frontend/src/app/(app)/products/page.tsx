@@ -9,6 +9,7 @@ import { stockState } from "@/features/products/stock";
 import type { Product } from "@/features/products/hooks";
 import { ApiRequestError, INTERNAL_ERROR_DETAIL } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 
@@ -260,6 +261,8 @@ function ProductsListContent() {
  * list screens).
  */
 export default function ProductsPage() {
+  useDocumentTitle("Productos");
+
   return (
     <Suspense
       fallback={

@@ -6,6 +6,78 @@
 
 import type { OrderStatus } from "./types";
 
+/** The fields the orders list URL may sort by (docs/SPEC.md section 5). */
+export type OrderSortField = "created_at" | "number" | "customer";
+
+/** The two directions the URLs of the list can carry for one field. */
+export type OrderSortDirection = "asc" | "desc";
+
+/** One full sort: a field and its direction, the state the headers write. */
+export type OrderSort = {
+  sort: OrderSortField;
+  direction: OrderSortDirection;
+};
+
+/** The fields the list accepts; any other `sort` value in the URL falls back. */
+const SORT_FIELDS: readonly OrderSortField[] = [
+  "created_at",
+  "number",
+  "customer",
+];
+
+/** The order of the plain list: newest order first. */
+export const DEFAULT_ORDER_SORT: OrderSort = {
+  sort: "created_at",
+  direction: "desc",
+};
+
+/** The direction one field sorts with when the click does not flip it. */
+export function orderSortDefaultDirection(
+  field: OrderSortField,
+): OrderSortDirection {
+  return field === "created_at" ? "desc" : "asc";
+}
+
+/** The other direction of one sort (there is no "unsorted" state). */
+export function flipOrderSortDirection(
+  direction: OrderSortDirection,
+): OrderSortDirection {
+  return direction === "asc" ? "desc" : "asc";
+}
+
+/**
+ * The effective sort of one visit: the URL pair, with a missing or
+ * invalid value meaning the default of the field (the customers list
+ * rule, docs/SPEC.md section 5).
+ */
+export function resolveOrderSort(params: {
+  sort: OrderSortField | null;
+  direction: OrderSortDirection | null;
+}): OrderSort {
+  const sort = params.sort ?? DEFAULT_ORDER_SORT.sort;
+  return {
+    sort,
+    direction: params.direction ?? orderSortDefaultDirection(sort),
+  };
+}
+
+/** True when the pair is the one of the plain list. */
+export function isDefaultOrderSort(sort: OrderSort): boolean {
+  return sort.sort === DEFAULT_ORDER_SORT.sort
+    && sort.direction === DEFAULT_ORDER_SORT.direction;
+}
+
+/** The Spanish label of a sort field, the text the announcement carries. */
+const ORDER_SORT_LABELS: Record<OrderSortField, string> = {
+  "created_at": "Creado",
+  "number": "Número",
+  "customer": "Cliente",
+};
+
+export function orderSortLabel(field: OrderSortField): string {
+  return ORDER_SORT_LABELS[field];
+}
+
 /** Largest page the list API recognizes (docs/SPEC.md section 5). */
 const MAX_PAGE = 1000000;
 
@@ -63,6 +135,10 @@ export type OrderListParams = {
   status: OrderStatus | null;
   /** The `customer_id` filter, or null when the URL has none or a bad one. */
   customerId: number | null;
+  /** Parsed `sort` of the URL: null is the default field (`created_at`). */
+  sort: OrderSortField | null;
+  /** Parsed `direction` of the URL: null is the default of `sort`. */
+  direction: OrderSortDirection | null;
 };
 
 /**
@@ -96,5 +172,15 @@ export function parseOrderListParams(
     searchParams.get("customer_id") ?? "",
   );
 
-  return { page, q, status, customerId };
+  const sortRaw = searchParams.get("sort") ?? "";
+  const sort = (SORT_FIELDS as readonly string[]).includes(sortRaw)
+    ? (sortRaw as OrderSortField)
+    : null;
+
+  const directionRaw = searchParams.get("direction") ?? "";
+  const direction = directionRaw === "asc" || directionRaw === "desc"
+    ? directionRaw
+    : null;
+
+  return { page, q, status, customerId, sort, direction };
 }

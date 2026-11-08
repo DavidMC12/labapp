@@ -1,10 +1,63 @@
 import { describe, expect, it } from "vitest";
 import {
+  flipOrderSortDirection,
+  isDefaultOrderSort,
+  orderSortDefaultDirection,
+  orderSortLabel,
   parseCustomerIdParam,
   parseOrderIdParam,
   parseOrderListParams,
+  resolveOrderSort,
 } from "./params";
 import type { OrderListParams } from "./params";
+
+describe("the orders sort helpers", () => {
+  it("acts the default direction of each field out", () => {
+    expect(orderSortDefaultDirection("created_at")).toBe("desc");
+    expect(orderSortDefaultDirection("number")).toBe("asc");
+    expect(orderSortDefaultDirection("customer")).toBe("asc");
+  });
+
+  it("flips one direction and never leaves the valid pair", () => {
+    expect(flipOrderSortDirection("asc")).toBe("desc");
+    expect(flipOrderSortDirection("desc")).toBe("asc");
+  });
+
+  it("resolves the effective sort of the URL values", () => {
+    expect(resolveOrderSort({ sort: null, direction: null })).toEqual({
+      sort: "created_at",
+      direction: "desc",
+    });
+    expect(resolveOrderSort({ sort: "number", direction: null })).toEqual({
+      sort: "number",
+      direction: "asc",
+    });
+    // A present direction applies to the default field without `sort`.
+    expect(resolveOrderSort({ sort: null, direction: "asc" })).toEqual({
+      sort: "created_at",
+      direction: "asc",
+    });
+    expect(resolveOrderSort({ sort: "customer", direction: "desc" })).toEqual({
+      sort: "customer",
+      direction: "desc",
+    });
+  });
+
+  it("answers whether a sort is the one of the plain list", () => {
+    expect(isDefaultOrderSort({ sort: "created_at", direction: "desc" }))
+      .toBe(true);
+    expect(isDefaultOrderSort({ sort: "created_at", direction: "asc" }))
+      .toBe(false);
+    expect(isDefaultOrderSort({ sort: "customer", direction: "asc" }))
+      .toBe(false);
+  });
+
+  it("labels each field in Spanish", () => {
+    expect(orderSortLabel("number")).toBe("Número");
+    expect(orderSortLabel("customer")).toBe("Cliente");
+    expect(orderSortLabel("created_at")).toBe("Creado");
+  });
+});
 
 describe("parseOrderIdParam", () => {
   it("accepts a positive integer id up to 2147483647", () => {
@@ -66,6 +119,8 @@ describe("parseOrderListParams", () => {
       q: "ped",
       status: "confirmed",
       customerId: 4,
+      sort: null,
+      direction: null,
     });
   });
 
@@ -75,6 +130,8 @@ describe("parseOrderListParams", () => {
       q: null,
       status: null,
       customerId: null,
+      sort: null,
+      direction: null,
     });
   });
 
@@ -131,5 +188,19 @@ describe("parseOrderListParams", () => {
     expect(read("status=green").status).toBeNull();
     expect(read("status=").status).toBeNull();
     expect(read("status=confirmed%20").status).toBeNull();
+  });
+
+  it("reads a valid sort and direction and falls back on invalid ones", () => {
+    expect(read("sort=number&direction=desc")).toMatchObject({
+      sort: "number",
+      direction: "desc",
+    });
+    expect(read("sort=created_at")).toMatchObject({
+      sort: "created_at",
+      direction: null,
+    });
+    // Any other value of either falls back like a broken status.
+    expect(read("sort=items")).toMatchObject({ sort: null });
+    expect(read("direction=upwards")).toMatchObject({ direction: null });
   });
 });

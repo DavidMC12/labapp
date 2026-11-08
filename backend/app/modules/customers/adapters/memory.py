@@ -76,23 +76,48 @@ class InMemoryCustomerRepository:
             email = data.email.lower()
             if any(customer.email.lower() == email for customer in self._customers.values()):
                 raise EmailTaken
-            identifier = self._next_id
-            self._next_id += 1
-            customer = Customer(
-                id=identifier,
-                name=data.name,
-                email=data.email,
-                phone=data.phone,
-                tax_id=data.tax_id,
-                address=data.address,
-                status=CustomerStatus.ACTIVE,
-                version=1,
-                created_at=now,
-                updated_at=now,
-            )
-            self._customers[identifier] = customer
-            self._remember(customer)
-            return customer
+            return self._insert(data, now)
+
+    def add_many(self, customers: Iterable[NewCustomer], now: datetime) -> list[Customer]:
+        batch = list(customers)
+        with self._lock:
+            stored_emails = {customer.email.lower() for customer in self._customers.values()}
+            batch_emails = [data.email.lower() for data in batch]
+            if len(set(batch_emails)) != len(batch_emails) or any(
+                email in stored_emails for email in batch_emails
+            ):
+                raise EmailTaken
+            return [self._insert(data, now) for data in batch]
+
+    def existing_emails(self, emails: Iterable[str]) -> set[str]:
+        wanted = {email.lower() for email in emails}
+        if not wanted:
+            return set()
+        with self._lock:
+            return {
+                customer.email.lower()
+                for customer in self._customers.values()
+                if customer.email.lower() in wanted
+            }
+
+    def _insert(self, data: NewCustomer, now: datetime) -> Customer:
+        identifier = self._next_id
+        self._next_id += 1
+        customer = Customer(
+            id=identifier,
+            name=data.name,
+            email=data.email,
+            phone=data.phone,
+            tax_id=data.tax_id,
+            address=data.address,
+            status=CustomerStatus.ACTIVE,
+            version=1,
+            created_at=now,
+            updated_at=now,
+        )
+        self._customers[identifier] = customer
+        self._remember(customer)
+        return customer
 
     def update(
         self,

@@ -62,6 +62,22 @@ class CustomerRepository(Protocol):
         """
         ...
 
+    def add_many(self, customers: Iterable[NewCustomer], now: datetime) -> list[Customer]:
+        """Store every customer of an import in one atomic step.
+
+        The ids are assigned in file order and are consecutive; every row gets
+        ``status`` active, ``version`` 1 and the same ``now``. Raise
+        ``EmailTaken`` when an email belongs to an earlier row of the batch or to
+        a stored customer; in that case nothing is stored. A SQL adapter uses one
+        transaction (and one insert statement) and maps the unique-index
+        violation, never check-then-insert.
+        """
+        ...
+
+    def existing_emails(self, emails: Iterable[str]) -> set[str]:
+        """Return the lowercase emails of the batch that a customer already uses."""
+        ...
+
     def update(
         self,
         id: int,

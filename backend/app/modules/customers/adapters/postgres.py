@@ -44,6 +44,23 @@ def _customer_from_row(row: Mapping[str, Any]) -> Customer:
     )
 
 
+def _values(data: NewCustomer, now: datetime) -> dict[str, Any]:
+    """The stored columns of a new customer, search forms included."""
+    return {
+        "name": data.name,
+        "email": data.email,
+        "phone": data.phone,
+        "tax_id": data.tax_id,
+        "address": data.address,
+        "status": CustomerStatus.ACTIVE.value,
+        "version": 1,
+        "created_at": now,
+        "updated_at": now,
+        "name_search": normalize_for_search(data.name),
+        "email_search": normalize_for_search(data.email),
+    }
+
+
 class PostgresCustomerRepository:
     """A customer repository backed by PostgreSQL."""
 
@@ -120,23 +137,12 @@ class PostgresCustomerRepository:
         return _customer_from_row(row) if row is not None else None
 
     def add(self, data: NewCustomer, now: datetime) -> Customer:
-        values = {
-            "name": data.name,
-            "email": data.email,
-            "phone": data.phone,
-            "tax_id": data.tax_id,
-            "address": data.address,
-            "status": CustomerStatus.ACTIVE.value,
-            "version": 1,
-            "created_at": now,
-            "updated_at": now,
-            "name_search": normalize_for_search(data.name),
-            "email_search": normalize_for_search(data.email),
-        }
         try:
             with self._engine.begin() as connection:
                 row = (
-                    connection.execute(insert(customers).values(**values).returning(*customers.c))
+                    connection.execute(
+                        insert(customers).values(**_values(data, now)).returning(*customers.c)
+                    )
                     .mappings()
                     .one()
                 )
@@ -145,6 +151,39 @@ class PostgresCustomerRepository:
                 raise EmailTaken from error
             raise
         return _customer_from_row(row)
+
+    def add_many(self, customers: Iterable[NewCustomer], now: datetime) -> list[Customer]:
+        batch = list(customers)
+        if not batch:
+            return []
+        try:
+            with self._engine.begin() as connection:
+                rows = (
+                    connection.execute(
+                        insert(customers)
+                        .values([_values(data, now) for data in batch])
+                        .returning(*customers.c)
+                    )
+                    .mappings()
+                    .all()
+                )
+        except IntegrityError as error:
+            if unique_violation_of(error, _EMAIL_CONSTRAINT):
+                raise EmailTaken from error
+            raise
+        return sorted((_customer_from_row(row) for row in rows), key=lambda item: item.id)
+
+    def existing_emails(self, emails: Iterable[str]) -> set[str]:
+        wanted = {email.lower() for email in emails}
+        if not wanted:
+            return set()
+        with self._engine.begin() as connection:
+            rows = connection.execute(
+                select(func.lower(customers.c.email)).where(
+                    func.lower(customers.c.email).in_(wanted)
+                )
+            ).scalars()
+            return set(rows)
 
     def update(
         self,

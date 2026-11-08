@@ -539,6 +539,86 @@ describe("the orders section of the customer detail", () => {
   });
 });
 
+describe("the new-order shortcut of the customer detail", () => {
+  it("links to the create form with the customer already chosen", async () => {
+    customerQueue.push(() => jsonResponse(activeCustomer));
+    renderAt("4");
+
+    const link = await waitFor(() => {
+      const element = screen.getByTestId("customers-detail-neworder-link");
+      expect(element).toHaveAttribute("href", "/orders/new?customer_id=4");
+      return element;
+    });
+    expect(link).toHaveTextContent("Nuevo pedido");
+    expect(link.tagName).toBe("A");
+  });
+
+  it("shows the link for sales, who can edit draft orders", async () => {
+    meUser = { id: 2, name: "Ventas Demo", email: "sales@labapp.test", role: "sales" };
+    customerQueue.push(() => jsonResponse(activeCustomer));
+    renderAt("4");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-detail-neworder-link"))
+        .toHaveAttribute("href", "/orders/new?customer_id=4");
+    });
+  });
+
+  it("hides the link for an inactive customer", async () => {
+    customerQueue.push(() => jsonResponse(inactiveCustomer));
+    renderAt("8");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-detail-orders-link"))
+        .toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-detail-reactivate-button"))
+        .toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId("customers-detail-neworder-link"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the link for finance", async () => {
+    meUser = { id: 3, name: "Finanzas Demo", email: "finance@labapp.test", role: "finance" };
+    customerQueue.push(() => jsonResponse(activeCustomer));
+    renderAt("4");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-detail-orders-link"))
+        .toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId("customers-detail-neworder-link"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the link for read-only", async () => {
+    meUser = {
+      id: 4,
+      name: "Solo Lectura Demo",
+      email: "readonly@labapp.test",
+      role: "readonly",
+    };
+    customerQueue.push(() => jsonResponse(activeCustomer));
+    renderAt("4");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-detail-orders-link"))
+        .toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(screen.queryByTestId("customers-detail-edit-link"))
+        .not.toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId("customers-detail-neworder-link"),
+    ).not.toBeInTheDocument();
+  });
+});
+
 describe("the deactivate dialog of the customer detail", () => {
   it("closes the dialog with Volver and sends nothing", async () => {
     customerQueue.push(() => jsonResponse(activeCustomer));

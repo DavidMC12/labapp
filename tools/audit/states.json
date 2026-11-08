@@ -3,6 +3,8 @@
   "password": "Demo-LabApp-2026!",
   "states": [
     { "name": "login", "path": "/login", "user": null, "waitFor": "auth-login-form" },
+    { "name": "login-expired", "path": "/login?expired=1", "user": null, "waitFor": "auth-login-expired-alert" },
+    { "name": "not-found", "path": "/no-such-page", "user": null, "waitFor": "app-notfound-heading" },
     { "name": "home", "path": "/", "user": "sales@labapp.test", "waitFor": "home-customers-active-count-text" },
     { "name": "customers-list", "path": "/customers", "user": "sales@labapp.test", "waitFor": "customers-list-table" },
     { "name": "customers-list-readonly", "path": "/customers", "user": "readonly@labapp.test", "waitFor": "customers-list-table" },
@@ -17,7 +19,10 @@
     { "name": "orders-detail-confirmed", "path": "/orders/3", "user": "sales@labapp.test", "waitFor": "orders-detail-heading" },
     { "name": "orders-detail-shipped", "path": "/orders/5", "user": "sales@labapp.test", "waitFor": "orders-detail-heading" },
     { "name": "orders-detail-cancelled", "path": "/orders/6", "user": "sales@labapp.test", "waitFor": "orders-detail-heading" },
-    { "name": "invoices-placeholder", "path": "/invoices", "user": "finance@labapp.test", "waitFor": "app-nav-invoices-link" },
+    { "name": "invoices-list", "path": "/invoices", "user": "finance@labapp.test", "waitFor": "invoices-list-table" },
+    { "name": "invoices-detail-issued", "path": "/invoices/1", "user": "finance@labapp.test", "waitFor": "payments-register-form" },
+    { "name": "invoices-detail-paid", "path": "/invoices/2", "user": "finance@labapp.test", "waitFor": "invoices-detail-closed-text" },
+    { "name": "invoices-detail-readonly", "path": "/invoices/1", "user": "readonly@labapp.test", "waitFor": "invoices-detail-heading" },
     { "name": "settings-admin", "path": "/settings", "user": "admin@labapp.test", "waitFor": "settings-taxrate-form" },
     { "name": "settings-readonly", "path": "/settings", "user": "sales@labapp.test", "waitFor": "settings-taxrate-readonly-text" }
   ]

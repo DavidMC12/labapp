@@ -3,6 +3,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import AppLayout from "./layout";
+import { ME_QUERY_KEY } from "@/features/auth/hooks";
+import { SESSION_EXPIRED_QUERY_KEY } from "@/features/auth/session";
 
 const { routerMock } = vi.hoisted(() => ({
   routerMock: {
@@ -101,6 +103,22 @@ describe("app shell states", () => {
 
     await waitFor(() => {
       expect(routerMock.replace).toHaveBeenCalledWith("/login");
+    });
+  });
+
+  it("redirects to /login?expired=1 when the session expired", async () => {
+    // The session request never runs: the stale me entry and the flag
+    // raised by noteUnauthorized are already in the cache.
+    queryClient.setQueryData(
+      SESSION_EXPIRED_QUERY_KEY,
+      true,
+    );
+    queryClient.setQueryData(ME_QUERY_KEY, null);
+
+    renderShell();
+
+    await waitFor(() => {
+      expect(routerMock.replace).toHaveBeenCalledWith("/login?expired=1");
     });
   });
 
@@ -285,8 +303,30 @@ describe("app shell logout", () => {
   });
 });
 
-describe("app shell theme", () => {
-  it("offers the Tema control in the rail user block", async () => {
+describe("the shell navigation row", () => {
+  it("wraps the phone row instead of scrolling it sideways", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(userPayload("admin", "admin@labapp.test"), 200,
+        "application/json"),
+    );
+
+    renderShell();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("app-nav-customers-link")).toBeInTheDocument();
+    });
+
+    const nav = screen.getByRole("navigation", { name: "Principal" });
+
+    // The four links wrap onto a second row on a phone (and the desktop
+    // rail keeps its column).
+    expect(nav.className).toContain("flex-wrap");
+    expect(nav.className).not.toContain("overflow-x-auto");
+    expect(nav.className).toContain("md:flex-col");
+  });
+});
+
+describe("app shell theme", () => {  it("offers the Tema control in the rail user block", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(userPayload("admin", "admin@labapp.test"), 200,
         "application/json"),

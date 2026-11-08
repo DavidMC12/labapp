@@ -2,6 +2,7 @@
 
 import { Alert, Button, Input, Link, Select } from "@/components/ui";
 import { useMe } from "@/features/auth/hooks";
+import { useCustomer } from "@/features/customers/hooks";
 import { useOrders } from "@/features/orders/hooks";
 import { parseOrderListParams } from "@/features/orders/params";
 import { canEditOrders } from "@/features/orders/permissions";
@@ -12,10 +13,16 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
 /**
- * The list URL of the screen: page (always) plus the search values that
- * have one. This is what every navigation writes, so links can be shared.
+ * The list URL of the screen: page (always) plus the values that have
+ * one. This is what every navigation writes, so links can be shared; the
+ * customer filter stays in the URL while it is set.
  */
-function listUrl(page: number, q: string | null, status: string | null): string {
+function listUrl(
+  page: number,
+  q: string | null,
+  status: string | null,
+  customerId: number | null,
+): string {
   const search = new URLSearchParams();
   search.set("page", String(page));
   if (q) {
@@ -23,6 +30,9 @@ function listUrl(page: number, q: string | null, status: string | null): string 
   }
   if (status) {
     search.set("status", status);
+  }
+  if (customerId) {
+    search.set("customer_id", String(customerId));
   }
   return `/orders?${search.toString()}`;
 }
@@ -32,6 +42,40 @@ const TABLE_HEAD_CLASSES = [
   "border-b-2 border-ink px-[10px] py-[9px] text-left",
   "text-xs font-medium uppercase tracking-[0.07em] text-muted",
 ].join(" ");
+
+/**
+ * The line under the heading while the list is filtered by customer: its
+ * name through `useCustomer` once loaded ("Pedidos de Acme…"), the id as
+ * fallback while it loads or when the customer does not exist ("Pedidos
+ * del cliente #4"), and a "Quitar filtro" link to the same list without
+ * the customer parameter. It lives in its own component so the request
+ * only runs while a filter is set.
+ */
+function CustomerFilterLine({
+  customerId,
+  clearHref,
+}: {
+  customerId: number;
+  clearHref: string;
+}) {
+  const customer = useCustomer(customerId);
+  const name = customer.isSuccess && customer.data ? customer.data.name : null;
+
+  return (
+    <p
+      data-testid="orders-list-customerfilter-text"
+      className="mt-1 text-[15px] text-muted"
+    >
+      {name !== null ? `Pedidos de ${name}` : `Pedidos del cliente #${customerId}`}{" "}
+      <Link
+        href={clearHref}
+        testId="orders-list-customerfilter-clear-link"
+      >
+        Quitar filtro
+      </Link>
+    </p>
+  );
+}
 
 const TABLE_CELL_CLASSES = [
   "border-b border-line px-[10px] py-[9px] text-ink tabular-nums",
@@ -65,6 +109,7 @@ function OrdersListContent() {
     page: params.page,
     q: params.q ?? undefined,
     status: params.status ?? undefined,
+    customerId: params.customerId ?? undefined,
   });
 
   // The fields of the search form are local; submitting them writes the
@@ -101,17 +146,20 @@ function OrdersListContent() {
     if (params.page <= last) {
       return;
     }
-    router.replace(listUrl(last, params.q, params.status));
-  }, [data, params.page, params.q, params.status, router]);
+    router.replace(listUrl(last, params.q, params.status, params.customerId));
+  }, [data, params.page, params.q, params.status, params.customerId, router]);
 
   function handleSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    // Submitting goes back to page 1 with the trimmed values.
-    router.push(listUrl(1, qInput.trim() || null, statusInput || null));
+    // Submitting goes back to page 1 with the trimmed values, keeping
+    // the customer filter of the URL.
+    router.push(
+      listUrl(1, qInput.trim() || null, statusInput || null, params.customerId),
+    );
   }
 
   function goToPage(page: number) {
-    router.push(listUrl(page, params.q, params.status));
+    router.push(listUrl(page, params.q, params.status, params.customerId));
   }
 
   function problemDetail(): string {
@@ -135,6 +183,15 @@ function OrdersListContent() {
           </Link>
         ) : null}
       </div>
+
+      {params.customerId !== null ? (
+        <CustomerFilterLine
+          customerId={params.customerId}
+          clearHref={
+            listUrl(params.page, params.q, params.status, null)
+          }
+        />
+      ) : null}
 
       <form
         data-testid="orders-list-search-form"

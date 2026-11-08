@@ -19,6 +19,7 @@ const { routerMock } = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({
   useRouter: () => routerMock,
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 const fetchMock = vi.fn();

@@ -26,16 +26,47 @@ describe("parseOrderListParams", () => {
     return parseOrderListParams(new URLSearchParams(search));
   }
 
-  it("reads the three parameters", () => {
-    expect(read("page=2&q=ped&status=confirmed")).toEqual({
+  it("reads the four parameters", () => {
+    expect(read("page=2&q=ped&status=confirmed&customer_id=4")).toEqual({
       page: 2,
       q: "ped",
       status: "confirmed",
+      customerId: 4,
     });
   });
 
   it("falls back to page 1 and no values on an empty URL", () => {
-    expect(read("")).toEqual({ page: 1, q: null, status: null });
+    expect(read("")).toEqual({
+      page: 1,
+      q: null,
+      status: null,
+      customerId: null,
+    });
+  });
+
+  it("accepts a customer id up to 2147483647", () => {
+    expect(read("customer_id=4").customerId).toBe(4);
+    expect(read("customer_id=2147483647").customerId).toBe(2147483647);
+  });
+
+  it("ignores zero, signs, decimals, letters and ids above the limit", () => {
+    for (const value of [
+      "0",
+      "007",
+      "1e3",
+      "-4",
+      "4.5",
+      " 4",
+      "cuatro",
+      "",
+      "2147483648",
+    ]) {
+      expect(read(`customer_id=${value}`).customerId, value).toBeNull();
+    }
+  });
+
+  it("reads the first occurrence of a repeated customer id", () => {
+    expect(read("customer_id=4&customer_id=9").customerId).toBe(4);
   });
 
   it("rejects every invalid page as page 1", () => {

@@ -15,7 +15,7 @@ import {
   type UseQueryResult,
 } from "@tanstack/react-query";
 import { ApiRequestError } from "@/lib/api";
-import { ME_QUERY_KEY } from "@/features/auth/hooks";
+import { noteUnauthorized } from "@/features/auth/session";
 import {
   addOrderLine,
   createOrder,
@@ -40,17 +40,24 @@ export const ORDERS_LIST_KEY = ["orders", "list"] as const;
 export const PRODUCTS_KEY = ["products"] as const;
 
 /**
- * Key of one list query: `["orders", "list", { page, q, status }]`. An
- * empty `q` never has one of these keys, so `{ page: 1, q: "" }` and
- * `{ page: 1 }` do not split the cache in two.
+ * Key of one list query: `["orders", "list", { page, q, status,
+ * customerId }]`. An empty `q` never has one of these keys, so
+ * `{ page: 1, q: "" }` and `{ page: 1 }` do not split the cache in two;
+ * the same applies to a `customerId` of 0 or null.
  */
 export function ordersListQueryKey(
   params: OrderListRequest,
-): readonly [string, string, { page: number; q?: string; status?: string }] {
+): readonly [string, string, {
+  page: number;
+  q?: string;
+  status?: string;
+  customerId?: number;
+}] {
   return [ORDERS_LIST_KEY[0], ORDERS_LIST_KEY[1], {
     page: params.page,
     q: params.q || undefined,
     status: params.status || undefined,
+    customerId: params.customerId || undefined,
   }];
 }
 
@@ -66,12 +73,12 @@ export function orderDetailKey(id: number): readonly [string, string, number] {
 /**
  * Any 401 of the orders or products endpoints means "no session": it
  * writes `null` into the `["auth", "me"]` cache entry so the shell
- * redirects to the login instead of showing "Reintentar" for ever.
+ * redirects to the login instead of showing "Reintentar" for ever, and a
+ * 401 `SESSION_EXPIRED` also raises the expired flag (see
+ * `noteUnauthorized`).
  */
 function note401(error: unknown, queryClient: QueryClient): void {
-  if (error instanceof ApiRequestError && error.problem.status === 401) {
-    queryClient.setQueryData(ME_QUERY_KEY, null);
-  }
+  noteUnauthorized(error, queryClient);
 }
 
 /** One page of the orders list, url state of `?page=&q=&status=`. */

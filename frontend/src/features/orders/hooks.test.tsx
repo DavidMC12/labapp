@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import type { UseMutationResult } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ME_QUERY_KEY } from "@/features/auth/hooks";
+import { SESSION_EXPIRED_QUERY_KEY } from "@/features/auth/session";
 import type { ApiRequestError } from "@/lib/api";
 import {
   PRODUCTS_KEY,
@@ -315,6 +316,24 @@ describe("the 401 of the orders endpoints", () => {
 
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(queryClient.getQueryData(ME_QUERY_KEY)).toBeNull();
+  });
+
+  it("writes both session keys on a 401 SESSION_EXPIRED", async () => {
+    fetchMock.mockResolvedValueOnce(
+      problemResponse(
+        401,
+        "SESSION_EXPIRED",
+        "Tu sesión expiró. Inicia sesión de nuevo.",
+      ),
+    );
+
+    const { queryClient, wrapper } = createWrapper();
+    queryClient.setQueryData(ME_QUERY_KEY, { name: "Admin Demo" });
+    const { result } = renderHook(() => useOrder(8), { wrapper });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(queryClient.getQueryData(ME_QUERY_KEY)).toBeNull();
+    expect(queryClient.getQueryData(SESSION_EXPIRED_QUERY_KEY)).toBe(true);
   });
 
   it("does the same for a failed mutation", async () => {

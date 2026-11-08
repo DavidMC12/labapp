@@ -133,7 +133,14 @@ jobs:
             sleep 1
           done
           status=0
-          node tools/audit/browser-audit.mjs --base http://127.0.0.1:3000 --theme light || status=1
+          node tools/audit/browser-audit.mjs --base http://127.0.0.1:3000 --theme light --catalog "$RUNNER_TEMP/testids.md" || status=1
+          if [ ! -f "$RUNNER_TEMP/testids.md" ]; then
+            echo "::error::The audit did not write the test id catalog because a state did not render; see the failures above"
+            status=1
+          elif ! diff -u docs/TESTIDS.md "$RUNNER_TEMP/testids.md"; then
+            echo "::error::docs/TESTIDS.md is out of date (the diff is above). Apply it, or regenerate the file as tools/audit/README.md describes"
+            status=1
+          fi
           node tools/audit/browser-audit.mjs --base http://127.0.0.1:3000 --theme dark || status=1
           exit $status
 

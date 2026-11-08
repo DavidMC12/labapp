@@ -1710,6 +1710,12 @@ describe("the Facturar action of the order detail", () => {
     meUser = { ...meUser, id: 3, name: "Finanzas Demo", role: "finance" };
     const financeView = await renderConfirmedOrder();
     expect(screen.getByTestId("orders-detail-invoice-button")).toBeEnabled();
+    // The button sits in its own action row: the same mt-6 as the other
+    // rows of the page (the layout nit of task 027).
+    expect(
+      screen.getByTestId("orders-detail-invoice-button").parentElement
+        ?.className,
+    ).toContain("mt-6");
     financeView.unmount();
     queryClient.clear();
 

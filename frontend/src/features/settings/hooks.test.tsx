@@ -3,6 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ME_QUERY_KEY } from "@/features/auth/hooks";
+import { SESSION_EXPIRED_QUERY_KEY } from "@/features/auth/session";
 import { SETTINGS_KEY, useSettings, useUpdateTaxRate } from "./hooks";
 import type { Settings } from "./types";
 
@@ -92,6 +93,33 @@ describe("useSettings", () => {
     });
 
     expect(queryClient.getQueryData(ME_QUERY_KEY)).toBeNull();
+  });
+
+  it("writes both session keys on a 401 SESSION_EXPIRED", async () => {
+    const { queryClient, wrapper } = createWrapper();
+    queryClient.setQueryData(ME_QUERY_KEY, {
+      id: 1,
+      role: "admin",
+    });
+
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        {
+          status: 401,
+          code: "SESSION_EXPIRED",
+          detail: "Tu sesión expiró. Inicia sesión de nuevo.",
+        },
+        401,
+      ),
+    );
+    const { result } = renderHook(() => useSettings(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
+
+    expect(queryClient.getQueryData(ME_QUERY_KEY)).toBeNull();
+    expect(queryClient.getQueryData(SESSION_EXPIRED_QUERY_KEY)).toBe(true);
   });
 });
 

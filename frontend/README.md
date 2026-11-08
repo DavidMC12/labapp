@@ -145,8 +145,8 @@ src/
   developed and tested against a mocked `fetch` (no test uses the
   network), so the same code talks to the real API without changes.
 - A 401 on `me` is treated as "no session" and redirects to the login
-  silently for now; the redirect decision will change when roles and
-  protected routes arrive.
+  (see "Error pages and the expired session" below for how the redirect
+  URL says why).
 - `src/app/login/page.tsx` is the login screen (validation, field and
   form-level errors, demo users box). `src/app/(app)/` is the
   authenticated shell (header, navigation, logout) with placeholder pages
@@ -155,6 +155,36 @@ src/
   `application/problem+json` contract of docs/SPEC.md section 8: failures
   throw `ApiRequestError` with the problem document, or a synthesized
   `INTERNAL_ERROR` problem for non-JSON bodies and network errors.
+
+## Error pages and the expired session
+
+- **Unknown route:** `src/app/not-found.tsx` (a server component) is what
+  Next.js renders for every unmatched url — "Página no encontrada",
+  "La dirección que buscas no existe o fue movida." and the link
+  "Ir al inicio" (`app-notfound-heading`, `app-notfound-home-link`).
+- **Crash:** `src/app/error.tsx` is the error boundary of every segment
+  under the root layout — "Algo salió mal", "Ocurrió un error
+  inesperado. Puedes intentarlo de nuevo.", the button "Reintentar"
+  (`app-error-retry-button`, it calls `reset`) and the link
+  "Ir al inicio" (`app-error-home-link`, `app-error-heading`). The words
+  of the crash itself (`error.message`, `error.digest`) are never shown,
+  because a crash can carry private data, and the component logs nothing.
+  Both pages render inside the root layout with the theme tokens of
+  `globals.css`, so they are readable in the light and the dark voice.
+- **Expired session (docs/SPEC.md section 3, `SESSION_EXPIRED`):** every
+  401 bookkeeping goes through `noteUnauthorized(error, queryClient)` in
+  `src/features/auth/session.ts`; `useMe` and the `note401` helpers of
+  the four feature modules call it. It writes `null` into
+  `["auth","me"]` (as before) and, when the problem code is
+  `SESSION_EXPIRED`, sets the flag `["auth","session-expired"]` to true.
+- **The redirect:** when the shell sees a session of `null`, it replaces
+  the location with `/login?expired=1` when the flag is set and with
+  `/login` otherwise.
+- **The notice:** the login page reads `expired` with
+  `useSearchParams` (inside a `Suspense` boundary) and, when it is `1`,
+  shows the alert "Tu sesión expiró. Inicia sesión de nuevo."
+  (`auth-login-expired-alert`) above the form; it hides again once a
+  login succeeds. Nothing else on the page changes.
 
 ## Summary
 
@@ -234,8 +264,13 @@ src/
   `formatTime`, `formatDateTime`, both in UTC).
 - URL parameters of the list: `page` (integer up to 1000000, valid or page
   1), `q` (trimmed, only when it has a value, matched against the order
-  number or the customer name) and `status` (one of the five states, no
-  filter when absent). Search goes to page 1; a page beyond the last is
+  number or the customer name), `status` (one of the five states, no
+  filter when absent) and `customer_id` (a strict positive integer up to
+  2147483647, ignored when invalid; the customer detail links here).
+  While `customer_id` is set, a line under the heading names the customer
+  ("Pedidos de {name}", "Pedidos del cliente #{id}" while loading or for
+  an unknown one) with a "Quitar filtro" link that keeps the other
+  parameters. Search goes to page 1; a page beyond the last is
   `max(1, ceil(total / 20))` and the URL is replaced by it.
 - Keys: `["orders","list",{page,q,status}]`, `["orders","detail",id]`
   (numbers always), `["products"]`. Every successful order mutation
@@ -305,6 +340,9 @@ Spanish.
   `status` (`active`/`inactive`, no filter when absent). Submitting the
   search goes back to page 1; a page beyond the last one is replaced in
   the URL by the last page (`max(1, ceil(total / 20))`).
+- The detail page has a "Pedidos" section ("Ver pedidos de este cliente")
+  that links to `/orders?customer_id={id}` — visible to every role, for
+  active and inactive customers alike.
 - Data layer on TanStack Query, all with `retry: false`:
   `useCustomers({page, q, status})`, `useCustomer(id)`,
   `useCreateCustomer()`, `useUpdateCustomer()` and

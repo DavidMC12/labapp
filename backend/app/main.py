@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
+from threading import RLock
 
 from fastapi import Depends, FastAPI
 
@@ -21,6 +22,12 @@ from app.modules.customers.adapters.postgres import PostgresCustomerRepository
 from app.modules.customers.routes import router as customers_router
 from app.modules.customers.seed import seed_customers
 from app.modules.customers.service import CustomerService
+from app.modules.invoices.adapters.memory import InMemoryInvoiceStore
+from app.modules.invoices.gateway import FakeGateway
+from app.modules.invoices.mail import LoggingMailer
+from app.modules.invoices.routes import router as invoices_router
+from app.modules.invoices.seed import seed_invoices, seed_payments
+from app.modules.invoices.service import InvoiceService
 from app.modules.orders.adapters.memory import InMemoryOrderStore
 from app.modules.orders.adapters.postgres import PostgresOrderStore
 from app.modules.orders.routes import router as orders_router
@@ -63,7 +70,8 @@ def create_app(
         order_store: InMemoryOrderStore | PostgresOrderStore = PostgresOrderStore(database_engine)
     else:
         customer_repository = InMemoryCustomerRepository(seed_customers())
-        memory_order_store = InMemoryOrderStore(customer_repository)
+        shared_lock = RLock()
+        memory_order_store = InMemoryOrderStore(customer_repository, lock=shared_lock)
         memory_order_store.replace_all(
             seed_products(),
             seed_orders(),
@@ -89,6 +97,28 @@ def create_app(
     app.include_router(auth_router)
     app.include_router(customers_router)
     app.include_router(orders_router)
+    if database_engine is None:
+        payment_gateway = FakeGateway()
+        invoice_store = InMemoryInvoiceStore(
+            order_store,
+            customer_repository,
+            payment_gateway,
+            lock=shared_lock,
+        )
+        invoice_store.replace_all(seed_invoices(), seed_payments())
+        memory_order_store.invoices = invoice_store
+        invoices = InvoiceService(
+            invoice_store,
+            order_store,
+            customer_repository,
+            application_clock,
+            LoggingMailer(),
+            settings.session_secret.encode(),
+        )
+        app.state.invoice_store = invoice_store
+        app.state.payment_gateway = payment_gateway
+        app.state.invoices = invoices
+        app.include_router(invoices_router)
 
     @app.get("/api/health")
     async def health() -> dict[str, str]:

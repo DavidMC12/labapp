@@ -32,6 +32,8 @@ node tools/audit/browser-audit.mjs --only orders-list,orders-new --base http://l
 node tools/audit/browser-audit.mjs --theme dark   # the same states with the dark theme pinned
 ```
 
+`--catalog <file>` writes every test id found in every state, with the element that carries it, as Markdown. The committed copy is [docs/TESTIDS.md](../../docs/TESTIDS.md); CI regenerates it in the light run and fails with a diff when it is out of date, so **adding or renaming an id means regenerating it** (start the application on a fresh seed, `DATABASE_URL= DATABASE_URL_UNPOOLED= scripts/dev.sh`, then run the command above with `--catalog docs/TESTIDS.md`).
+
 `--theme light|dark` stores the explicit choice of the theme selector in `localStorage` before every page loads, so the axe contrast check runs against each voice of the design. CI runs the audit twice, once per theme. A color that is only wrong in one theme fails only that run.
 
 It needs a running application (the states use the demo users and the fixed seed data, so run the API in memory mode: with `DATABASE_URL` empty, or against a freshly seeded database) and Chrome or Chromium (`CHROME_BIN` or the usual paths). CI builds the web app, starts both processes and runs it, once per theme, in the `browser-audit` job.

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from datetime import datetime
 from decimal import Decimal
 from typing import Protocol
@@ -214,5 +214,33 @@ class OrderStore(Protocol):
         The next order id and the next ``PED`` number continue after the highest
         existing ones; the next line id continues after the highest existing line
         id. Empty content starts both sequences at 1.
+        """
+        ...
+
+    def attach_invoice(self, order_id: int, invoice_id: int, now: datetime) -> Order:
+        """Link an invoice to its order.
+
+        Called only by ``issue_invoice``. Checks ``OrderNotFound``, sets
+        ``invoice_id``, increases ``version`` by 1 and sets ``updated_at`` to
+        ``now``.
+        """
+        ...
+
+    def mark_paid(self, order_id: int, now: datetime) -> Order:
+        """Move a confirmed order to ``paid``.
+
+        Checks ``OrderNotFound`` and the transition; another state raises
+        ``INVALID_TRANSITION``. Increases ``version`` by 1 and sets
+        ``updated_at`` to ``now``.
+        """
+        ...
+
+    def link_invoices(self, links: Mapping[int, int]) -> None:
+        """Set the ``invoice_id`` of every order from ``links``.
+
+        Every order gets ``links.get(order_id)``, so an order absent from the
+        mapping is left with no invoice. It never changes ``version`` or
+        ``updated_at``. Used only by the seed and by ``replace_all``, because the
+        seeded orders must keep version 1 and ``updated_at == created_at``.
         """
         ...

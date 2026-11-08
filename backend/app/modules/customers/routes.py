@@ -26,6 +26,7 @@ from app.openapi import body_examples, documented_responses, response_examples
 from app.openapi_examples import (
     CUSTOMER_CREATE_EXAMPLES,
     CUSTOMER_CREATED_EXAMPLES,
+    CUSTOMER_EMAIL_TAKEN_EXAMPLES,
     CUSTOMER_PATCH_EXAMPLES,
 )
 
@@ -50,6 +51,7 @@ _CREATE_RESPONSES = {
             409: "The email already belongs to another customer. Code: `CUSTOMER_EMAIL_TAKEN`.",
             422: "The body is invalid. Code: `VALIDATION_ERROR` (with `errors[]`).",
         },
+        problem_examples={409: CUSTOMER_EMAIL_TAKEN_EXAMPLES},
     ),
     201: response_examples(CUSTOMER_CREATED_EXAMPLES),
 }

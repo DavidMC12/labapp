@@ -28,8 +28,8 @@ export default defineConfig({ use: { testIdAttribute: 'data-testid' } });
 ## Observable state
 
 The document title names the page: `{page} · LabApp` (the
-`useDocumentTitle` hook of the frontend; the details keep their section
-title until the record arrives).
+`useDocumentTitle` hook of the frontend, or the `metadata` export of a server layout; the details keep their section
+title until the record arrives). The browser audit asserts the title of every state.
 
 | Attribute | Meaning |
 |---|---|

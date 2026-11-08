@@ -53,6 +53,14 @@ def test_test_mode_opens_the_controls_without_a_token() -> None:
     assert client.get("/__test__/clock").status_code == 200
 
 
+def test_the_controls_are_not_in_the_openapi_schema(
+    controls_client: TestClient,
+) -> None:
+    schema = controls_client.get("/openapi.json").json()
+
+    assert not any(path.startswith("/__test__") for path in schema["paths"])
+
+
 def test_the_router_repeats_the_guard_without_the_middleware() -> None:
     source = create_app(
         Settings(

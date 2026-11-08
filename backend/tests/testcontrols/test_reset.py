@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from types import SimpleNamespace
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import IntegrityError
 
 from app.domain.orders import OrderAction, OrderStatus
 from app.modules.testcontrols.models import NewRule
@@ -74,3 +76,19 @@ def test_reset_restores_every_module_and_keeps_the_session(
 
     assert session.status_code == 200
     assert session.json()["email"] == "admin@labapp.test"
+
+
+def test_a_foreign_key_error_answers_conflict(
+    controls_app: FastAPI,
+    controls_client: TestClient,
+) -> None:
+    def fail() -> None:
+        raise IntegrityError("statement", {}, Exception("foreign key"))
+
+    controls_app.state.resetter = SimpleNamespace(reset=fail)
+
+    response = controls_client.post("/__test__/reset")
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "RESET_CONFLICT"
+    assert "Inténtalo de nuevo." in response.json()["detail"]

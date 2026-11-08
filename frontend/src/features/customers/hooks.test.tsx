@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ME_QUERY_KEY } from "@/features/auth/hooks";
+import { SESSION_EXPIRED_QUERY_KEY } from "@/features/auth/session";
 import type { User } from "@/features/auth/types";
 import {
   CUSTOMERS_LIST_KEY,
@@ -288,6 +289,26 @@ describe("the 401 handling of the customers hooks", () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
 
     expect(queryClient.getQueryData(ME_QUERY_KEY)).toBeNull();
+  });
+
+  it("writes both session keys on a 401 SESSION_EXPIRED", async () => {
+    fetchMock.mockResolvedValue(
+      problem(
+        401,
+        "SESSION_EXPIRED",
+        "Tu sesión expiró. Inicia sesión de nuevo.",
+      ),
+    );
+    const { queryClient, wrapper } = createWrapper();
+    queryClient.setQueryData(ME_QUERY_KEY, { id: 1 } as User);
+    const { result } = renderHook(() => useCustomers({ page: 1 }), {
+      wrapper,
+    });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+
+    expect(queryClient.getQueryData(ME_QUERY_KEY)).toBeNull();
+    expect(queryClient.getQueryData(SESSION_EXPIRED_QUERY_KEY)).toBe(true);
   });
 
   it("writes null into the auth me entry when a mutation gets a 401", async () => {

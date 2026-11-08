@@ -4,6 +4,7 @@ import {
   createCustomer,
   fetchCustomer,
   fetchCustomers,
+  importCustomers,
   setCustomerStatus,
   updateCustomer,
 } from "./api";
@@ -119,6 +120,37 @@ describe("createCustomer", () => {
       tax_id: null,
       address: null,
     });
+  });
+});
+
+describe("importCustomers", () => {
+  it("posts the file as multipart under the part name file", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          created: 2,
+          items: [{ id: 12 }, { id: 13 }],
+        }),
+        { status: 201 },
+      ),
+    );
+
+    const file = new File(
+      ["name,email\nAna García,ana@labapp.test\nBeto,beto@labapp.test\n"],
+      "clientes.csv",
+      { type: "text/csv" },
+    );
+
+    const result = await importCustomers(file);
+
+    expect(result).toEqual({ created: 2, items: [{ id: 12 }, { id: 13 }] });
+    expect(call(0)[0]).toBe("/api/customers/import");
+    expect(call(0)[1].method).toBe("POST");
+
+    const body = call(0)[1].body as FormData;
+    expect(body).toBeInstanceOf(FormData);
+    expect(body.get("file")).toBe(file);
+    expect((body.get("file") as File).name).toBe("clientes.csv");
   });
 });
 

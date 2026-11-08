@@ -184,9 +184,14 @@ function CustomersListContent() {
         <h1 data-testid="customers-list-heading">Clientes</h1>
 
         {canManage ? (
-          <Link href="/customers/new" testId="customers-list-new-link" variant="primary">
-            Nuevo cliente
-          </Link>
+          <>
+            <Link href="/customers/import" testId="customers-list-import-link">
+              Importar CSV
+            </Link>
+            <Link href="/customers/new" testId="customers-list-new-link" variant="primary">
+              Nuevo cliente
+            </Link>
+          </>
         ) : null}
       </div>
 

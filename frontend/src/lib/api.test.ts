@@ -67,6 +67,49 @@ describe("apiFetch", () => {
     expect(user).toEqual({ id: 1 });
   });
 
+  it("sends a FormData body without a Content-Type of the code", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(JSON.stringify({ created: 1, items: [] })),
+    );
+
+    const file = new File(["name,email\nAna,ana@labapp.test\n"], "datos.csv", {
+      type: "text/csv",
+    });
+    const body = new FormData();
+    body.append("file", file);
+
+    const result = await apiFetch<{ created: number }>("/api/customers/import", {
+      method: "POST",
+      body,
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as [
+      string,
+      { body: FormData; headers: Record<string, string> },
+    ];
+
+    expect(init.body).toBe(body);
+    expect(Object.keys(init.headers)).not.toContain("Content-Type");
+    expect(result).toEqual({ created: 1, items: [] });
+  });
+
+  it("throws a synthesized problem when a FormData request cannot reach the API", async () => {
+    fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    const body = new FormData();
+    body.append("file", new File([""], "datos.csv", { type: "text/csv" }));
+
+    try {
+      await apiFetch("/api/customers/import", { method: "POST", body });
+      expect.unreachable("apiFetch should have thrown");
+    } catch (thrown) {
+      const error = thrown as ApiRequestError;
+      expect(error).toBeInstanceOf(ApiRequestError);
+      expect(error.problem.status).toBe(0);
+      expect(error.problem.code).toBe("INTERNAL_ERROR");
+    }
+  });
+
   it("forwards the caller headers", async () => {
     fetchMock.mockResolvedValue(jsonResponse("{}"));
 

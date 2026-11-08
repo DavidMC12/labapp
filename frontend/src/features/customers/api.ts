@@ -79,6 +79,27 @@ export function createCustomer(values: CustomerFormValues): Promise<Customer> {
   return apiFetch<Customer>("/api/customers", { method: "POST", body: values });
 }
 
+/** The 201 answer of `POST /api/customers/import` (docs/SPEC.md section 4). */
+export type CustomersImportResult = {
+  created: number;
+  items: Customer[];
+};
+
+/**
+ * POST /api/customers/import — 201 `{created, items}`. The file travels in
+ * a `FormData` under the part name `file`; `apiFetch` sends it as
+ * `multipart/form-data` with no application `Content-Type` (the browser
+ * sets the multipart header itself).
+ */
+export function importCustomers(file: File): Promise<CustomersImportResult> {
+  const body = new FormData();
+  body.append("file", file);
+  return apiFetch<CustomersImportResult>("/api/customers/import", {
+    method: "POST",
+    body,
+  });
+}
+
 /** An update body: the editable fields plus the captured `version`. */
 export type CustomerUpdateBody = CustomerFormValues & { version: number };
 

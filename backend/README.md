@@ -37,6 +37,22 @@ curl -i localhost:8000/api/health
 Every response carries an `X-Request-Id` header. Send your own `X-Request-Id` to have it
 echoed; values must match `^[A-Za-z0-9._-]{1,64}$`, otherwise a new UUID4 is generated.
 
+## OpenAPI contract
+
+`docs/openapi.json` is the committed contract of the API: the document the owner's
+automation and any other tool can read without starting the server. FastAPI generates it
+for an application built with no database and no environment variables:
+
+```bash
+cd backend
+uv run python -m app.cli openapi --output ../docs/openapi.json
+```
+
+Without `--output` the command prints the document to standard output.
+`tests/test_openapi_contract.py` fails when the committed file and the application
+disagree, and CI runs that test, so every change of the API regenerates the file and
+commits it in the same change.
+
 ## PostgreSQL
 
 Without `DATABASE_URL` the API stores everything in memory, which is the default for
@@ -317,7 +333,7 @@ uv run ruff format --check .
 backend/
   app/
     config.py      Settings read from environment variables
-    cli.py         the migrate and seed commands
+    cli.py         the database and OpenAPI commands
     errors.py      ApiError, problem+json rendering and exception handlers
     infra/db.py    engine, metadata and URL helpers
     main.py        create_app() and the application instance

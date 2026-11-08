@@ -59,3 +59,8 @@ def test_hash_with_weaker_parameters_needs_a_rehash() -> None:
 
     assert verify_password(weaker_hash, PASSWORD) is True
     assert needs_rehash(weaker_hash) is True
+
+
+@pytest.mark.parametrize("malformed", [None, 42, b"$argon2id$garbage"])
+def test_a_non_string_hash_returns_false(malformed: object) -> None:
+    assert verify_password(malformed, PASSWORD) is False  # type: ignore[arg-type]

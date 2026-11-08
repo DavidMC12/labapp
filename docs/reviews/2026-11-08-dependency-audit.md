@@ -64,3 +64,47 @@ still install with `pnpm install --frozen-lockfile` and `uv sync --frozen`.
 | Frontend, production (`pnpm audit --prod`) | 0 | 0 | 0 |
 | Frontend, all dependencies (`pnpm audit`) | 1 moderate | 1 moderate | 0 |
 | Backend (`pip-audit`) | 0 | 0 | 0 |
+
+## Workflow actions
+
+Every `uses:` of `.github/workflows/*.yml`:
+
+| Workflow | Action | Version tag | Pinned to a full commit SHA? |
+|---|---|---|---|
+| `ci.yml` (backend job) | `actions/checkout` | `v7.0.1` | Yes: `3d3c42e5aac5ba805825da76410c181273ba90b1` |
+| `ci.yml` (backend job) | `jdx/mise-action` | `v5.2.0` | Yes: `9b200bcecbfd6303e69a4a261b2e09e3757440a7` |
+| `ci.yml` (frontend job) | `actions/checkout` | `v7.0.1` | Yes: `3d3c42e5aac5ba805825da76410c181273ba90b1` |
+| `ci.yml` (frontend job) | `jdx/mise-action` | `v5.2.0` | Yes: `9b200bcecbfd6303e69a4a261b2e09e3757440a7` |
+| `ci.yml` (browser-audit job) | `actions/checkout` | `v7.0.1` | Yes: `3d3c42e5aac5ba805825da76410c181273ba90b1` |
+| `ci.yml` (browser-audit job) | `jdx/mise-action` | `v5.2.0` | Yes: `9b200bcecbfd6303e69a4a261b2e09e3757440a7` |
+| `commit-standards.yml` | `actions/checkout` | `v4` | No: a movable tag. |
+| `nightly-reset.yml` | — | — | No action is used (the job runs `curl` in a shell step). |
+
+Recommendation: pin the remaining `actions/checkout@v4` to a full commit SHA as well, and keep every
+pin current through the `github-actions` entry of Dependabot. The workflows were not changed in this
+task, as the brief requires.
+
+## Dependabot (`.github/dependabot.yml`)
+
+The file declares `version: 2` and three entries: `npm` for `/frontend`, `uv` for `/backend` and
+`github-actions` for `/`. The current Dependabot documentation lists `uv` as a supported ecosystem
+(its supported-versions column says `v0.11`, while this repository pins uv 0.13.6 in `mise.toml`; the
+lockfile format is the one Dependabot reads). If Dependabot ever rejects the `uv` entry, the fallback
+is `pip` for `/backend`, at the cost of reading only the Python requirements and not the `uv` lock.
+
+There is no root `package.json`, so no npm entry is needed for `/`; only `/frontend` has one.
+
+Why each key is there:
+
+| Key | Why |
+|---|---|
+| `version: 2` | The only configuration syntax Dependabot accepts. |
+| `package-ecosystem` | One entry per manager: `npm`, `uv` and `github-actions`. |
+| `directory` | The manifest and lockfile live in `frontend/` and `backend/`; the actions live in the repository root. |
+| `schedule.interval: weekly` + `day: monday` | A weekly check on Monday, as the task requires; it keeps the pull-request volume low. |
+| `open-pull-requests-limit: 5` | At most five open pull requests per ecosystem, so the board stays readable. |
+| `groups` | `npm-minor-patch`, `uv-minor-patch` and `actions-minor-patch` collect every minor and patch update of an ecosystem into one pull request; major updates still arrive separately. |
+| `commit-message.prefix: "build"` + `include: scope` | The bot writes `build(deps): ...` (or `build(deps-dev): ...` for development dependencies), which satisfies Conventional Commits and the subject check of `commit-standards.yml`. |
+
+The YAML was validated with `python3 -c "import yaml; yaml.safe_load(open('.github/dependabot.yml'))"`,
+which exited 0.

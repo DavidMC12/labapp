@@ -129,3 +129,9 @@ test("the anchor rule follows GitHub's slug rule", () => {
   assert.equal(githubSlug("`tax_rate` field"), "tax_rate-field");
 });
 
+test("the real repository passes", () => {
+  const result = lint();
+  assert.deepEqual(result.problems, [], JSON.stringify(result.problems));
+  assert.ok(result.files > 10);
+});
+

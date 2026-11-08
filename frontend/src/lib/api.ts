@@ -12,6 +12,15 @@ export type ApiFetchOptions = {
   headers?: Record<string, string>;
 };
 
+/**
+ * A `FormData` body is serialized by the browser, which also sets the
+ * multipart `Content-Type` with its boundary: the code must not touch
+ * either of them, or the request becomes unparseable.
+ */
+function isFormDataBody(body: unknown): body is FormData {
+  return typeof FormData !== "undefined" && body instanceof FormData;
+}
+
 export type ApiFieldError = {
   field: string;
   code: string;
@@ -65,16 +74,19 @@ function isProblemDocument(value: unknown): value is ApiProblem {
 /**
  * Calls `fetch` on a relative API path with `credentials: "same-origin"`
  * and `Accept: application/json`. When `body` is defined it is sent as
- * JSON. A 2xx answer resolves with the parsed JSON (or `undefined` for a
- * 204); any other answer throws an `ApiRequestError` carrying the problem
- * document, real status and code `INTERNAL_ERROR` for bodies that are not
- * problem documents (or for a network rejection, status 0).
+ * JSON, except a `FormData` body, which is sent as `multipart/form-data`
+ * by the browser with no application `Content-Type`. A 2xx answer
+ * resolves with the parsed JSON (or `undefined` for a 204); any other
+ * answer throws an `ApiRequestError` carrying the problem document, real
+ * status and code `INTERNAL_ERROR` for bodies that are not problem
+ * documents (or for a network rejection, status 0).
  */
 export async function apiFetch<T>(
   path: string,
   options: ApiFetchOptions = {},
 ): Promise<T> {
   const { method = "GET", body, headers = {} } = options;
+  const formData = isFormDataBody(body) ? body : undefined;
 
   let response: Response;
   try {
@@ -83,10 +95,16 @@ export async function apiFetch<T>(
       credentials: "same-origin",
       headers: {
         Accept: "application/json",
-        ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+        // A FormData body sets no Content-Type: the browser adds the
+        // multipart header itself (see docs/SPEC.md section 4, Import).
+        ...(body !== undefined && !formData
+          ? { "Content-Type": "application/json" }
+          : {}),
         ...headers,
       },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: body === undefined
+        ? undefined
+        : formData ?? JSON.stringify(body),
     });
   } catch {
     throw new ApiRequestError(internalProblem(0));

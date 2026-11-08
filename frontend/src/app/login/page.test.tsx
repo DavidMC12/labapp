@@ -117,6 +117,40 @@ describe("login page structure", () => {
   });
 });
 
+describe("the API links of the login page", () => {
+  it("shows the paragraph with the two links after the demo users box", () => {
+    renderLoginPage();
+
+    expect(screen.getByTestId("auth-login-api-text")).toHaveTextContent(
+      "Para probar la API:",
+    );
+
+    const docsLink = screen.getByTestId("auth-login-api-docs-link");
+    expect(docsLink).toHaveTextContent("Documentación interactiva");
+    expect(docsLink).toHaveAttribute("href", "/api/docs");
+
+    const contractLink = screen.getByTestId("auth-login-api-contract-link");
+    expect(contractLink).toHaveTextContent("Contrato OpenAPI");
+    expect(contractLink).toHaveAttribute("href", "/api/openapi.json");
+
+    // DOM order: the paragraph sits right after the demo users box.
+    const demoBox = screen.getByTestId("auth-login-demo-list").parentElement!;
+    expect(demoBox.nextElementSibling).toBe(screen.getByTestId("auth-login-api-text"));
+
+    // They are plain anchors, not the client-router link: a full
+    // navigation (per the href attribute), and clicking calls no router
+    // method of the mocked `useRouter`.
+    expect(docsLink.tagName).toBe("A");
+    expect(contractLink.tagName).toBe("A");
+    const user = userEvent.setup();
+    user.click(docsLink);
+    user.click(contractLink);
+    expect(routerMock.push).not.toHaveBeenCalled();
+    expect(routerMock.replace).not.toHaveBeenCalled();
+    expect(routerMock.refresh).not.toHaveBeenCalled();
+  });
+});
+
 describe("the skip link and the landmarks of the login page", () => {
   it("puts the skip link first in the tab order, with the target ready", async () => {
     renderLoginPage();

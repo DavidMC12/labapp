@@ -117,8 +117,20 @@ def test_a_timestamp_is_utc_iso_without_a_fraction(value: datetime) -> None:
     assert rows_of(write_csv(("created_at",), [(value,)]))[1] == ["2026-10-31T14:30:00Z"]
 
 
+def test_a_naive_timestamp_is_taken_as_utc() -> None:
+    assert rows_of(write_csv(("created_at",), [(datetime(2026, 10, 31, 14, 30),)]))[1] == [
+        "2026-10-31T14:30:00Z"
+    ]
+
+
 def test_the_filename_uses_the_utc_date_of_the_clock() -> None:
     now = datetime(2026, 11, 5, 23, 30, tzinfo=UTC)
 
     assert csv_export_filename("customers", now) == "customers-20261105.csv"
     assert csv_export_filename("orders", now + timedelta(hours=1)) == "orders-20261106.csv"
+
+
+def test_a_naive_filename_time_is_taken_as_utc() -> None:
+    assert csv_export_filename("invoices", datetime(2026, 11, 5, 23, 30)) == (
+        "invoices-20261105.csv"
+    )

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import replace
 from datetime import datetime
 from decimal import Decimal
-from threading import Lock
+from threading import RLock
 
 from app.domain.money import quantize_money
 from app.domain.numbering import format_number
@@ -42,9 +42,15 @@ def _number_value(number: str) -> int:
 class InMemoryOrderStore:
     """A thread-safe order store backed by dictionaries."""
 
-    def __init__(self, customers: CustomerRepository) -> None:
+    def __init__(
+        self,
+        customers: CustomerRepository,
+        lock: RLock | None = None,
+        invoices: object | None = None,
+    ) -> None:
         self._customers = customers
-        self._lock = Lock()
+        self._lock = lock if lock is not None else RLock()
+        self.invoices = invoices
         self._products: dict[int, Product] = {}
         self._orders: dict[int, Order] = {}
         self._tax_rate = Decimal("0.00")
@@ -261,6 +267,8 @@ class InMemoryOrderStore:
                         self._products[line.product_id] = replace(
                             product, stock=product.stock + line.quantity
                         )
+                    if self.invoices is not None:
+                        self.invoices.void_for_order(order.id, now)
                 tax_rate = self._tax_rate
 
             return self._update_order(order, now, status=new_status, tax_rate=tax_rate)
@@ -288,6 +296,22 @@ class InMemoryOrderStore:
                 )
                 + 1
             )
+
+    def attach_invoice(self, order_id: int, invoice_id: int, now: datetime) -> Order:
+        with self._lock:
+            order = self._require_order(order_id)
+            return self._update_order(order, now, invoice_id=invoice_id)
+
+    def mark_paid(self, order_id: int, now: datetime) -> Order:
+        with self._lock:
+            order = self._require_order(order_id)
+            next_status(order.status, OrderAction.PAY)
+            return self._update_order(order, now, status=OrderStatus.PAID)
+
+    def link_invoices(self, links: Mapping[int, int]) -> None:
+        with self._lock:
+            for order_id, order in list(self._orders.items()):
+                self._orders[order_id] = replace(order, invoice_id=links.get(order_id))
 
     def _require_order(self, id: int) -> Order:
         order = self._orders.get(id)

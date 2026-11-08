@@ -1,9 +1,10 @@
 """PostgreSQL store for products, settings and orders.
 
 Every mutation runs in one transaction and locks rows in this order: the order row
-(``FOR UPDATE``), then the customer row (``FOR SHARE``), then the product rows
-(``FOR UPDATE``, ascending product id). Methods that need fewer rows keep that relative
-order. The version and the state are checked after locking.
+(``FOR UPDATE``), then the invoice row (``FOR NO KEY UPDATE``) when the mutation must
+void it, then the customer row (``FOR SHARE``), then the product rows (``FOR UPDATE``,
+ascending product id). Methods that need fewer rows keep that relative order. The
+version and the state are checked after locking.
 """
 
 from __future__ import annotations
@@ -41,6 +42,8 @@ from app.infra.db import (
 from app.modules.customers.models import CustomerStatus
 from app.modules.customers.search import normalize_for_search
 from app.modules.customers.tables import customers
+from app.modules.invoices.models import InvoiceStatus
+from app.modules.invoices.tables import invoices
 from app.modules.orders.models import Order, OrderLine, Product
 from app.modules.orders.ports import (
     CustomerInactive,
@@ -105,6 +108,61 @@ def _order_from_row(row: Mapping[str, Any], lines: Iterable[OrderLine]) -> Order
     )
 
 
+def _load_lines(connection: Connection, order_id: int) -> list[OrderLine]:
+    rows = (
+        connection.execute(
+            select(order_lines).where(order_lines.c.order_id == order_id).order_by(order_lines.c.id)
+        )
+        .mappings()
+        .all()
+    )
+    return [_line_from_row(row) for row in rows]
+
+
+def _reload_order(connection: Connection, order_id: int) -> Order:
+    """Read an order and its lines; the caller holds or does not need the lock."""
+    row = connection.execute(select(orders).where(orders.c.id == order_id)).mappings().one()
+    return _order_from_row(row, _load_lines(connection, order_id))
+
+
+def attach_invoice_in(
+    connection: Connection,
+    order_id: int,
+    invoice_id: int,
+    now: datetime,
+) -> Order:
+    """Set the order's invoice and bump its version; the order row is already locked."""
+    row = connection.execute(select(orders).where(orders.c.id == order_id)).mappings().first()
+    if row is None:
+        raise OrderNotFound
+
+    connection.execute(
+        update(orders)
+        .where(orders.c.id == order_id)
+        .values(invoice_id=invoice_id, version=row["version"] + 1, updated_at=now)
+    )
+    return _reload_order(connection, order_id)
+
+
+def mark_paid_in(connection: Connection, order_id: int, now: datetime) -> Order:
+    """Move a confirmed order to paid; the order row is already locked."""
+    row = connection.execute(select(orders).where(orders.c.id == order_id)).mappings().first()
+    if row is None:
+        raise OrderNotFound
+
+    next_status(OrderStatus(row["status"]), OrderAction.PAY)
+    connection.execute(
+        update(orders)
+        .where(orders.c.id == order_id)
+        .values(
+            status=OrderStatus.PAID.value,
+            version=row["version"] + 1,
+            updated_at=now,
+        )
+    )
+    return _reload_order(connection, order_id)
+
+
 class PostgresOrderStore:
     """An order store backed by PostgreSQL."""
 
@@ -119,14 +177,7 @@ class PostgresOrderStore:
         )
         if row is None:
             return None
-        lines = (
-            connection.execute(
-                select(order_lines).where(order_lines.c.order_id == id).order_by(order_lines.c.id)
-            )
-            .mappings()
-            .all()
-        )
-        return _order_from_row(row, [_line_from_row(line) for line in lines])
+        return _order_from_row(row, _load_lines(connection, id))
 
     @staticmethod
     def _lock_customer(connection: Connection, customer_id: int) -> Mapping[str, Any] | None:
@@ -161,6 +212,36 @@ class PostgresOrderStore:
             locked[product_id] = product
         return locked
 
+    def _void_invoice(self, connection: Connection, order: Order, now: datetime) -> None:
+        """Void the issued invoice of a confirmed order, locking the invoice row.
+
+        It runs after the order row is locked and before the stock is returned. The
+        invoice takes ``FOR NO KEY UPDATE`` so it does not block the ``FOR KEY SHARE``
+        lock that inserting a payment or an idempotency key takes on it.
+        """
+        if order.invoice_id is None:
+            return
+        invoice = (
+            connection.execute(
+                select(invoices.c.id, invoices.c.status, invoices.c.version)
+                .where(invoices.c.id == order.invoice_id)
+                .with_for_update(key_share=True)
+            )
+            .mappings()
+            .first()
+        )
+        if invoice is None or invoice["status"] != InvoiceStatus.ISSUED.value:
+            return
+        connection.execute(
+            update(invoices)
+            .where(invoices.c.id == invoice["id"])
+            .values(
+                status=InvoiceStatus.VOID.value,
+                version=invoice["version"] + 1,
+                updated_at=now,
+            )
+        )
+
     def _current_tax_rate(self, connection: Connection) -> Decimal:
         value = connection.execute(
             select(settings_table.c.value).where(settings_table.c.key == "tax_rate")
@@ -177,15 +258,7 @@ class PostgresOrderStore:
         connection.execute(statement)
 
     def _reload_order(self, connection: Connection, id: int) -> Order:
-        row = connection.execute(select(orders).where(orders.c.id == id)).mappings().one()
-        lines = (
-            connection.execute(
-                select(order_lines).where(order_lines.c.order_id == id).order_by(order_lines.c.id)
-            )
-            .mappings()
-            .all()
-        )
-        return _order_from_row(row, [_line_from_row(line) for line in lines])
+        return _reload_order(connection, id)
 
     def _write_order(
         self,
@@ -515,6 +588,7 @@ class PostgresOrderStore:
                 tax_rate = self._current_tax_rate(connection)
             elif action == OrderAction.CANCEL:
                 if order.status == OrderStatus.CONFIRMED:
+                    self._void_invoice(connection, order, now)
                     locked_products = self._lock_products(
                         connection, [line.product_id for line in order.lines]
                     )
@@ -534,6 +608,26 @@ class PostgresOrderStore:
                 status=new_status.value,
                 tax_rate=tax_rate,
             )
+
+    def attach_invoice(self, order_id: int, invoice_id: int, now: datetime) -> Order:
+        with self._engine.begin() as connection:
+            if self._lock_order(connection, order_id) is None:
+                raise OrderNotFound
+            return attach_invoice_in(connection, order_id, invoice_id, now)
+
+    def mark_paid(self, order_id: int, now: datetime) -> Order:
+        with self._engine.begin() as connection:
+            if self._lock_order(connection, order_id) is None:
+                raise OrderNotFound
+            return mark_paid_in(connection, order_id, now)
+
+    def link_invoices(self, links: Mapping[int, int]) -> None:
+        with self._engine.begin() as connection:
+            connection.execute(update(orders).values(invoice_id=None))
+            for order_id, invoice_id in links.items():
+                connection.execute(
+                    update(orders).where(orders.c.id == order_id).values(invoice_id=invoice_id)
+                )
 
     def replace_all(
         self,
@@ -634,4 +728,4 @@ class PostgresOrderStore:
             )
 
 
-__all__ = ["PostgresOrderStore"]
+__all__ = ["PostgresOrderStore", "attach_invoice_in", "mark_paid_in"]

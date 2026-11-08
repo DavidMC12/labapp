@@ -7,6 +7,7 @@ from app.config import Settings
 from app.infra.db import create_db_engine, metadata, qualified_sequence_name
 from app.modules.auth import tables as auth_tables  # noqa: F401
 from app.modules.customers import tables as customers_tables  # noqa: F401
+from app.modules.invoices import tables as invoices_tables  # noqa: F401
 from app.modules.orders import tables as orders_tables
 
 DIALECT = postgresql.dialect()
@@ -20,6 +21,10 @@ TABLES = {
     "orders",
     "order_lines",
     "settings",
+    "invoices",
+    "invoice_lines",
+    "payments",
+    "idempotency_keys",
 }
 INDEXES = {
     "users_email_lower_key",
@@ -32,6 +37,11 @@ INDEXES = {
     "ix_orders_customer_id",
     "order_lines_order_product_key",
     "ix_order_lines_order_id",
+    "invoices_number_key",
+    "invoices_order_key",
+    "invoices_created_at_id_idx",
+    "ix_invoice_lines_invoice_id",
+    "ix_payments_invoice_id",
 }
 
 

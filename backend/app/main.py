@@ -23,6 +23,7 @@ from app.modules.customers.routes import router as customers_router
 from app.modules.customers.seed import seed_customers
 from app.modules.customers.service import CustomerService
 from app.modules.invoices.adapters.memory import InMemoryInvoiceStore
+from app.modules.invoices.adapters.postgres import PostgresInvoiceStore
 from app.modules.invoices.gateway import FakeGateway
 from app.modules.invoices.mail import LoggingMailer
 from app.modules.invoices.routes import router as invoices_router
@@ -97,8 +98,9 @@ def create_app(
     app.include_router(auth_router)
     app.include_router(customers_router)
     app.include_router(orders_router)
+    payment_gateway = FakeGateway()
+    invoice_store: InMemoryInvoiceStore | PostgresInvoiceStore
     if database_engine is None:
-        payment_gateway = FakeGateway()
         invoice_store = InMemoryInvoiceStore(
             order_store,
             customer_repository,
@@ -107,18 +109,20 @@ def create_app(
         )
         invoice_store.replace_all(seed_invoices(), seed_payments())
         memory_order_store.invoices = invoice_store
-        invoices = InvoiceService(
-            invoice_store,
-            order_store,
-            customer_repository,
-            application_clock,
-            LoggingMailer(),
-            settings.session_secret.encode(),
-        )
-        app.state.invoice_store = invoice_store
-        app.state.payment_gateway = payment_gateway
-        app.state.invoices = invoices
-        app.include_router(invoices_router)
+    else:
+        invoice_store = PostgresInvoiceStore(database_engine, payment_gateway)
+    invoices = InvoiceService(
+        invoice_store,
+        order_store,
+        customer_repository,
+        application_clock,
+        LoggingMailer(),
+        settings.session_secret.encode(),
+    )
+    app.state.invoice_store = invoice_store
+    app.state.payment_gateway = payment_gateway
+    app.state.invoices = invoices
+    app.include_router(invoices_router)
 
     @app.get("/api/health")
     async def health() -> dict[str, str]:

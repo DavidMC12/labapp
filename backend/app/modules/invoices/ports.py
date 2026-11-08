@@ -26,9 +26,9 @@ class InvoiceStore(Protocol):
 
     Every operation is atomic. A SQL implementation uses one transaction per
     method and locks the order row first (``FOR UPDATE``), then the invoice row
-    (``FOR UPDATE``) and then the customer row (``FOR SHARE``) when it is needed.
-    The version and the state are checked after locking. The domain ``ApiError``s
-    of ``app.modules.invoices.rules`` propagate unchanged.
+    (``FOR NO KEY UPDATE``) and then the customer row (``FOR SHARE``) when it is
+    needed. The version and the state are checked after locking. The domain
+    ``ApiError``s of ``app.modules.invoices.rules`` propagate unchanged.
     """
 
     def list_invoices(

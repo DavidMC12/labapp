@@ -20,6 +20,10 @@ from app.modules.auth.tables import users
 from app.modules.customers.adapters.postgres import PostgresCustomerRepository
 from app.modules.customers.seed import seed_customers
 from app.modules.customers.tables import customers
+from app.modules.invoices.adapters.postgres import PostgresInvoiceStore
+from app.modules.invoices.gateway import FakeGateway
+from app.modules.invoices.seed import seed_invoices, seed_payments
+from app.modules.invoices.tables import invoices as invoices_table
 from app.modules.orders.adapters.postgres import PostgresOrderStore
 from app.modules.orders.seed import seed_orders, seed_products
 from app.modules.orders.tables import orders as orders_table
@@ -86,6 +90,10 @@ def seed_database(settings: Settings) -> None:
             orders_empty = (
                 connection.execute(select(func.count()).select_from(orders_table)).scalar_one() == 0
             )
+            invoices_empty = (
+                connection.execute(select(func.count()).select_from(invoices_table)).scalar_one()
+                == 0
+            )
         if users_empty:
             PostgresUserRepository(engine).replace_all(seed_users(demo_password_hash()))
         if customers_empty:
@@ -95,6 +103,11 @@ def seed_database(settings: Settings) -> None:
                 seed_products(),
                 seed_orders(),
                 quantize_money(settings.default_tax_rate),
+            )
+        if invoices_empty:
+            PostgresInvoiceStore(engine, FakeGateway()).replace_all(
+                seed_invoices(),
+                seed_payments(),
             )
     finally:
         engine.dispose()

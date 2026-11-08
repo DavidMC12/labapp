@@ -213,3 +213,23 @@ await page.getByTestId("payments-register-submit-button").click();
 await expect(page.getByTestId("invoices-detail-state-status")).toHaveText("Pagada");
 await expect(page.getByTestId("invoices-detail-closed-text")).toHaveText("Esta factura está pagada.");
 ```
+
+## 6. Waiting and state
+
+Wait for observable markers instead of fixed timeouts; every one is in the code.
+
+**Hydration first.** The `<body>` gets `data-hydrated="true"` once the React client has hydrated ([HydrationMarker](../frontend/src/components/HydrationMarker.tsx) sets it in an effect). A test should never interact with the server-only render; wait for `body[data-hydrated="true"]` before the first click.
+
+**Loading instead of sleeping.** Every screen renders a `role="status"` region with `aria-busy="true"` and the text `Cargando…` while its data is in flight, under a `*-loading-status` id (`customers-list-loading-status`, `orders-detail-loading-status`, `invoices-detail-loading-status`, the shell's `app-shell-loading-status`, the summary's `home-{group}-{status}-loading-status`). Wait for such an element to appear and disappear, or wait directly for the data you assert on. The pickers say `Buscando clientes…` (`orders-form-customer-loading-status`, `orders-detail-changecustomer-loading-status`).
+
+**Busy controls.** While a request runs, `Button` renders `data-state` of `idle`/`loading` with `aria-busy`, disables itself, and swaps its label (`Ingresando…`, `Guardando…`, `Pagando…`). A second click during `aria-busy="true"` is ignored — don't double-click in tests.
+
+**Confirmation dialogs.** Only two actions confirm: cancel order and deactivate customer. Click the trigger (`orders-detail-cancel-button` / `customers-detail-deactivate-button`), wait for `orders-cancel-confirm-dialog` / `customers-deactivate-confirm-dialog`, then click `orders-cancel-confirm-button` ("Sí, cancelar pedido") / `customers-deactivate-confirm-button` ("Sí, desactivar"). The dialog closes when the request ends, failure or success; Escape and the backdrop never act on their own.
+
+**Success statuses.** `role="status"` regions announce outcomes: `settings-taxrate-success-status` (`Impuesto actualizado a {rate} %.`) and `payments-register-success-status` (`Pago aprobado.`) — these two are not yet reached by an audited state, so they are in the code but not in the catalog; the same grammar still applies.
+
+**Redirects after create.** Navigation happens through the router after the cache write: creating or editing a customer replaces the URL with `/customers/{id}`, creating an order with `/orders/{id}`, issuing the invoice navigates to `/invoices/{id}`, a successful login goes to `/`. Waiting for the destination heading id is enough.
+
+**List state lives in the URL.** `/customers?page=1&q=beta&status=active`, `/orders?…&customer_id=4`, `/invoices?status=paid`, `/products?q=cable`. Submitting a search returns to page 1; a page beyond the last is corrected in the URL (`Página {page} de {last}`, `*-page-text`). Tests can deep-link a filtered list.
+
+**The idempotency key of the payment form.** The form sends an `Idempotency-Key` header with `POST /api/invoices/{id}/payments`. In the UI it is **kept** after a network error or a 429 or a 5xx other than the gateway's 503 (the outcome is unknown, a retry replays or continues), and **renewed** after any other HTTP answer — a decline (402), a gateway failure (503 `PAYMENT_GATEWAY_UNAVAILABLE`), a 409 or a 422 — and whenever any field changes. So a test that retries after a decline is a genuinely new attempt; do not expect a second decline to be a replay ([SPEC section 6](SPEC.md), [frontend/README.md](../frontend/README.md)).

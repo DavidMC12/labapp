@@ -20,6 +20,7 @@ from app.modules.invoices.adapters.postgres import PostgresInvoiceStore
 from app.modules.invoices.gateway import FakeGateway, FaultyGateway
 from app.modules.invoices.models import PaymentAttempt, PaymentStatus
 from app.modules.testcontrols.models import NewRule
+from app.modules.testcontrols.ports import TooManyFaultRules
 from app.modules.testcontrols.postgres import (
     PostgresClockOffsetStore,
     PostgresFaultStore,
@@ -224,8 +225,8 @@ def test_two_concurrent_adds_at_49_leave_at_most_50(
                     status=500,
                 )
             )
-        except Exception as error:  # noqa: BLE001 - the exception type is the assertion
-            return type(error).__name__
+        except TooManyFaultRules:
+            return "too_many"
         return "added"
 
     with ThreadPoolExecutor(max_workers=2) as executor:
@@ -234,7 +235,7 @@ def test_two_concurrent_adds_at_49_leave_at_most_50(
         ]
         outcomes = [future.result(timeout=15) for future in futures]
 
-    assert sorted(outcomes) == ["TooManyFaultRules", "added"]
+    assert sorted(outcomes) == ["added", "too_many"]
     assert len(first.list()) == 50
 
 

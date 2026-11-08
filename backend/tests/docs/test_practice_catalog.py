@@ -14,6 +14,7 @@ import json
 import re
 from dataclasses import dataclass
 from http import HTTPStatus
+from pathlib import Path
 
 from app import errors
 
@@ -291,6 +292,14 @@ def check_statuses(rows: list[support.PracticeRow]) -> list[Violation]:
     return violations
 
 
+def _copy_with(tmp_path: Path, old: str, new: str) -> Path:
+    text = support.practice_text()
+    assert old in text
+    path = tmp_path / "PRACTICE.md"
+    path.write_text(text.replace(old, new, 1), encoding="utf-8")
+    return path
+
+
 def test_the_catalog_has_at_least_a_hundred_scenario_rows() -> None:
     assert len(support.practice_rows()) >= 100
 
@@ -365,3 +374,51 @@ def test_a_declared_literal_path_does_not_fall_back_to_a_template() -> None:
         paths["/api/customers/export"]["get"],
     )
     assert resolve_operation("DELETE", "/api/customers/export", paths) is None
+
+
+def test_the_parser_reads_a_copy_from_a_temporary_path(tmp_path: Path) -> None:
+    path = _copy_with(tmp_path, "`ORDER_EMPTY`", "`ORDER_EMPTY`")
+    assert support.practice_rows(path) == support.practice_rows()
+
+
+def test_the_code_check_can_fail(tmp_path: Path) -> None:
+    rows = support.practice_rows(_copy_with(tmp_path, "`ORDER_EMPTY`", "`ORDER_EMPTYY`"))
+    assert [str(violation) for violation in check_codes(rows)] == [
+        "PRACTICE B-12: the code 'ORDER_EMPTYY' is not defined"
+    ]
+
+
+def test_the_message_check_can_fail(tmp_path: Path) -> None:
+    path = _copy_with(
+        tmp_path,
+        "El pedido debe tener al menos una línea.",
+        "El pedido debe tener al menos una líneaa.",
+    )
+    rows = support.practice_rows(path)
+    assert [str(violation) for violation in check_messages(rows)] == [
+        "PRACTICE B-12: the message 'El pedido debe tener al menos una líneaa.' is not defined"
+    ]
+
+
+def test_the_endpoint_check_can_fail(tmp_path: Path) -> None:
+    path = _copy_with(
+        tmp_path,
+        "PATCH /api/orders/4/lines/5",
+        "PATCH /api/orders/4/parts/5",
+    )
+    rows = support.practice_rows(path)
+    assert [str(violation) for violation in check_endpoints(rows)] == [
+        "PRACTICE B-15: the endpoint PATCH /api/orders/4/parts/5 is not in the OpenAPI document"
+    ]
+
+
+def test_the_status_check_can_fail(tmp_path: Path) -> None:
+    path = _copy_with(
+        tmp_path,
+        '422 `VALIDATION_ERROR` with `{"field": "quantity", "code": "OUT_OF_RANGE"',
+        '418 `VALIDATION_ERROR` with `{"field": "quantity", "code": "OUT_OF_RANGE"',
+    )
+    rows = support.practice_rows(path)
+    assert [str(violation) for violation in check_statuses(rows)] == [
+        "PRACTICE B-3: the status 418 is not declared for POST /api/orders/8/lines"
+    ]

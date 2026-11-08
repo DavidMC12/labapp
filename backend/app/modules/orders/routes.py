@@ -26,7 +26,16 @@ from app.modules.orders.service import (
     OrderSummaryView,
     OrderView,
 )
-from app.openapi import documented_responses
+from app.openapi import body_examples, documented_responses, response_examples
+from app.openapi_examples import (
+    ORDER_CREATE_EXAMPLES,
+    ORDER_CREATED_EXAMPLES,
+    ORDER_CUSTOMER_PATCH_EXAMPLES,
+    ORDER_LINE_CREATE_EXAMPLES,
+    ORDER_LINE_CREATED_EXAMPLES,
+    ORDER_LINE_PATCH_EXAMPLES,
+    SETTINGS_PATCH_EXAMPLES,
+)
 
 router = APIRouter(prefix="/api", tags=["orders"])
 
@@ -48,15 +57,18 @@ _SETTINGS_PATCH_RESPONSES = documented_responses(
     permission=True,
     extra={422: "The body is invalid. Code: `VALIDATION_ERROR` (with `errors[]`)."},
 )
-_CREATE_RESPONSES = documented_responses(
-    method="POST",
-    body=True,
-    permission=True,
-    extra={
-        422: "The body is invalid or the customer is inactive. Codes: "
-        "`VALIDATION_ERROR` (with `errors[]`), `CUSTOMER_INACTIVE`."
-    },
-)
+_CREATE_RESPONSES = {
+    **documented_responses(
+        method="POST",
+        body=True,
+        permission=True,
+        extra={
+            422: "The body is invalid or the customer is inactive. Codes: "
+            "`VALIDATION_ERROR` (with `errors[]`), `CUSTOMER_INACTIVE`."
+        },
+    ),
+    201: response_examples(ORDER_CREATED_EXAMPLES),
+}
 _ORDER_READ_RESPONSES = documented_responses(
     method="GET",
     extra={
@@ -76,20 +88,23 @@ _EDIT_RESPONSES = documented_responses(
         "`VALIDATION_ERROR` (with `errors[]`), `CUSTOMER_INACTIVE`.",
     },
 )
-_ADD_LINE_RESPONSES = documented_responses(
-    method="POST",
-    body=True,
-    permission=True,
-    extra={
-        404: "The order does not exist. Code: `NOT_FOUND`.",
-        409: "The version is stale or the order is not a draft. Codes: "
-        "`VERSION_CONFLICT`, `ORDER_NOT_EDITABLE`.",
-        422: "The id or the body is invalid, the customer is inactive, the product "
-        "is repeated or the order is full. Codes: `VALIDATION_ERROR` "
-        "(with `errors[]`), `CUSTOMER_INACTIVE`, `ORDER_DUPLICATE_PRODUCT`, "
-        "`ORDER_TOO_MANY_LINES`.",
-    },
-)
+_ADD_LINE_RESPONSES = {
+    **documented_responses(
+        method="POST",
+        body=True,
+        permission=True,
+        extra={
+            404: "The order does not exist. Code: `NOT_FOUND`.",
+            409: "The version is stale or the order is not a draft. Codes: "
+            "`VERSION_CONFLICT`, `ORDER_NOT_EDITABLE`.",
+            422: "The id or the body is invalid, the customer is inactive, the product "
+            "is repeated or the order is full. Codes: `VALIDATION_ERROR` "
+            "(with `errors[]`), `CUSTOMER_INACTIVE`, `ORDER_DUPLICATE_PRODUCT`, "
+            "`ORDER_TOO_MANY_LINES`.",
+        },
+    ),
+    201: response_examples(ORDER_LINE_CREATED_EXAMPLES),
+}
 _UPDATE_LINE_RESPONSES = documented_responses(
     method="PATCH",
     body=True,
@@ -264,6 +279,7 @@ def read_settings(
     "/settings",
     response_model=schemas.TaxRateOut,
     responses=_SETTINGS_PATCH_RESPONSES,
+    openapi_extra=body_examples(SETTINGS_PATCH_EXAMPLES),
 )
 def update_settings(
     payload: schemas.SettingsPatch,
@@ -322,6 +338,7 @@ def export_orders(
     status_code=http_status.HTTP_201_CREATED,
     response_model=schemas.Order,
     responses=_CREATE_RESPONSES,
+    openapi_extra=body_examples(ORDER_CREATE_EXAMPLES),
 )
 def create_order(
     payload: schemas.OrderCreate,
@@ -347,7 +364,12 @@ def read_order(
     return _order_out(order)
 
 
-@router.patch("/orders/{id}", response_model=schemas.Order, responses=_EDIT_RESPONSES)
+@router.patch(
+    "/orders/{id}",
+    response_model=schemas.Order,
+    responses=_EDIT_RESPONSES,
+    openapi_extra=body_examples(ORDER_CUSTOMER_PATCH_EXAMPLES),
+)
 def update_order_customer(
     payload: schemas.OrderCustomerPatch,
     response: Response,
@@ -366,6 +388,7 @@ def update_order_customer(
     status_code=http_status.HTTP_201_CREATED,
     response_model=schemas.Order,
     responses=_ADD_LINE_RESPONSES,
+    openapi_extra=body_examples(ORDER_LINE_CREATE_EXAMPLES),
 )
 def add_order_line(
     payload: schemas.OrderLineCreate,
@@ -389,6 +412,7 @@ def add_order_line(
     "/orders/{id}/lines/{line_id}",
     response_model=schemas.Order,
     responses=_UPDATE_LINE_RESPONSES,
+    openapi_extra=body_examples(ORDER_LINE_PATCH_EXAMPLES),
 )
 def update_order_line(
     payload: schemas.OrderLinePatch,

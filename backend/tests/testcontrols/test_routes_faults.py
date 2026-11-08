@@ -161,4 +161,61 @@ def test_the_fifty_first_rule_is_a_validation_error(controls_client: TestClient)
 
     assert response.status_code == 422
     assert response.json()["code"] == "VALIDATION_ERROR"
+    assert response.json()["errors"] == [
+        {
+            "field": "target",
+            "code": "INVALID_FORMAT",
+            "message": ("Ya hay 50 reglas activas. Elimina alguna con DELETE /__test__/faults."),
+        }
+    ]
     assert len(controls_client.get("/__test__/faults").json()) == MAX_FAULT_RULES
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/\x00x",
+        "/" + "a" * 2048,
+        "/__test__/reset",
+        "/__test__extra",
+        "/api/health",
+    ],
+)
+def test_a_path_that_can_never_match_is_rejected(
+    controls_client: TestClient,
+    path: str,
+) -> None:
+    response = controls_client.post("/__test__/faults", json=_route(path=path))
+
+    assert response.status_code == 422
+    assert response.json()["errors"][0]["field"] == "path"
+    assert response.json()["errors"][0]["code"] == "INVALID_FORMAT"
+
+
+def test_a_lone_surrogate_path_is_rejected(controls_client: TestClient) -> None:
+    payload = b'{"target":"route","method":"GET","path":"/api/\\ud800","latency_ms":0,"status":500}'
+
+    response = controls_client.post(
+        "/__test__/faults",
+        content=payload,
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["errors"][0]["field"] == "path"
+    assert response.json()["errors"][0]["code"] == "INVALID_FORMAT"
+
+
+def test_the_body_reports_times_and_the_rule_fields_together(
+    controls_client: TestClient,
+) -> None:
+    response = controls_client.post(
+        "/__test__/faults",
+        json=_route(latency_ms=10_001, status=399, times=0),
+    )
+
+    assert response.status_code == 422
+    fields = {(error["field"], error["code"]) for error in response.json()["errors"]}
+    assert ("times", "OUT_OF_RANGE") in fields
+    assert ("latency_ms", "OUT_OF_RANGE") in fields
+    assert ("status", "OUT_OF_RANGE") in fields

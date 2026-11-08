@@ -19,7 +19,7 @@ from app.modules.testcontrols.reset import (
     RESET_CONFLICT_DETAIL,
     Dataset,
 )
-from app.modules.testcontrols.validation import validate_rule
+from app.modules.testcontrols.validation import rule_errors
 from app.security.controls_guard import controls_allowed
 
 MAX_FAULT_TIMES = 1_000
@@ -88,6 +88,10 @@ def _validation_error(field: str, code: str, message: str) -> ApiError:
         ERROR_MESSAGES[VALIDATION_ERROR],
         errors=[{"field": field, "code": code, "message": message}],
     )
+
+
+def _field_error(field: str, code: str, message: str) -> dict[str, str]:
+    return {"field": field, "code": code, "message": message}
 
 
 def _outside_the_clock_range(field: str) -> ApiError:
@@ -186,11 +190,28 @@ def change_clock(payload: ClockBody, request: Request) -> dict[str, object]:
 @router.post("/faults", status_code=status.HTTP_201_CREATED)
 def add_fault(payload: FaultBody, request: Request) -> dict[str, object]:
     """Add a fault rule and return it with its id."""
+    candidate = NewRule(
+        target=payload.target,
+        method=payload.method,
+        path=payload.path,
+        latency_ms=payload.latency_ms,
+        status=payload.status,
+    )
+    errors = rule_errors(candidate)
     if payload.times is not None and not 1 <= payload.times <= MAX_FAULT_TIMES:
-        raise _validation_error(
-            "times",
-            "OUT_OF_RANGE",
-            f"El valor debe estar entre 1 y {MAX_FAULT_TIMES}.",
+        errors.append(
+            _field_error(
+                "times",
+                "OUT_OF_RANGE",
+                f"El valor debe estar entre 1 y {MAX_FAULT_TIMES}.",
+            )
+        )
+    if errors:
+        raise ApiError(
+            422,
+            VALIDATION_ERROR,
+            ERROR_MESSAGES[VALIDATION_ERROR],
+            errors=errors,
         )
 
     rule = NewRule(
@@ -201,14 +222,13 @@ def add_fault(payload: FaultBody, request: Request) -> dict[str, object]:
         status=payload.status,
         remaining=payload.times,
     )
-    validate_rule(rule)
     try:
         stored = request.app.state.fault_store.add(rule)
     except TooManyFaultRules as error:
-        raise ApiError(
-            422,
-            VALIDATION_ERROR,
-            ERROR_MESSAGES[VALIDATION_ERROR],
+        raise _validation_error(
+            "target",
+            "INVALID_FORMAT",
+            "Ya hay 50 reglas activas. Elimina alguna con DELETE /__test__/faults.",
         ) from error
     return _rule_out(stored)
 

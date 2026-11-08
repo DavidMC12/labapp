@@ -83,8 +83,12 @@ jobs:
       - name: Test id audit
         working-directory: .
         run: |
-          node --test tools/audit/testid-audit.test.mjs tools/audit/browser-audit.test.mjs
+          node --test tools/audit/testid-audit.test.mjs tools/audit/browser-audit.test.mjs tools/audit/docs-lint.test.mjs
           node tools/audit/testid-audit.mjs
+
+      - name: Documentation lint
+        working-directory: .
+        run: node tools/audit/docs-lint.mjs
 
       - name: Tests with coverage (the floor of the coverage configuration must hold)
         run: pnpm test:coverage

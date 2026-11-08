@@ -144,10 +144,10 @@ as the bytes received exceed the limit.
 ## Request guards
 
 The outer middleware chain is, from outside to inside: `RequestIdMiddleware`,
-`RateLimitMiddleware`, `ControlsGuardMiddleware`, `BodySizeLimitMiddleware`, then the
-application. The order matters: the rate limit and the test-controls guard answer before
-the body is read or parsed, and the size limit answers before the application validates
-the body.
+`RateLimitMiddleware`, `ControlsGuardMiddleware`, `RequestControlsMiddleware`,
+`BodySizeLimitMiddleware`, then the application. The order matters: the rate limit and
+the test-controls guard answer before the body is read or parsed, and the size limit
+answers before the application validates the body.
 
 Rate limits are best effort per instance: 120 requests per minute and 10 login attempts
 per minute for each client IP. They are off with `TEST_MODE=1` and for a request with a
@@ -179,6 +179,35 @@ curl -i -H 'Content-Type: application/json' -d '{bad' localhost:8000/api/auth/lo
 for _ in $(seq 1 120); do curl -s -o /dev/null localhost:8000/api/settings; done
 curl -i localhost:8000/api/settings
 ```
+
+## Request controls
+
+The application clock and the fault injection are test-only. They run only when
+`TEST_MODE=1` or `TEST_TOKEN` is non-empty; otherwise `RequestControlsMiddleware` does
+nothing and `ControlledClock` never reads the database.
+
+- **Clock.** The offset is the `settings` row `clock_offset_seconds`, a decimal number of
+  seconds. In PostgreSQL two concurrent advances are one atomic `UPDATE`; `advance` also
+  creates the row when it is absent, and `get` returns `0.0` without one. The offset is
+  added to the system clock for sessions, card expiry and stored timestamps. A request
+  gets its offset from the middleware; the exempt paths and the CLI read the store.
+- **Fault rules.** The `fault_rules` table stores `route` and `gateway` rules. A route
+  rule matches an HTTP method (or any method) and an exact path; a gateway rule has no
+  method, path or status and may carry a latency. `remaining` is the number of times the
+  rule can be consumed, or `null` until it is removed. At most 50 non-exhausted rules
+  exist; adding deletes exhausted rows first, and the 51st is rejected. `take` and
+  `take_gateway` consume a rule with one atomic statement, so N concurrent requests get
+  exactly `remaining` decisions.
+- **Gateway.** `FaultyGateway` wraps `FakeGateway`. A consumed gateway rule waits its
+  latency (capped at 10 seconds) and answers `unavailable` with
+  `GATEWAY_UNAVAILABLE` without calling the inner gateway; with no rule it delegates.
+- **Route faults.** A consumed route rule waits its latency and, when it has a status,
+  answers a problem document with code `INJECTED_FAULT` before the application runs.
+  `/__test__/*` and `GET /api/health` are exempt.
+- **Cost.** In PostgreSQL mode an enabled request loads the clock and the fault through
+  one extra database transaction and one threadpool hop; disabled controls add nothing.
+  In memory mode the same path is a plain call. Latency is limited to 10 seconds per
+  rule and status codes to 400-599.
 
 ## Test
 

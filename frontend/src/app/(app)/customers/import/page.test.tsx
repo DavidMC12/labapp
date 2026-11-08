@@ -289,26 +289,26 @@ describe("the customers import page", () => {
     expect(screen.getByTestId("customers-import-error-row-4")).toBeInTheDocument();
     expect(screen.queryByTestId("customers-import-error-row-5")).not.toBeInTheDocument();
 
-    expect(screen.getByTestId("customers-import-error-line-1"))
+    expect(screen.getByTestId("customers-import-error-line-cell-1"))
       .toHaveTextContent("2");
-    expect(screen.getByTestId("customers-import-error-field-1"))
+    expect(screen.getByTestId("customers-import-error-field-cell-1"))
       .toHaveTextContent("Email");
-    expect(screen.getByTestId("customers-import-error-message-1"))
+    expect(screen.getByTestId("customers-import-error-message-cell-1"))
       .toHaveTextContent("Este campo es obligatorio.");
 
-    expect(screen.getByTestId("customers-import-error-line-2"))
+    expect(screen.getByTestId("customers-import-error-line-cell-2"))
       .toHaveTextContent("3");
-    expect(screen.getByTestId("customers-import-error-field-2"))
+    expect(screen.getByTestId("customers-import-error-field-cell-2"))
       .toHaveTextContent("Fila completa");
 
-    expect(screen.getByTestId("customers-import-error-line-3"))
+    expect(screen.getByTestId("customers-import-error-line-cell-3"))
       .toHaveTextContent("—");
-    expect(screen.getByTestId("customers-import-error-field-3"))
+    expect(screen.getByTestId("customers-import-error-field-cell-3"))
       .toHaveTextContent("Archivo");
 
-    expect(screen.getByTestId("customers-import-error-line-4"))
+    expect(screen.getByTestId("customers-import-error-line-cell-4"))
       .toHaveTextContent("3");
-    expect(screen.getByTestId("customers-import-error-field-4"))
+    expect(screen.getByTestId("customers-import-error-field-cell-4"))
       .toHaveTextContent("ID fiscal");
 
     // No truncation note for fewer than 100 entries.
@@ -329,11 +329,11 @@ describe("the customers import page", () => {
         problemResponse(422, "VALIDATION_ERROR", "Revisa los datos ingresados.", problems),
     );
 
-    expect(screen.getByTestId("customers-import-error-field-1"))
+    expect(screen.getByTestId("customers-import-error-field-cell-1"))
       .toHaveTextContent("Nombre");
-    expect(screen.getByTestId("customers-import-error-field-2"))
+    expect(screen.getByTestId("customers-import-error-field-cell-2"))
       .toHaveTextContent("Teléfono");
-    expect(screen.getByTestId("customers-import-error-field-3"))
+    expect(screen.getByTestId("customers-import-error-field-cell-3"))
       .toHaveTextContent("Dirección");
   });
 

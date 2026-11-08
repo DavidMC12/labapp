@@ -257,20 +257,20 @@ export function CustomersImportForm() {
                       data-testid={`customers-import-error-row-${n}`}
                       className="ledger-row"
                     >
-                      <td
-                        data-testid={`customers-import-error-line-${n}`}
+                      <td 
+                        data-testid={`customers-import-error-line-cell-${n}`}
                         className={`${TABLE_CELL_CLASSES} whitespace-nowrap`}
                       >
                         {row.line}
                       </td>
                       <td
-                        data-testid={`customers-import-error-field-${n}`}
+                        data-testid={`customers-import-error-field-cell-${n}`}
                         className={`${TABLE_CELL_CLASSES} whitespace-nowrap`}
                       >
                         {row.field}
                       </td>
                       <td
-                        data-testid={`customers-import-error-message-${n}`}
+                        data-testid={`customers-import-error-message-cell-${n}`}
                         className={TABLE_CELL_CLASSES}
                       >
                         {row.message}

@@ -133,7 +133,11 @@ jobs:
             sleep 1
           done
           status=0
-          node tools/audit/browser-audit.mjs --base http://127.0.0.1:3000 --theme light || status=1
+          node tools/audit/browser-audit.mjs --base http://127.0.0.1:3000 --theme light --catalog "$RUNNER_TEMP/testids.md" || status=1
+          diff -u docs/TESTIDS.md "$RUNNER_TEMP/testids.md" || {
+            echo "::error::docs/TESTIDS.md is out of date. Regenerate it against a freshly seeded application: node tools/audit/browser-audit.mjs --catalog docs/TESTIDS.md"
+            status=1
+          }
           node tools/audit/browser-audit.mjs --base http://127.0.0.1:3000 --theme dark || status=1
           exit $status
 

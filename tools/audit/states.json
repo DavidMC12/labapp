@@ -13,6 +13,8 @@
     { "name": "customers-new", "path": "/customers/new", "user": "sales@labapp.test", "waitFor": "customers-customer-form" },
     { "name": "customers-edit", "path": "/customers/2/edit", "user": "sales@labapp.test", "waitFor": "customers-customer-form" },
     { "name": "customers-not-found", "path": "/customers/999", "user": "sales@labapp.test", "waitFor": "customers-detail-error-alert" },
+    { "name": "products-list", "path": "/products", "user": "readonly@labapp.test", "waitFor": "products-list-table" },
+    { "name": "products-search", "path": "/products?q=cable", "user": "sales@labapp.test", "waitFor": "products-list-table" },
     { "name": "orders-list", "path": "/orders", "user": "sales@labapp.test", "waitFor": "orders-list-table" },
     { "name": "orders-new", "path": "/orders/new", "user": "sales@labapp.test", "waitFor": "orders-customer-form" },
     { "name": "orders-detail-draft", "path": "/orders/1", "user": "sales@labapp.test", "waitFor": "orders-detail-heading" },

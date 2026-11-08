@@ -23,6 +23,7 @@ Present in every logged-in state.
 | `app-nav-home-link` | `a` |
 | `app-nav-invoices-link` | `a` |
 | `app-nav-orders-link` | `a` |
+| `app-nav-products-link` | `a` |
 | `app-nav-settings-link` | `a` |
 | `app-theme-select` | `select` |
 | `app-user-name-text` | `p` |
@@ -349,6 +350,114 @@ Present in every logged-in state.
 |---|---|
 | `customers-detail-back-link` | `a` |
 | `customers-detail-error-alert` | `p[role=alert]` |
+
+## products-list
+
+`/products`, logged in as `readonly@labapp.test`.
+
+| Test id | Element |
+|---|---|
+| `products-list-footer-item` | `p` |
+| `products-list-heading` | `h1` |
+| `products-list-name-cell-1` | `td` |
+| `products-list-name-cell-2` | `td` |
+| `products-list-name-cell-3` | `td` |
+| `products-list-name-cell-4` | `td` |
+| `products-list-name-cell-5` | `td` |
+| `products-list-name-cell-6` | `td` |
+| `products-list-name-cell-7` | `td` |
+| `products-list-name-cell-8` | `td` |
+| `products-list-name-cell-9` | `td` |
+| `products-list-name-cell-10` | `td` |
+| `products-list-name-cell-11` | `td` |
+| `products-list-name-cell-12` | `td` |
+| `products-list-name-cell-13` | `td` |
+| `products-list-name-cell-14` | `td` |
+| `products-list-name-cell-15` | `td` |
+| `products-list-price-cell-1` | `td` |
+| `products-list-price-cell-2` | `td` |
+| `products-list-price-cell-3` | `td` |
+| `products-list-price-cell-4` | `td` |
+| `products-list-price-cell-5` | `td` |
+| `products-list-price-cell-6` | `td` |
+| `products-list-price-cell-7` | `td` |
+| `products-list-price-cell-8` | `td` |
+| `products-list-price-cell-9` | `td` |
+| `products-list-price-cell-10` | `td` |
+| `products-list-price-cell-11` | `td` |
+| `products-list-price-cell-12` | `td` |
+| `products-list-price-cell-13` | `td` |
+| `products-list-price-cell-14` | `td` |
+| `products-list-price-cell-15` | `td` |
+| `products-list-row-1` | `tr` |
+| `products-list-row-2` | `tr` |
+| `products-list-row-3` | `tr` |
+| `products-list-row-4` | `tr` |
+| `products-list-row-5` | `tr` |
+| `products-list-row-6` | `tr` |
+| `products-list-row-7` | `tr` |
+| `products-list-row-8` | `tr` |
+| `products-list-row-9` | `tr` |
+| `products-list-row-10` | `tr` |
+| `products-list-row-11` | `tr` |
+| `products-list-row-12` | `tr` |
+| `products-list-row-13` | `tr` |
+| `products-list-row-14` | `tr` |
+| `products-list-row-15` | `tr` |
+| `products-list-search-button` | `button` |
+| `products-list-search-form` | `form` |
+| `products-list-search-input` | `input[type=text]` |
+| `products-list-sku-cell-1` | `td` |
+| `products-list-sku-cell-2` | `td` |
+| `products-list-sku-cell-3` | `td` |
+| `products-list-sku-cell-4` | `td` |
+| `products-list-sku-cell-5` | `td` |
+| `products-list-sku-cell-6` | `td` |
+| `products-list-sku-cell-7` | `td` |
+| `products-list-sku-cell-8` | `td` |
+| `products-list-sku-cell-9` | `td` |
+| `products-list-sku-cell-10` | `td` |
+| `products-list-sku-cell-11` | `td` |
+| `products-list-sku-cell-12` | `td` |
+| `products-list-sku-cell-13` | `td` |
+| `products-list-sku-cell-14` | `td` |
+| `products-list-sku-cell-15` | `td` |
+| `products-list-stock-cell-1` | `td` |
+| `products-list-stock-cell-2` | `td` |
+| `products-list-stock-cell-3` | `td` |
+| `products-list-stock-cell-4` | `td` |
+| `products-list-stock-cell-5` | `td` |
+| `products-list-stock-cell-6` | `td` |
+| `products-list-stock-cell-7` | `td` |
+| `products-list-stock-cell-8` | `td` |
+| `products-list-stock-cell-9` | `td` |
+| `products-list-stock-cell-10` | `td` |
+| `products-list-stock-cell-11` | `td` |
+| `products-list-stock-cell-12` | `td` |
+| `products-list-stock-cell-13` | `td` |
+| `products-list-stock-cell-14` | `td` |
+| `products-list-stock-cell-15` | `td` |
+| `products-list-stockstate-status-7` | `span` |
+| `products-list-stockstate-status-9` | `span` |
+| `products-list-table` | `table` |
+
+## products-search
+
+`/products?q=cable`, logged in as `sales@labapp.test`.
+
+| Test id | Element |
+|---|---|
+| `products-list-footer-item` | `p` |
+| `products-list-heading` | `h1` |
+| `products-list-name-cell-6` | `td` |
+| `products-list-price-cell-6` | `td` |
+| `products-list-row-6` | `tr` |
+| `products-list-search-button` | `button` |
+| `products-list-search-form` | `form` |
+| `products-list-search-input` | `input[type=text]` |
+| `products-list-sku-cell-6` | `td` |
+| `products-list-stock-cell-6` | `td` |
+| `products-list-table` | `table` |
 
 ## orders-list
 

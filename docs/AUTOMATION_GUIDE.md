@@ -114,3 +114,102 @@ The exact data ([docs/SEED.md](SEED.md)) is a contract. "I want to test X, use Y
 | A card that always approves | `4242 4242 4242 4242` | Any valid expiry not in the past, any 3-digit CVC |
 
 All three test cards pass the Luhn check, so the gateway outcome alone decides ([SPEC section 6](SPEC.md)). Tax rate in the seed: 10.00 %; the totals above assume it. User password: `Demo-LabApp-2026!`. After a fresh start the next numbers are order `PED-0008`, invoice `FAC-0004`, payment id 5.
+
+## 5. The core flows, step by step
+
+The UI is in Spanish; the steps cite the ids you click and read. Error messages are quoted exactly as the code writes them. The Playwright sketches are **illustrative, not run in CI**, and use only ids of the catalog.
+
+### Flow 1 — create a customer (Admin or Sales)
+
+| Step | Id | Expected result |
+|---|---|---|
+| Log in | `auth-login-email-input`, `auth-login-password-input`, `auth-login-submit-button` | Redirect to `/`, the `Resumen` heading `app-home-heading` |
+| Open the module | `app-nav-customers-link` | `/customers`, heading `customers-list-heading`, table `customers-list-table` |
+| Start the form | `customers-list-new-link` | `/customers/new`, heading `customers-form-heading`, form `customers-customer-form` |
+| Fill and save | `customers-form-name-input`, `customers-form-email-input`, `customers-form-phone-input`, `customers-form-taxid-input`, `customers-form-address-textarea`, then `customers-form-submit-button` ("Guardar") | Redirect to `/customers/{id}`; the detail heading is the new name (`customers-detail-heading`), the state badge `customers-detail-state-status` reads `Activo` |
+
+Errors a test can provoke, and where they appear:
+
+- Empty name or email (the email is trimmed first): the field error `Este campo es obligatorio.`, in the `<p role="alert">` under the input; focus moves to the first field with an error.
+- Email already used (409 `CUSTOMER_EMAIL_TAKEN`): the error `Ya existe un cliente con ese email.` on the email field.
+- Server field rules (422 `VALIDATION_ERROR`): the answer's `message` under each field, for example `Debe tener al menos 2 caracteres.` on a one-letter name.
+
+```ts
+// Illustrative, not run in CI.
+const name = "Prueba Uno";
+await page.getByTestId("customers-list-new-link").click();
+await page.getByTestId("customers-form-name-input").fill(name);
+await page.getByTestId("customers-form-email-input").fill("prueba@example.test");
+await page.getByTestId("customers-form-submit-button").click();
+await page.getByTestId("customers-detail-heading").toHaveText(name);
+await expect(page.getByTestId("customers-detail-state-status")).toHaveText("Activo");
+```
+
+### Flow 2 — build, confirm and cancel an order (Admin or Sales)
+
+| Step | Id | Expected result |
+|---|---|---|
+| Start a draft | `orders-list-new-link` | `/orders/new`; the picker `orders-form-customer-select` lists up to 20 active customers ("Elige un cliente" placeholder); search it with `orders-form-customersearch-input` + `orders-form-customersearch-button` |
+| Create the draft | `orders-form-submit-button` ("Crear pedido") | Redirect to `/orders/{id}`; the badge `orders-detail-state-status` reads `Borrador`; the totals (`orders-detail-subtotal-text`, `orders-detail-tax-text`, `orders-detail-total-text`) read `$0.00`; the note `orders-detail-preview-text` says `Vista previa: la tasa se fija al confirmar.` |
+| Add a line | `orders-detail-addline-product-select` (option text `Teclado USB (KB-100) — $19.90 — stock 120`; products already in the order are disabled), `orders-detail-addline-quantity-input` (a number input, default 1), `orders-detail-addline-submit-button` ("Agregar") | A row in `orders-detail-lines-table` (row `orders-detail-line-row-{line_id}`) and recomputed totals |
+| Confirm | `orders-detail-confirm-button` ("Confirmar") | The badge changes to `Confirmado`; stock is decremented and the totals freeze |
+| Cancel | `orders-detail-cancel-button` ("Cancelar pedido") → dialog `orders-cancel-confirm-dialog` ("¿Cancelar el pedido {number}?") → `orders-cancel-confirm-button` ("Sí, cancelar pedido") | The badge changes to `Cancelado`; cancelling a draft frees nothing, cancelling a confirmed order returns the stock |
+
+Errors a test can provoke:
+
+- Confirm a draft without lines: the page alert gets `El pedido debe tener al menos una línea.`
+- Quantity out of range (1–999): the field error `El valor debe estar entre 1 y 999.` under the quantity input (`addline` or the per-line editor `orders-detail-line-quantity-input-{line_id}`; empty reads `Este campo es obligatorio.` without a request).
+- Not enough stock on confirm (409 `INSUFFICIENT_STOCK`): the page alert gets `No hay stock suficiente de {product}: disponible {available}, solicitado {requested}.` and the list `orders-detail-shortages-list` shows one line per short product, `{name} ({sku}): disponible {available}, solicitado {requested}`.
+- The customer was deactivated after the draft was made: confirming fails with `El cliente está desactivado y no puede recibir pedidos.`
+- A failed mutation refetches the order, so the next click sends a fresh version; a genuinely stale version answers 409 with `El registro cambió mientras lo editabas. Recarga e inténtalo de nuevo.` in the same alert.
+
+```ts
+// Illustrative, not run in CI.
+await page.getByTestId("orders-list-new-link").click();
+await page.getByTestId("orders-form-customer-select").selectOption({ label: "Acme Industrial S.A." });
+await page.getByTestId("orders-form-submit-button").click();
+await page.getByTestId("orders-detail-state-status").toHaveText("Borrador");
+await page.getByTestId("orders-detail-addline-product-select").selectOption({ label: "Teclado USB (KB-100) — $19.90 — stock 120" });
+await page.getByTestId("orders-detail-addline-quantity-input").fill("2");
+await page.getByTestId("orders-detail-addline-submit-button").click();
+await expect(page.getByTestId("orders-detail-total-text")).toHaveText("$43.78");
+await page.getByTestId("orders-detail-confirm-button").click();
+await expect(page.getByTestId("orders-detail-state-status")).toHaveText("Confirmado");
+await page.getByTestId("orders-detail-cancel-button").click();
+await page.getByTestId("orders-cancel-confirm-dialog").waitFor();
+await page.getByTestId("orders-cancel-confirm-button").click();
+await expect(page.getByTestId("orders-detail-state-status")).toHaveText("Cancelado");
+```
+
+### Flow 3 — invoice an order and pay it (Admin or Finance)
+
+Issuing happens on the order detail; there is no "new invoice" button on the list.
+
+| Step | Id | Expected result |
+|---|---|---|
+| Issue the invoice of a confirmed order | on `/orders/{id}`, `orders-detail-invoice-button` ("Facturar", rendered for Admin and Finance only while the order is confirmed without an invoice) | Navigation to `/invoices/{id}`; the badge `invoices-detail-state-status` reads `Emitida` |
+| Open a seeded issued invoice | `/invoices/1` (`FAC-0001`, total `$327.80`), reached from the list via `invoices-list-view-link-1` or from the order via `orders-detail-invoice-link` | The form `payments-register-form` with `payments-register-heading` ("Registrar un pago") |
+| Pay by card | `payments-register-method-select` ("Tarjeta", "Transferencia", "Efectivo"), `payments-register-amount-input` (prefilled with the total), `payments-register-cardnumber-input`, `payments-register-cardexpiry-input` ("Vencimiento (MM/AA)"), `payments-register-cardcvc-input`, then `payments-register-submit-button` ("Pagar") | Approved: the state region "Pago aprobado.", the badge turns `Pagada` and the form is replaced by `invoices-detail-closed-text` ("Esta factura está pagada."); the order becomes `Pagado` |
+| Pay by transfer | switch the method, use `payments-register-reference-input` ("Referencia", 4–40 characters) | Always approved; the history shows the reference |
+| Pay in cash | switch the method; no extra fields | Always approved |
+
+Errors a test can provoke:
+
+- Amount edited so it differs from the total: the form alert gets `El monto debe ser igual al total de la factura.`
+- Card number that fails the Luhn check or is not 16 digits: the field error `El número de tarjeta no es válido.`
+- Expiry in the past: `La tarjeta está vencida.`; expiry not in `MM/AA` shape: `El formato no es válido.`; CVC not 3 digits: `El código de seguridad no es válido.`
+- Card ending `0002` (declined, HTTP 402): the form alert gets `La pasarela rechazó el pago. Prueba con otra tarjeta.`, and the attempt is kept in the history (`invoices-detail-payment-row-{payment_id}`) with the badge `Rechazado` and the detail `Tarjeta rechazada`. The invoice stays `Emitida`.
+- Card ending `0003` (HTTP 503): the alert `La pasarela de pago no está disponible. Inténtalo de nuevo.`; history badge `Fallido`, detail `Pasarela no disponible`.
+- Invoicing a customer without a tax ID: the order alert gets `El cliente necesita un ID fiscal para poder facturar.` (seed: `Cafetería La Esquina`, order `PED-0007`).
+- On a paid or void invoice the form is not rendered; the closed note explains it: `Esta factura está pagada.` or `Esta factura fue anulada.`
+
+```ts
+// Illustrative, not run in CI. FAC-0001 carries two failed attempts; a new approval changes history.
+await page.getByTestId("invoices-list-view-link-1").click();
+await page.getByTestId("payments-register-cardnumber-input").fill("4242 4242 4242 4242");
+await page.getByTestId("payments-register-cardexpiry-input").fill("12/30");
+await page.getByTestId("payments-register-cardcvc-input").fill("123");
+await page.getByTestId("payments-register-submit-button").click();
+await expect(page.getByTestId("invoices-detail-state-status")).toHaveText("Pagada");
+await expect(page.getByTestId("invoices-detail-closed-text")).toHaveText("Esta factura está pagada.");
+```

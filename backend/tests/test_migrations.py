@@ -56,7 +56,7 @@ def test_alembic_ini_resolves_from_any_working_directory(
     assert config.get_main_option("sqlalchemy.url") is None
     script = ScriptDirectory.from_config(config)
     assert Path(script.dir).resolve() == MIGRATIONS_DIR
-    assert script.get_heads() == ["0002"]
+    assert script.get_heads() == ["0003"]
 
 
 def test_cli_parses_migrate() -> None:

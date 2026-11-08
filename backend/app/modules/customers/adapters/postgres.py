@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
+from contextlib import nullcontext
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import delete, func, insert, or_, select, text, update
+from sqlalchemy import Table, delete, func, insert, or_, select, text, update
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.exc import IntegrityError
 
@@ -207,10 +208,25 @@ class PostgresCustomerRepository:
             )
             return _customer_from_row(row)
 
-    def replace_all(self, replacement: Iterable[Customer]) -> None:
+    def replace_all(
+        self,
+        replacement: Iterable[Customer],
+        *,
+        connection: Connection | None = None,
+        defer_sequences: list[Callable[[Connection], None]] | None = None,
+    ) -> None:
+        """Replace every customer and restart the id sequence.
+
+        With ``connection`` it runs inside the caller's transaction and does not open
+        its own; without it, the replacement is one transaction. With
+        ``defer_sequences`` the sequence restart is appended to that list instead of
+        running now, so the caller can run it once every data step succeeded
+        (``setval`` is not undone by a rollback).
+        """
         replacements = list(replacement)
         next_id = max((customer.id for customer in replacements), default=0) + 1
-        with self._engine.begin() as connection:
+        context = nullcontext(connection) if connection is not None else self._engine.begin()
+        with context as connection:
             connection.execute(delete(customers))
             if replacements:
                 connection.execute(
@@ -234,13 +250,30 @@ class PostgresCustomerRepository:
                         ]
                     )
                 )
-            connection.execute(
-                text("select setval(pg_get_serial_sequence(:table_name, 'id'), :next_id, false)"),
-                {
-                    "table_name": qualified_table_name(self._engine, customers),
-                    "next_id": next_id,
-                },
-            )
+            restart_sequence = _sequence_restart(self._engine, customers, next_id)
+            if defer_sequences is None:
+                restart_sequence(connection)
+            else:
+                defer_sequences.append(restart_sequence)
+
+
+def _sequence_restart(
+    engine: Engine,
+    table: Table,
+    next_id: int,
+) -> Callable[[Connection], None]:
+    """Build the ``setval`` call that restarts a table's id sequence."""
+
+    def restart(connection: Connection) -> None:
+        connection.execute(
+            text("select setval(pg_get_serial_sequence(:table_name, 'id'), :next_id, false)"),
+            {
+                "table_name": qualified_table_name(engine, table),
+                "next_id": next_id,
+            },
+        )
+
+    return restart
 
 
 __all__ = ["PostgresCustomerRepository"]

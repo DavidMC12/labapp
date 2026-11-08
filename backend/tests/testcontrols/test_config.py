@@ -1,0 +1,67 @@
+"""The configuration refuses an online test mode."""
+
+from __future__ import annotations
+
+import pytest
+from pydantic import ValidationError
+
+from app.config import Settings
+
+
+@pytest.mark.parametrize("deployment", ["production", "preview"])
+def test_test_mode_is_refused_on_vercel(
+    monkeypatch: pytest.MonkeyPatch,
+    deployment: str,
+) -> None:
+    monkeypatch.setenv("VERCEL_ENV", deployment)
+
+    with pytest.raises(ValidationError, match="VERCEL_ENV"):
+        Settings(session_secret="test-secret", test_mode=True)
+
+
+@pytest.mark.parametrize(
+    ("variable", "value"),
+    [
+        ("AWS_LAMBDA_FUNCTION_NAME", "function"),
+        ("AWS_LAMBDA_FUNCTION_NAME", ""),
+        ("VERCEL", "1"),
+        ("VERCEL", ""),
+    ],
+)
+def test_test_mode_is_refused_on_the_platform(
+    monkeypatch: pytest.MonkeyPatch,
+    variable: str,
+    value: str,
+) -> None:
+    monkeypatch.delenv("VERCEL_ENV", raising=False)
+    monkeypatch.setenv(variable, value)
+
+    with pytest.raises(ValidationError, match=variable):
+        Settings(session_secret="test-secret", test_mode=True)
+
+
+@pytest.mark.parametrize("deployment", ["production", "preview"])
+def test_a_vercel_deployment_without_test_mode_starts(
+    monkeypatch: pytest.MonkeyPatch,
+    deployment: str,
+) -> None:
+    monkeypatch.setenv("VERCEL_ENV", deployment)
+
+    settings = Settings(session_secret="a-long-random-value", test_mode=False)
+
+    assert settings.test_mode is False
+
+
+@pytest.mark.parametrize("deployment", [None, "development"])
+def test_test_mode_is_allowed_outside_a_vercel_deployment(
+    monkeypatch: pytest.MonkeyPatch,
+    deployment: str | None,
+) -> None:
+    monkeypatch.delenv("AWS_LAMBDA_FUNCTION_NAME", raising=False)
+    monkeypatch.delenv("VERCEL", raising=False)
+    if deployment is None:
+        monkeypatch.delenv("VERCEL_ENV", raising=False)
+    else:
+        monkeypatch.setenv("VERCEL_ENV", deployment)
+
+    assert Settings(session_secret="test-secret", test_mode=True).test_mode is True

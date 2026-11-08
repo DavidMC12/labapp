@@ -4,22 +4,23 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from pydantic import BaseModel, ConfigDict, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 from app.modules.customers.models import CustomerStatus
+from app.openapi import ID_MAXIMUM, ID_MINIMUM
 
 
 class CustomerOut(BaseModel):
     """The public customer representation."""
 
-    id: int
+    id: int = Field(ge=ID_MINIMUM, le=ID_MAXIMUM)
     name: str
     email: str
     phone: str | None
     tax_id: str | None
     address: str | None
     status: CustomerStatus
-    version: int
+    version: int = Field(ge=ID_MINIMUM, le=ID_MAXIMUM)
     created_at: datetime
     updated_at: datetime
 

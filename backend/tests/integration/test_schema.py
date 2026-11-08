@@ -16,6 +16,7 @@ APP_TABLES = {
     "orders",
     "order_lines",
     "settings",
+    "fault_rules",
 }
 APP_INDEXES = {
     "users_email_lower_key",
@@ -37,6 +38,11 @@ APP_CHECKS = {
     "ck_orders_status",
     "ck_orders_tax_rate",
     "ck_order_lines_quantity",
+    "ck_fault_rules_target",
+    "ck_fault_rules_method",
+    "ck_fault_rules_latency_ms",
+    "ck_fault_rules_status",
+    "ck_fault_rules_remaining",
 }
 
 

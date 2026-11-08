@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, Response, status
 from pydantic import BaseModel, Field
@@ -16,26 +16,10 @@ from app.modules.auth.dependencies import (
     session_cookie_values,
 )
 from app.modules.auth.models import User
+from app.openapi import documented_responses
 from app.security.origin import cookie_secure
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
-
-_PROBLEM_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "required": ["type", "title", "status", "code", "detail"],
-    "properties": {
-        "type": {"type": "string"},
-        "title": {"type": "string"},
-        "status": {"type": "integer"},
-        "code": {"type": "string"},
-        "detail": {"type": "string"},
-    },
-}
-
-_UNAUTHORIZED_RESPONSE: dict[str, Any] = {
-    "description": "Authentication failed.",
-    "content": {"application/problem+json": {"schema": _PROBLEM_SCHEMA}},
-}
 
 
 class LoginRequest(BaseModel):
@@ -58,7 +42,20 @@ def _user_out(user: User) -> UserOut:
     return UserOut(id=user.id, name=user.name, email=user.email, role=user.role)
 
 
-@router.post("/login", response_model=UserOut, responses={401: _UNAUTHORIZED_RESPONSE})
+@router.post(
+    "/login",
+    response_model=UserOut,
+    responses=documented_responses(
+        method="POST",
+        protected=False,
+        body=True,
+        unavailable=("SERVICE_BUSY", "LOCK_TIMEOUT"),
+        extra={
+            401: "The email or the password is wrong. Code: `INVALID_CREDENTIALS`.",
+            422: "The body is invalid. Code: `VALIDATION_ERROR` (with `errors[]`).",
+        },
+    ),
+)
 def login(
     payload: LoginRequest,
     request: Request,
@@ -83,7 +80,12 @@ def login(
     return _user_out(user)
 
 
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+    responses=documented_responses(method="POST", protected=False),
+)
 def logout(
     request: Request,
     container: Annotated[Container, Depends(get_container)],
@@ -102,7 +104,11 @@ def logout(
     return response
 
 
-@router.get("/me", response_model=UserOut, responses={401: _UNAUTHORIZED_RESPONSE})
+@router.get(
+    "/me",
+    response_model=UserOut,
+    responses=documented_responses(method="GET"),
+)
 def me(
     user: Annotated[User, Depends(get_current_user)],
     response: Response,

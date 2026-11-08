@@ -11,9 +11,19 @@ the column from the header row.
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from pathlib import Path
 
 Table = list[dict[str, str]]
+
+
+@dataclass(frozen=True)
+class RawTable:
+    """A pipe table with its cells exactly as written (backticks included)."""
+
+    header: list[str]
+    rows: list[list[str]]
+
 
 _HEADING = re.compile(r"^(?P<level>#{1,6})\s+(?P<text>.*?)\s*#*\s*$")
 _SEPARATOR_CELL = re.compile(r"^:?-{3,}:?$")
@@ -35,13 +45,17 @@ def _is_row(line: str) -> bool:
     return line.strip().startswith("|")
 
 
-def _cells(line: str) -> list[str]:
+def _raw_cells(line: str) -> list[str]:
     stripped = line.strip()
     if stripped.startswith("|"):
         stripped = stripped[1:]
     if stripped.endswith("|"):
         stripped = stripped[:-1]
-    return [cell.strip().replace("`", "") for cell in stripped.split("|")]
+    return [cell.strip() for cell in stripped.split("|")]
+
+
+def _cells(line: str) -> list[str]:
+    return [cell.replace("`", "") for cell in _raw_cells(line)]
 
 
 def _is_separator(line: str) -> bool:
@@ -51,10 +65,10 @@ def _is_separator(line: str) -> bool:
     return bool(cells) and all(_SEPARATOR_CELL.match(cell) for cell in cells)
 
 
-def parse_tables(text: str) -> list[Table]:
-    """Return every pipe table in the text, in the order they appear."""
+def raw_tables(text: str) -> list[RawTable]:
+    """Return every pipe table in the text with its cells left untouched."""
     lines = text.splitlines()
-    tables: list[Table] = []
+    tables: list[RawTable] = []
     index = 0
     in_fence = False
     while index < len(lines):
@@ -67,17 +81,29 @@ def parse_tables(text: str) -> list[Table]:
             index += 1
             continue
         if _is_row(line) and index + 1 < len(lines) and _is_separator(lines[index + 1]):
-            header = _cells(line)
+            header = _raw_cells(line)
             index += 2
-            rows: Table = []
+            rows: list[list[str]] = []
             while index < len(lines) and _is_row(lines[index]) and not _is_separator(lines[index]):
-                cells = _cells(lines[index])
-                cells = (cells + [""] * len(header))[: len(header)]
-                rows.append(dict(zip(header, cells, strict=True)))
+                rows.append(_raw_cells(lines[index]))
                 index += 1
-            tables.append(rows)
+            tables.append(RawTable(header, rows))
             continue
         index += 1
+    return tables
+
+
+def parse_tables(text: str) -> list[Table]:
+    """Return every pipe table in the text, in the order they appear."""
+    tables: list[Table] = []
+    for raw in raw_tables(text):
+        header = [cell.replace("`", "") for cell in raw.header]
+        rows: Table = []
+        for raw_row in raw.rows:
+            cells = [cell.replace("`", "") for cell in raw_row]
+            cells = (cells + [""] * len(header))[: len(header)]
+            rows.append(dict(zip(header, cells, strict=True)))
+        tables.append(rows)
     return tables
 
 

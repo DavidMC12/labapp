@@ -207,6 +207,14 @@ unknown value answers 422 `VALIDATION_ERROR` with `sort` or `direction` in `erro
 curl -b /tmp/labapp-cookies 'localhost:8000/api/customers?sort=name&direction=asc'
 ```
 
+## CSV export
+
+The customer, order and invoice lists have a read-only `export` route that returns every row of the list filters as a CSV file (section 8 of `docs/SPEC.md`): `GET /api/customers/export`, `GET /api/orders/export` and `GET /api/invoices/export`. They take the same filter and sort query parameters as the list (`q`, `status`, `sort` and `direction`, plus `customer_id` for orders and `order_id` for invoices), ignore `page` and need a session; every role may export. The answer is the file itself, with `Content-Type: text/csv; charset=utf-8`, `Content-Disposition: attachment; filename="<resource>-<YYYYMMDD>.csv"` (the UTC date of the application clock) and `Cache-Control: no-store`. Lines end with CRLF, the first line is the header, text fields follow RFC 4180 quoting, and a text field that starts with `=`, `+`, `-`, `@`, a tab or a carriage return gets a single quote in front of it so a spreadsheet never evaluates it.
+
+```bash
+curl -b /tmp/labapp-cookies 'localhost:8000/api/customers/export?status=active' -o customers.csv
+```
+
 ## Limits
 
 Request bodies are limited to 100 KB. A declared `Content-Length` above the limit is

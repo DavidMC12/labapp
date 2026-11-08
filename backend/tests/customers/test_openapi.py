@@ -25,6 +25,27 @@ def test_openapi_documents_the_customer_export(clients: dict[str, TestClient]) -
     assert set(response["headers"]) == {"Content-Disposition", "Cache-Control"}
 
 
+def test_openapi_documents_the_customer_import(clients: dict[str, TestClient]) -> None:
+    document = clients["sales"].get("/api/openapi.json").json()
+
+    operation = document["paths"]["/api/customers/import"]["post"]
+    assert {"201", "400", "401", "403", "409", "413", "422"} <= set(operation["responses"])
+    request = operation["requestBody"]
+    assert request["required"] is True
+    reference = request["content"]["multipart/form-data"]["schema"]["$ref"]
+    schema_name = reference.rsplit("/", 1)[-1]
+    file_part = document["components"]["schemas"][schema_name]["properties"]["file"]
+    assert file_part["type"] == "string"
+    assert file_part["format"] == "binary"
+    assert (
+        "rows[2].email"
+        in operation["responses"]["422"]["content"]["application/problem+json"]["examples"][
+            "import-errors"
+        ]["value"]["errors"][1]["field"]
+    )
+    assert "column names" in operation["description"].lower()
+
+
 def test_openapi_documents_the_customer_routes(clients: dict[str, TestClient]) -> None:
     document = clients["sales"].get("/api/openapi.json").json()
 

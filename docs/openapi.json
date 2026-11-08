@@ -919,6 +919,227 @@
         ]
       }
     },
+    "/api/customers/import": {
+      "post": {
+        "tags": [
+          "customers"
+        ],
+        "summary": "Import Customers",
+        "description": "Import the customers of a CSV file, all or nothing.\n\nThe body is `multipart/form-data` with one file part named `file`. The file\nmust be UTF-8 (an optional byte order mark is ignored), its name must end in\n`.csv` in any case, and it must use a comma separator with RFC 4180 quoting\nand CRLF or LF line ends. The first non-blank line is the header: its trimmed\ncells are column names among `name`, `email`, `phone`, `tax_id` and `address`,\neach at most once, and `name` and `email` are required. The following\nnon-blank lines are 1 to 200 data rows. A row with fewer or more cells than\nthe header is reported as `rows[N]`, where `N` is its physical line in the\nfile (the header is line 1). Each row follows the creation rules: `name` 2 to\n120 characters, a valid `email` (stored trimmed and lowercased), an optional\n`phone` of 7 to 20 digits, spaces, `+`, `-`, `(`, `)`; an optional `tax_id`\nof 3 to 30 letters, digits or hyphens; and an optional `address` of up to 200\ncharacters. An empty optional value is stored as `null`, and the leading\nsingle quote of a neutralized formula is kept. Errors are listed in file\norder, at most 100; when any row fails nothing is created.",
+        "operationId": "import_customers_api_customers_import_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_customers_api_customers_import_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerImportOut"
+                },
+                "examples": {
+                  "imported": {
+                    "summary": "The customers of the file, in file order",
+                    "value": {
+                      "created": 2,
+                      "items": [
+                        {
+                          "id": 11,
+                          "name": "Northwind Import S.A.",
+                          "email": "northwind@example.test",
+                          "phone": "+1 555 010 0200",
+                          "tax_id": "NORTH-123456",
+                          "address": "Calle 50, edificio 12\nPiso 3",
+                          "status": "active",
+                          "version": 1,
+                          "created_at": "2026-11-05T15:00:00Z",
+                          "updated_at": "2026-11-05T15:00:00Z"
+                        },
+                        {
+                          "id": 12,
+                          "name": "Aurora Servicios S.A.",
+                          "email": "aurora@example.test",
+                          "phone": null,
+                          "tax_id": null,
+                          "address": null,
+                          "status": "active",
+                          "version": 1,
+                          "created_at": "2026-11-05T15:00:00Z",
+                          "updated_at": "2026-11-05T15:00:00Z"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request body is not valid JSON. Code: `MALFORMED_JSON`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The request body exceeds 100 KB. Code: `PAYLOAD_TOO_LARGE`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "There is no session or it expired. Codes: `UNAUTHENTICATED`, `SESSION_EXPIRED`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "examples": {
+                  "unauthenticated": {
+                    "summary": "No session",
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unauthorized",
+                      "status": 401,
+                      "code": "UNAUTHENTICATED",
+                      "detail": "Inicia sesión para continuar."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The Origin is not allowed or the role lacks the permission. Codes: `CSRF_ORIGIN_MISMATCH`, `FORBIDDEN`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "examples": {
+                  "forbidden": {
+                    "summary": "The role lacks the permission",
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Forbidden",
+                      "status": 403,
+                      "code": "FORBIDDEN",
+                      "detail": "No tienes permiso para realizar esta acción."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests. Code: `RATE_LIMITED`; the answer carries `Retry-After`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error. Code: `INTERNAL_ERROR`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service or a database lock is busy. Code: `LOCK_TIMEOUT`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The email is already used by another customer. Code: `CUSTOMER_EMAIL_TAKEN`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "examples": {
+                  "email-taken": {
+                    "summary": "The email already belongs to another customer",
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Conflict",
+                      "status": 409,
+                      "code": "CUSTOMER_EMAIL_TAKEN",
+                      "detail": "Ya existe un cliente con ese email."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The file is missing or invalid. Codes: `VALIDATION_ERROR` (with `errors[]`) and `CUSTOMER_EMAIL_TAKEN` for a row whose email is already used.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                },
+                "examples": {
+                  "import-errors": {
+                    "summary": "The rows rejected by the file",
+                    "value": {
+                      "type": "about:blank",
+                      "title": "Unprocessable Content",
+                      "status": 422,
+                      "code": "VALIDATION_ERROR",
+                      "detail": "Revisa los datos ingresados.",
+                      "errors": [
+                        {
+                          "field": "rows[2].name",
+                          "code": "TOO_SHORT",
+                          "message": "Debe tener al menos 2 caracteres."
+                        },
+                        {
+                          "field": "rows[2].email",
+                          "code": "CUSTOMER_EMAIL_TAKEN",
+                          "message": "Ya existe un cliente con ese email."
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
     "/api/customers/{id}": {
       "get": {
         "tags": [
@@ -5568,6 +5789,21 @@
   },
   "components": {
     "schemas": {
+      "Body_import_customers_api_customers_import_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "title": "File",
+            "description": "A UTF-8 CSV file named *.csv.",
+            "format": "binary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_import_customers_api_customers_import_post"
+      },
       "CustomerCreate": {
         "properties": {
           "name": {
@@ -5630,6 +5866,28 @@
         "type": "object",
         "title": "CustomerCreate",
         "description": "The creation payload; validation happens in the service."
+      },
+      "CustomerImportOut": {
+        "properties": {
+          "created": {
+            "type": "integer",
+            "title": "Created"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CustomerOut"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "created",
+          "items"
+        ],
+        "title": "CustomerImportOut",
+        "description": "The customers created by one imported file."
       },
       "CustomerListOut": {
         "properties": {

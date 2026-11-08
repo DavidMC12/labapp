@@ -351,6 +351,20 @@ VERSION_CONFLICT_409: Example = {
     "code": "VERSION_CONFLICT",
     "detail": "El registro cambió mientras lo editabas. Recarga e inténtalo de nuevo.",
 }
+CUSTOMER_EMAIL_TAKEN_409: Example = {
+    "type": "about:blank",
+    "title": "Conflict",
+    "status": 409,
+    "code": "CUSTOMER_EMAIL_TAKEN",
+    "detail": "Ya existe un cliente con ese email.",
+}
+CSRF_ORIGIN_MISMATCH_403: Example = {
+    "type": "about:blank",
+    "title": "Forbidden",
+    "status": 403,
+    "code": "CSRF_ORIGIN_MISMATCH",
+    "detail": "La solicitud no proviene de la aplicación.",
+}
 VALIDATION_ERROR_422: Example = {
     "type": "about:blank",
     "title": "Unprocessable Content",
@@ -377,6 +391,15 @@ PROBLEM_EXAMPLES: dict[int, NamedExamples] = {
 }
 INVALID_CREDENTIALS_EXAMPLES: NamedExamples = {
     "invalid-credentials": named("A wrong email or password", INVALID_CREDENTIALS_401)
+}
+CUSTOMER_EMAIL_TAKEN_EXAMPLES: NamedExamples = {
+    "email-taken": named("The email already belongs to another customer", CUSTOMER_EMAIL_TAKEN_409)
+}
+CSRF_ORIGIN_MISMATCH_EXAMPLES: NamedExamples = {
+    "origin-mismatch": named(
+        "The Origin is not the application origin",
+        CSRF_ORIGIN_MISMATCH_403,
+    )
 }
 
 

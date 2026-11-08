@@ -540,4 +540,44 @@ curl -s -i -b $J -H 'Content-Type: application/json' -H 'Idempotency-Key: pay-00
 
 The guards a test meets on the way ([SPEC sections 4–6](SPEC.md)): every route needs a session; creating customers, orders and lines, editing them, and confirming/cancelling/shipping are for Admin and Sales (`403 FORBIDDEN` otherwise); issuing an invoice and registering a payment are for Admin and Finance. Money is always a JSON string with exactly two decimals (`"43.78"`), never a number; the tax rate is `"10.00"` too.
 
+### Optimistic concurrency: `version`, `ETag`, `If-Match`
+
+Every customer, order and invoice carries an integer `version` starting at 1, +1 on every change, and every response that returns one of them carries `ETag: "<version>"` — including create, update and transition answers. Use it to assert *how many* changes happened, and to send a conditional request the next time. Which route takes the version, and how:
+
+| Route | Where the version goes |
+|---|---|
+| `PATCH /api/customers/{id}` | `version` in the JSON body (required there) |
+| `POST /api/customers/{id}/deactivate`, `/reactivate` | optional `If-Match: "<version>"` header |
+| `PATCH /api/orders/{id}` (change the customer of a draft) | `version` in the body |
+| `POST /api/orders/{id}/lines` | `version` in the body |
+| `PATCH /api/orders/{id}/lines/{line_id}` | `version` in the body |
+| `DELETE /api/orders/{id}/lines/{line_id}` | optional `If-Match` (the order's) |
+| `POST` `/api/orders/{id}/confirm`, `/cancel`, `/ship` | optional `If-Match` (the order's) |
+| `POST /api/orders/{id}/invoice` | optional `If-Match` (the **order's**) |
+| `POST /api/invoices/{id}/payments` | optional `If-Match` (the **invoice's**) |
+
+A stale version answers 409 `VERSION_CONFLICT` with `El registro cambió mientras lo editabas. Recarga e inténtalo de nuevo.`; no version sent skips the check (then a repeated transition answers the business conflict instead — `INVALID_TRANSITION` or `INVOICE_NOT_PAYABLE`). A malformed header — an unnecessary pair of quotes, non-digits, or anything outside 1–2147483647 — is a 422 `VALIDATION_ERROR` with `{"field": "If-Match", "code": "INVALID_FORMAT"}`. Requests that change nothing do not bump the version: an update with identical values, for example, answers 200 leaving `version` and `updated_at` untouched ([SPEC section 4](SPEC.md#4-customers-flow-1)).
+
+### The idempotency key of a payment
+
+`POST /api/invoices/{id}/payments` requires a header `Idempotency-Key` of 1–64 characters from `[A-Za-z0-9._-]` — missing is 422 `IDEMPOTENCY_KEY_REQUIRED` (`Falta la cabecera Idempotency-Key.`); a malformed one is 422 `VALIDATION_ERROR` with the field `Idempotency-Key`. The rules, all from [SPEC section 6](SPEC.md#6-invoices-and-payments-flow-3) and verified in the adapter code:
+
+- The key is scoped to one invoice and remembered for 24 hours. Two requests with the same key and the same body produce **one** payment: the second gets the stored status and body back, plus the response header `Idempotency-Replayed: true`. This covers error answers too — a replay of a declined (402) or gateway-unavailable (503) payment replays that same 402/503 problem.
+- Only an outcome that created a payment row consumes the key: `approved`, `declined`, `failed`. A request rejected earlier — no session, permission, unknown invoice, replay lookup, body validation, stale `version`, not payable, amount mismatch — does **not** consume it, so a corrected retry with the same key works.
+- The same key with a **different** body is 422 `IDEMPOTENCY_KEY_REUSED` (`Esa clave de idempotencia ya se usó con otros datos.`). The comparison is an HMAC over the canonical body with the card number reduced to its last 4 digits and the CVC dropped — neither is ever stored or returned.
+- Therefore: a retry after a decline (402) or a gateway failure (503) is a genuinely **new** attempt and must use a **new** key. Expecting a second decline with the same key to "replay" is a bug in the test; the UI renews its key after exactly those answers (part 1, section 6).
+
+```bash
+curl -s -b $J -H 'Content-Type: application/json' -H 'Idempotency-Key: pay-0001' \
+  -d '{"method":"card","amount":"43.78",
+       "card":{"number":"4242 4242 4242 4242","expiry":"12/30","cvc":"123"}}' \
+  "$BASE/api/invoices/4/payments"      # 201 PaymentResult
+curl -s -i -b $J -H 'Content-Type: application/json' -H 'Idempotency-Key: pay-0001' \
+  -d '{"method":"card","amount":"43.78",
+       "card":{"number":"4242 4242 4242 4242","expiry":"12/30","cvc":"123"}}' \
+  "$BASE/api/invoices/4/payments"      # same 201 body, Idempotency-Replayed: true
+```
+
+The declined and unavailable outcomes do not change the invoice or the order. `4000 0000 0000 0002` (or a gateway fault) answers 402 with extra `payment_id` and `reason`, the attempt is stored and appears in the invoice's `payments` array; `4000 0000 0009 0003` answers 503 the same way with `reason: "GATEWAY_UNAVAILABLE"` ([SPEC section 6](SPEC.md#6-invoices-and-payments-flow-3) lists both problems verbatim).
+
 - Stable codes pointer… (placeholder)

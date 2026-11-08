@@ -6,6 +6,18 @@ A small order-to-cash ERP (customers, orders, invoices, payments) built to be an
 
 **Status:** under active development, not deployed yet. What exists today is listed under "Where it stands"; the specification, the architecture and the testability contract are written and kept in sync with the code.
 
+## Screenshots
+
+Taken from a production build with the seed data, in the two voices of the "Libro mayor" design and at phone width.
+
+| | |
+|---|---|
+| ![Login with the demo users](docs/screenshots/login-light.png) | ![Summary of the data](docs/screenshots/home-light.png) |
+| ![Customers list](docs/screenshots/customers-light.png) | ![A confirmed order with its totals](docs/screenshots/order-detail-light.png) |
+| ![A paid invoice, dark theme](docs/screenshots/invoice-detail-dark.png) | ![Products catalog, dark theme](docs/screenshots/products-dark.png) |
+
+<img src="docs/screenshots/orders-phone-light.png" alt="The orders list on a phone" width="260">
+
 ## Why
 
 Public demo apps for test automation often ship elements without reliable locators, which forces automation engineers into brittle selectors. LabApp is designed the other way around: testability is a contract (see [docs/TESTABILITY.md](docs/TESTABILITY.md)), enforced by types, lint rules and two audits that run in CI (a static one and a browser one with axe).

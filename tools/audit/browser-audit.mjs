@@ -10,12 +10,13 @@
 // It prints the states it covered: the 100% goal is measured over those states. Exit code 1 when anything fails.
 //
 // Needs a running application (API and web) at "baseUrl" and the frontend dependencies installed.
-// Usage: node tools/audit/browser-audit.mjs [--base http://localhost:3000] [--only name,name] [--theme light|dark] [--json]
+// Usage: node tools/audit/browser-audit.mjs [--base http://localhost:3000] [--only name,name] [--theme light|dark] [--catalog file.md] [--json]
+//   --catalog writes the test ids found in every state as a Markdown catalog (docs/TESTIDS.md); CI compares it with the committed copy.
 //   --theme pins the explicit choice of the theme selector (the localStorage key of frontend/src/lib/theme.ts) before every
 //   page loads and checks that <html data-theme> took it, so the same states can be audited in both voices of the design;
 //   without it the page follows the browser default.
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,6 +30,15 @@ const option = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i 
 const base = (option("--base") ?? process.env.AUDIT_BASE_URL ?? config.baseUrl).replace(/\/+$/, "");
 const only = option("--only")?.split(",");
 const asJson = args.includes("--json");
+const catalogPath = option("--catalog");
+if (args.includes("--catalog") && (!catalogPath || catalogPath.startsWith("--"))) {
+  console.error("--catalog needs a file name, for example --catalog docs/TESTIDS.md");
+  process.exit(2);
+}
+if (catalogPath && only) {
+  console.error("--catalog describes every state, so it cannot be combined with --only");
+  process.exit(2);
+}
 // --theme light|dark or --theme=light|dark; any other spelling or value stops the audit before it starts,
 // so a typo can never turn into a silently unpinned run.
 const themeArgs = args.filter((arg) => arg === "--theme" || arg.startsWith("--theme"));
@@ -82,14 +92,69 @@ const PAGE_CHECK = `(() => {
       if (tabindex !== null && Number(tabindex) >= 0) return true;
       return roles.has(el.getAttribute("role") ?? "");
     });
-  const all = [...document.querySelectorAll("[data-testid]")].map((el) => el.getAttribute("data-testid"));
+  const withId = [...document.querySelectorAll("[data-testid]")].filter((el) => !inDevTools(el));
+  const all = withId.map((el) => el.getAttribute("data-testid"));
+  const elements = withId.map((el) => {
+    const tag = el.tagName.toLowerCase();
+    const type = tag === "input" ? el.type : null;
+    const role = el.getAttribute("role");
+    return { id: el.getAttribute("data-testid"), element: tag + (type ? "[type=" + type + "]" : "") + (role ? "[role=" + role + "]" : "") };
+  });
   const duplicates = [...new Set(all.filter((id, i) => all.indexOf(id) !== i))];
   return {
     missing: interactive.filter((el) => !el.getAttribute("data-testid")).map((el) => el.outerHTML.slice(0, 120)),
     ids: all,
+    elements,
     duplicates,
   };
 })()`;
+
+// Natural order, independent of the locale: digit runs compare as numbers, everything else by code unit.
+function naturalCompare(a, b) {
+  const partsA = a.match(/\d+|\D+/g) ?? [];
+  const partsB = b.match(/\d+|\D+/g) ?? [];
+  for (let i = 0; i < Math.min(partsA.length, partsB.length); i++) {
+    const [x, y] = [partsA[i], partsB[i]];
+    if (x === y) continue;
+    if (/^\d/.test(x) && /^\d/.test(y)) return Number(x) - Number(y) || (x < y ? -1 : 1);
+    return x < y ? -1 : 1;
+  }
+  return partsA.length - partsB.length;
+}
+
+// The catalog: the test ids of every state and the element that carries each. Ids present in every logged-in state
+// (the app shell) are listed once. Sorted, so that two runs on the same data produce the same file.
+function renderCatalog(report) {
+  const loggedIn = report.filter((entry) => config.states.find((state) => state.name === entry.name)?.user);
+  const shell = loggedIn.length > 1
+    ? new Set(loggedIn[0].elements.map((row) => row.id).filter((id) => loggedIn.every((entry) => entry.elements.some((row) => row.id === id))))
+    : new Set();
+  const table = (rows) => ["| Test id | Element |", "|---|---|", ...[...rows].sort((a, b) => naturalCompare(a.id, b.id) || naturalCompare(a.element, b.element)).map((row) => `| \`${row.id}\` | \`${row.element}\` |`), ""];
+  const lines = [
+    "# Test id catalog",
+    "",
+    "Every `data-testid` found in each audited state, with the element that carries it (its tag, the type of an input and",
+    "an explicit `role`, not the implicit one). It is **generated**: `node tools/audit/browser-audit.mjs --catalog docs/TESTIDS.md`",
+    "against a freshly seeded application, and CI fails when the committed copy is out of date.",
+    "",
+    "- Elements that are not visible but carry an id are included.",
+    "- A number at the end of an id is the id of a record of the seed data (`customers-list-row-3`), or a position in a list",
+    "  (`auth-login-demo-item-2`).",
+    "- Only the states of `tools/audit/states.json` are covered. An id that appears only after an interaction (a field error",
+    "  after a failed submit, a confirmation message) is not here until a state reaches it; the grammar still applies to it",
+    "  ([TESTABILITY.md](TESTABILITY.md)).",
+    "- The ids of the app shell that every logged-in state has are listed once, under \"App shell\".",
+    "",
+  ];
+  if (shell.size > 0) {
+    lines.push("## App shell", "", "Present in every logged-in state.", "", ...table(loggedIn[0].elements.filter((row) => shell.has(row.id))));
+  }
+  for (const entry of report) {
+    const state = config.states.find((candidate) => candidate.name === entry.name);
+    lines.push(`## ${entry.name}`, "", `\`${entry.path}\`, ${state?.user ? `logged in as \`${state.user}\`` : "no session"}.`, "", ...table(entry.elements.filter((row) => !shell.has(row.id))));
+  }
+  return `${lines.join("\n").replace(/\n+$/, "")}\n`;
+}
 
 async function main() {
   const profile = mkdtempSync(join(tmpdir(), "browser-audit-"));
@@ -137,6 +202,8 @@ async function main() {
         if (!cookies.has(state.user)) cookies.set(state.user, await login(state.user));
         await send("Network.setCookie", { name: "labapp_session", value: cookies.get(state.user), url: base, httpOnly: true });
       }
+      // A blank document first, so that the poll below can never read the previous state's page.
+      await send("Page.navigate", { url: "about:blank" });
       await send("Page.navigate", { url: `${base}${state.path}` });
       const entry = { name: state.name, path: state.path, failures: [], warnings: [], ids: 0 };
       let rendered = false;
@@ -149,6 +216,18 @@ async function main() {
         report.push(entry);
         continue;
       }
+      // Settled: no request is still loading (the home counters, for example, each load on their own), so the ids
+      // and the axe run see the final page, and the catalog never records a loading state.
+      let settled = false;
+      for (let i = 0; i < 80 && !settled; i++) {
+        settled = await evaluate(`!document.querySelector('[aria-busy="true"], [data-testid$="-loading-status"]')`).catch(() => false);
+        if (!settled) await sleep(250);
+      }
+      if (!settled) {
+        entry.failures.push("the state never finished loading (an element with aria-busy or a loading status stayed on the page)");
+        report.push(entry);
+        continue;
+      }
       await sleep(300);
       if (theme) {
         // The run is only worth something if the page really took the theme it was asked for.
@@ -157,6 +236,7 @@ async function main() {
       }
       const check = await evaluate(PAGE_CHECK);
       entry.ids = check.ids.length;
+      entry.elements = check.elements;
       for (const html of check.missing) entry.failures.push(`interactive element without a test id: ${html}`);
       for (const id of check.duplicates) entry.failures.push(`test id used more than once on the page: ${id}`);
       for (const id of new Set(check.ids)) if (!pattern.test(id)) entry.failures.push(`test id does not match the grammar: ${id}`);
@@ -176,7 +256,15 @@ async function main() {
 }
 
 const report = await main();
-if (asJson) console.log(JSON.stringify(report, null, 2));
+if (catalogPath) {
+  const incomplete = report.filter((entry) => !entry.elements);
+  if (incomplete.length > 0) {
+    console.error(`Not writing ${catalogPath}: ${incomplete.length} state(s) did not render (${incomplete.map((entry) => entry.name).join(", ")}).`);
+  } else {
+    writeFileSync(catalogPath, renderCatalog(report));
+  }
+}
+if (asJson) console.log(JSON.stringify(report.map(({ elements, ...entry }) => entry), null, 2));
 let failed = 0;
 for (const entry of report) {
   const status = entry.failures.length ? "FAIL" : "ok  ";

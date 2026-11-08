@@ -21,7 +21,12 @@ from app.modules.invoices.models import Invoice, InvoiceStatus
 from app.modules.invoices.service import MAX_ID, PAGE_SIZE, InvoiceService
 from app.modules.orders.dependencies import get_order
 from app.modules.orders.service import OrderView
-from app.openapi import component_ref, documented_responses
+from app.openapi import component_ref, documented_responses, response_examples
+from app.openapi_examples import (
+    INVOICE_ISSUED_EXAMPLES,
+    PAYMENT_APPROVED_EXAMPLES,
+    PAYMENT_EXAMPLES,
+)
 
 router = APIRouter(prefix="/api", tags=["invoices"])
 
@@ -44,37 +49,43 @@ _READ_RESPONSES = documented_responses(
         422: "The id is not an integer. Code: `VALIDATION_ERROR` (with `errors[]`).",
     },
 )
-_ISSUE_RESPONSES = documented_responses(
-    method="POST",
-    permission=True,
-    extra={
-        404: "The order does not exist. Code: `NOT_FOUND`.",
-        409: "The version is stale, the order already has an invoice or it is not "
-        "confirmed. Codes: `VERSION_CONFLICT`, `INVOICE_ALREADY_EXISTS`, "
-        "`ORDER_NOT_INVOICEABLE`.",
-        422: "The id or the If-Match header is invalid, or the customer has no tax "
-        "id. Codes: `VALIDATION_ERROR` (with `errors[]`), "
-        "`CUSTOMER_TAX_ID_REQUIRED`.",
-    },
-)
-_PAYMENT_RESPONSES = documented_responses(
-    method="POST",
-    body=True,
-    permission=True,
-    unavailable=("LOCK_TIMEOUT", "PAYMENT_GATEWAY_UNAVAILABLE"),
-    extra={
-        402: "The gateway declined the payment. Code: `PAYMENT_DECLINED`; the body "
-        "carries `payment_id` and `reason`.",
-        404: "The invoice does not exist. Code: `NOT_FOUND`.",
-        409: "The version is stale or the invoice does not accept payments. Codes: "
-        "`VERSION_CONFLICT`, `INVOICE_NOT_PAYABLE`.",
-        422: "The body, the Idempotency-Key header or the If-Match header is "
-        "invalid, the key was reused, the amount differs from the total, or a card "
-        "or transfer field is invalid. Codes: `VALIDATION_ERROR` (with "
-        "`errors[]`), `IDEMPOTENCY_KEY_REQUIRED`, `IDEMPOTENCY_KEY_REUSED`, "
-        "`PAYMENT_AMOUNT_MISMATCH`.",
-    },
-)
+_ISSUE_RESPONSES = {
+    **documented_responses(
+        method="POST",
+        permission=True,
+        extra={
+            404: "The order does not exist. Code: `NOT_FOUND`.",
+            409: "The version is stale, the order already has an invoice or it is not "
+            "confirmed. Codes: `VERSION_CONFLICT`, `INVOICE_ALREADY_EXISTS`, "
+            "`ORDER_NOT_INVOICEABLE`.",
+            422: "The id or the If-Match header is invalid, or the customer has no tax "
+            "id. Codes: `VALIDATION_ERROR` (with `errors[]`), "
+            "`CUSTOMER_TAX_ID_REQUIRED`.",
+        },
+    ),
+    201: response_examples(INVOICE_ISSUED_EXAMPLES),
+}
+_PAYMENT_RESPONSES = {
+    **documented_responses(
+        method="POST",
+        body=True,
+        permission=True,
+        unavailable=("LOCK_TIMEOUT", "PAYMENT_GATEWAY_UNAVAILABLE"),
+        extra={
+            402: "The gateway declined the payment. Code: `PAYMENT_DECLINED`; the body "
+            "carries `payment_id` and `reason`.",
+            404: "The invoice does not exist. Code: `NOT_FOUND`.",
+            409: "The version is stale or the invoice does not accept payments. Codes: "
+            "`VERSION_CONFLICT`, `INVOICE_NOT_PAYABLE`.",
+            422: "The body, the Idempotency-Key header or the If-Match header is "
+            "invalid, the key was reused, the amount differs from the total, or a card "
+            "or transfer field is invalid. Codes: `VALIDATION_ERROR` (with "
+            "`errors[]`), `IDEMPOTENCY_KEY_REQUIRED`, `IDEMPOTENCY_KEY_REUSED`, "
+            "`PAYMENT_AMOUNT_MISMATCH`.",
+        },
+    ),
+    201: response_examples(PAYMENT_APPROVED_EXAMPLES),
+}
 
 _PAYMENT_BODY = {
     "requestBody": {
@@ -82,6 +93,7 @@ _PAYMENT_BODY = {
         "content": {
             "application/json": {
                 "schema": {"$ref": component_ref("PaymentCreate")},
+                "examples": dict(PAYMENT_EXAMPLES),
             }
         },
     }

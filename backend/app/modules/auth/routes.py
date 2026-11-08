@@ -16,7 +16,12 @@ from app.modules.auth.dependencies import (
     session_cookie_values,
 )
 from app.modules.auth.models import User
-from app.openapi import documented_responses
+from app.openapi import body_examples, documented_responses
+from app.openapi_examples import (
+    CSRF_ORIGIN_MISMATCH_EXAMPLES,
+    INVALID_CREDENTIALS_EXAMPLES,
+    LOGIN_EXAMPLES,
+)
 from app.security.origin import cookie_secure
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -42,19 +47,27 @@ def _user_out(user: User) -> UserOut:
     return UserOut(id=user.id, name=user.name, email=user.email, role=user.role)
 
 
+_LOGIN_RESPONSES = documented_responses(
+    method="POST",
+    protected=False,
+    body=True,
+    unavailable=("SERVICE_BUSY", "LOCK_TIMEOUT"),
+    extra={
+        401: "The email or the password is wrong. Code: `INVALID_CREDENTIALS`.",
+        422: "The body is invalid. Code: `VALIDATION_ERROR` (with `errors[]`).",
+    },
+    problem_examples={
+        401: INVALID_CREDENTIALS_EXAMPLES,
+        403: CSRF_ORIGIN_MISMATCH_EXAMPLES,
+    },
+)
+
+
 @router.post(
     "/login",
     response_model=UserOut,
-    responses=documented_responses(
-        method="POST",
-        protected=False,
-        body=True,
-        unavailable=("SERVICE_BUSY", "LOCK_TIMEOUT"),
-        extra={
-            401: "The email or the password is wrong. Code: `INVALID_CREDENTIALS`.",
-            422: "The body is invalid. Code: `VALIDATION_ERROR` (with `errors[]`).",
-        },
-    ),
+    responses=_LOGIN_RESPONSES,
+    openapi_extra=body_examples(LOGIN_EXAMPLES),
 )
 def login(
     payload: LoginRequest,
@@ -84,7 +97,11 @@ def login(
     "/logout",
     status_code=status.HTTP_204_NO_CONTENT,
     response_class=Response,
-    responses=documented_responses(method="POST", protected=False),
+    responses=documented_responses(
+        method="POST",
+        protected=False,
+        problem_examples={403: CSRF_ORIGIN_MISMATCH_EXAMPLES},
+    ),
 )
 def logout(
     request: Request,

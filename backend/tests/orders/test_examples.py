@@ -10,33 +10,13 @@ from app.config import Settings
 from app.infra.clock import OffsetClock
 from app.main import create_app
 from app.modules.auth.seed import DEMO_PASSWORD
+from app.openapi_examples import (
+    ORDER_CREATE_REQUEST,
+    ORDER_LINE_CREATE_REQUEST,
+    ORDER_LINE_CREATED_201,
+    VALIDATION_ERROR_422,
+)
 from tests.infra.helpers import FixedClock
-
-EXAMPLE = {
-    "id": 8,
-    "number": "PED-0008",
-    "status": "draft",
-    "customer": {"id": 1, "name": "Acme Industrial S.A.", "status": "active"},
-    "lines": [
-        {
-            "id": 10,
-            "product_id": 1,
-            "sku": "KB-100",
-            "name": "Teclado USB",
-            "quantity": 2,
-            "unit_price": "19.90",
-            "line_total": "39.80",
-        }
-    ],
-    "subtotal": "39.80",
-    "tax_rate": "10.00",
-    "tax": "3.98",
-    "total": "43.78",
-    "invoice_id": None,
-    "version": 2,
-    "created_at": "2026-11-05T15:00:00Z",
-    "updated_at": "2026-11-05T15:01:00Z",
-}
 
 
 def test_the_documented_line_response_is_reproduced_literally() -> None:
@@ -57,18 +37,18 @@ def test_the_documented_line_response_is_reproduced_literally() -> None:
         ).status_code
         == 200
     )
-    created = client.post("/api/orders", json={"customer_id": 1})
+    created = client.post("/api/orders", json=ORDER_CREATE_REQUEST)
     assert created.status_code == 201
 
     clock.advance(timedelta(minutes=1))
     response = client.post(
         "/api/orders/8/lines",
-        json={"product_id": 1, "quantity": 2, "version": 1},
+        json=ORDER_LINE_CREATE_REQUEST,
     )
 
     assert response.status_code == 201
     assert response.headers["etag"] == '"2"'
-    assert response.json() == EXAMPLE
+    assert response.json() == ORDER_LINE_CREATED_201
 
 
 def test_the_documented_quantity_error_is_reproduced_literally() -> None:
@@ -89,33 +69,20 @@ def test_the_documented_quantity_error_is_reproduced_literally() -> None:
         ).status_code
         == 200
     )
-    assert client.post("/api/orders", json={"customer_id": 1}).status_code == 201
+    assert client.post("/api/orders", json=ORDER_CREATE_REQUEST).status_code == 201
     clock.advance(timedelta(minutes=1))
     assert (
         client.post(
             "/api/orders/8/lines",
-            json={"product_id": 1, "quantity": 2, "version": 1},
+            json=ORDER_LINE_CREATE_REQUEST,
         ).status_code
         == 201
     )
 
     response = client.post(
         "/api/orders/8/lines",
-        json={"product_id": 1, "quantity": 1000, "version": 2},
+        json={**ORDER_LINE_CREATE_REQUEST, "quantity": 1000, "version": 2},
     )
 
     assert response.status_code == 422
-    assert response.json() == {
-        "type": "about:blank",
-        "title": "Unprocessable Content",
-        "status": 422,
-        "code": "VALIDATION_ERROR",
-        "detail": "Revisa los datos ingresados.",
-        "errors": [
-            {
-                "field": "quantity",
-                "code": "OUT_OF_RANGE",
-                "message": "El valor debe estar entre 1 y 999.",
-            }
-        ],
-    }
+    assert response.json() == VALIDATION_ERROR_422

@@ -233,3 +233,21 @@ Wait for observable markers instead of fixed timeouts; every one is in the code.
 **List state lives in the URL.** `/customers?page=1&q=beta&status=active`, `/orders?…&customer_id=4`, `/invoices?status=paid`, `/products?q=cable`. Submitting a search returns to page 1; a page beyond the last is corrected in the URL (`Página {page} de {last}`, `*-page-text`). Tests can deep-link a filtered list.
 
 **The idempotency key of the payment form.** The form sends an `Idempotency-Key` header with `POST /api/invoices/{id}/payments`. In the UI it is **kept** after a network error or a 429 or a 5xx other than the gateway's 503 (the outcome is unknown, a retry replays or continues), and **renewed** after any other HTTP answer — a decline (402), a gateway failure (503 `PAYMENT_GATEWAY_UNAVAILABLE`), a 409 or a 422 — and whenever any field changes. So a test that retries after a decline is a genuinely new attempt; do not expect a second decline to be a replay ([SPEC section 6](SPEC.md), [frontend/README.md](../frontend/README.md)).
+
+## 7. Accessibility and titles
+
+**Running axe yourself.** In a Playwright test, run `@axe-core/playwright`'s `AxeBuilder` on a rendered page and pass only serious and critical violations, the rule the project enforces:
+
+```ts
+// Illustrative, not run in CI.
+import AxeBuilder from "@axe-core/playwright";
+const results = await new AxeBuilder({ page }).analyze();
+const serious = results.violations.filter((v) => ["serious", "critical"].includes(v.impact ?? ""));
+expect(serious).toEqual([]);
+```
+
+**What the project's own audit checks.** The browser audit ([tools/audit/README.md](../tools/audit/README.md)) opens every screen and scripted state of [`states.json`](../tools/audit/states.json), logs in as the state's user, and fails when a visible interactive element lacks a valid `data-testid`, when an id is used twice on the page or breaks the grammar, when axe-core reports a **serious or critical** WCAG 2.0/2.1 A or AA violation, or when the page scrolls sideways. It covers phone (390×844) and tablet (768×1024) states, and CI runs it twice, once per theme (`--theme light` and `--theme dark`). The static audit `testid-audit.mjs` additionally fails the build on any source element without an id. Add a state to `states.json` for every new screen you automate against, or a gap is invisible to CI.
+
+**The document title.** Every screen names itself `{page} · LabApp` (the root metadata template `%s · LabApp`, applied by the `useDocumentTitle` hook or a `metadata` export). Detail pages keep the section title until the record arrives, then switch to the record (`Pedido PED-0003 · LabApp`); the error boundary of a crash names itself `Algo salió mal`. Assert titles as part of navigation checks — the audit asserts all of them.
+
+**The skip link.** The first focusable element of every page is `Saltar al contenido` (`app-skip-link` in the shell, `auth-login-skip-link` on the login), which jumps to the `main` landmark at `#main-content`; it is visually hidden until focused. Keyboard-reachable tables are likewise wrapped in focusable `region` elements (`*-scroll-region`), which is what the phone-width audit states verify.

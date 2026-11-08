@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ME_QUERY_KEY, useLogin, useLogout, useMe } from "./hooks";
+import { SESSION_EXPIRED_QUERY_KEY } from "./session";
 import type { User } from "./types";
 
 const fetchMock = vi.fn();
@@ -69,6 +70,27 @@ describe("useMe", () => {
     expect(queryClient.getQueryData(ME_QUERY_KEY)).toBeNull();
   });
 
+  it("records the expired flag on a 401 SESSION_EXPIRED", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          status: 401,
+          code: "SESSION_EXPIRED",
+          detail: "Tu sesión expiró. Inicia sesión de nuevo.",
+        }),
+        { status: 401 },
+      ),
+    );
+    const { queryClient, wrapper } = createWrapper();
+    const { result } = renderHook(() => useMe(), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(result.current.data).toBeNull();
+    expect(queryClient.getQueryData(ME_QUERY_KEY)).toBeNull();
+    expect(queryClient.getQueryData(SESSION_EXPIRED_QUERY_KEY)).toBe(true);
+  });
+
   it("stays in error state for a failure other than a 401", async () => {
     fetchMock.mockResolvedValue(
       new Response(
@@ -126,6 +148,27 @@ describe("useLogin", () => {
       email: "admin@labapp.test",
       password: "Demo-LabApp-2026!",
     });
+  });
+
+  it("clears the expired-session flag on success", async () => {
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(adminUser), { status: 200 }),
+    );
+    const { queryClient, wrapper } = createWrapper();
+    // A former expired session left the flag behind.
+    queryClient.setQueryData(SESSION_EXPIRED_QUERY_KEY, true);
+    const { result } = renderHook(() => useLogin(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        email: "admin@labapp.test",
+        password: "Demo-LabApp-2026!",
+      });
+    });
+
+    expect(queryClient.getQueryData(ME_QUERY_KEY)).toEqual(adminUser);
+    expect(queryClient.getQueryData(SESSION_EXPIRED_QUERY_KEY))
+      .toBeUndefined();
   });
 
   it("rejects with the problem document", async () => {

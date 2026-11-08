@@ -3,6 +3,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import AppLayout from "./layout";
+import { ME_QUERY_KEY } from "@/features/auth/hooks";
+import { SESSION_EXPIRED_QUERY_KEY } from "@/features/auth/session";
 
 const { routerMock } = vi.hoisted(() => ({
   routerMock: {
@@ -101,6 +103,22 @@ describe("app shell states", () => {
 
     await waitFor(() => {
       expect(routerMock.replace).toHaveBeenCalledWith("/login");
+    });
+  });
+
+  it("redirects to /login?expired=1 when the session expired", async () => {
+    // The session request never runs: the stale me entry and the flag
+    // raised by noteUnauthorized are already in the cache.
+    queryClient.setQueryData(
+      SESSION_EXPIRED_QUERY_KEY,
+      true,
+    );
+    queryClient.setQueryData(ME_QUERY_KEY, null);
+
+    renderShell();
+
+    await waitFor(() => {
+      expect(routerMock.replace).toHaveBeenCalledWith("/login?expired=1");
     });
   });
 

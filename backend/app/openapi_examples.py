@@ -369,7 +369,7 @@ VALIDATION_ERROR_422: Example = {
 # One named example per common problem: every answer with that status publishes this one.
 PROBLEM_EXAMPLES: dict[int, NamedExamples] = {
     401: {"unauthenticated": named("No session", UNAUTHENTICATED_401)},
-    402: {"declined": named("The gateway declined the card", PAYMENT_DECLINED_402)},
+    402: PAYMENT_DECLINED_EXAMPLES,
     403: {"forbidden": named("The role lacks the permission", FORBIDDEN_403)},
     404: {"not-found": named("The resource does not exist", NOT_FOUND_404)},
     409: {"version-conflict": named("A stale version", VERSION_CONFLICT_409)},

@@ -6,14 +6,13 @@ import {
   type UseQueryResult,
 } from "@tanstack/react-query";
 import { ApiRequestError, apiFetch } from "@/lib/api";
+import { ME_QUERY_KEY, SESSION_EXPIRED_QUERY_KEY } from "./session";
 import type { LoginInput, User } from "./types";
 
-/**
- * Cache key of the authenticated user. `useLogin` writes the user under
- * this key *before* the page navigates, so the shell reads the fresh value
- * instead of a stale `null` left by a former 401.
- */
-export const ME_QUERY_KEY = ["auth", "me"] as const;
+// The cache keys of the session (`ME_QUERY_KEY` and the expired flag)
+// and the `noteUnauthorized` helper live in `./session`; they are shared
+// with the `note401` helpers of the other modules.
+export { ME_QUERY_KEY } from "./session";
 
 /**
  * Current session. A 401 resolves to `null`: an expired or missing session

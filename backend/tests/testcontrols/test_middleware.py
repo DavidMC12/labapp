@@ -82,6 +82,16 @@ def _inner_app(hits: list[str]) -> FastAPI:
         hits.append("health")
         return {"status": "ok"}
 
+    @app.head("/api/health")
+    def health_head() -> dict[str, str]:
+        hits.append("health-head")
+        return {"status": "ok"}
+
+    @app.get("/public/probe")
+    def schema() -> dict[str, str]:
+        hits.append("schema")
+        return {"status": "ok"}
+
     @app.get("/__test__/probe")
     def probe() -> dict[str, str]:
         hits.append("probe")
@@ -175,6 +185,28 @@ def test_health_and_the_test_paths_are_exempt() -> None:
     assert client.get("/__test__/probe").status_code == 200
 
     assert sorted(hits) == ["health", "probe"]
+    assert spy.calls == 0
+    assert sleeper.waits == []
+
+
+def test_head_health_is_exempt_too() -> None:
+    client, spy, _, _, sleeper, hits = _build()
+
+    assert client.head("/api/health").status_code == 200
+
+    assert hits == ["health-head"]
+    assert spy.calls == 0
+    assert sleeper.waits == []
+
+
+def test_a_path_outside_the_api_does_not_load_the_controls() -> None:
+    client, spy, _, fault_store, sleeper, hits = _build()
+    fault_store.add(NewRule(target="route", method="GET", path="/public/probe", status=500))
+
+    response = client.get("/public/probe")
+
+    assert response.status_code == 200
+    assert hits == ["schema"]
     assert spy.calls == 0
     assert sleeper.waits == []
 

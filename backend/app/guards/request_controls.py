@@ -32,10 +32,6 @@ _MAX_LATENCY_MS = 10_000
 logger = logging.getLogger(__name__)
 
 
-def _is_test_path(path: str) -> bool:
-    return path == "/__test__" or path.startswith("/__test__/")
-
-
 def _sqlstate(error: BaseException) -> str | None:
     original = getattr(error, "orig", None)
     return getattr(original, "sqlstate", None) or getattr(error, "sqlstate", None)
@@ -69,7 +65,10 @@ class RequestControlsMiddleware:
 
         method = scope.get("method", "")
         path = get_route_path(scope)
-        if _is_test_path(path) or (method == "GET" and path == "/api/health"):
+        if not path.startswith("/api/"):
+            await self.app(scope, receive, send)
+            return
+        if method in ("GET", "HEAD") and path == "/api/health":
             await self.app(scope, receive, send)
             return
 

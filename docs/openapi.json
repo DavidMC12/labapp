@@ -2,8 +2,14 @@
   "openapi": "3.1.0",
   "info": {
     "title": "LabApp API",
+    "description": "The HTTP contract of LabApp. `docs/SPEC.md` is the source of truth for the behaviour, the error codes and the field rules; this document describes every request and every answer.",
     "version": "0.1.0"
   },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
   "paths": {
     "/api/auth/login": {
       "post": {
@@ -149,7 +155,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
       }
     },
     "/api/customers": {
@@ -385,7 +396,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
       },
       "post": {
         "tags": [
@@ -585,7 +601,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
       }
     },
     "/api/customers/{id}": {
@@ -788,7 +809,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
       },
       "patch": {
         "tags": [
@@ -999,7 +1025,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
       }
     },
     "/api/customers/{id}/deactivate": {
@@ -1218,7 +1249,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
       }
     },
     "/api/customers/{id}/reactivate": {
@@ -1437,7 +1473,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
       }
     },
     "/api/products": {
@@ -1629,7 +1670,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
       }
     },
     "/api/settings": {
@@ -1821,7 +1867,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
       },
       "patch": {
         "tags": [
@@ -2021,7 +2072,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
       }
     },
     "/api/orders": {
@@ -2273,7 +2329,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
       },
       "post": {
         "tags": [
@@ -2473,7 +2534,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
       }
     },
     "/api/orders/{id}": {
@@ -2676,7 +2742,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
       },
       "patch": {
         "tags": [
@@ -2887,7 +2958,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
       }
     },
     "/api/orders/{id}/lines": {
@@ -3100,7 +3176,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
       }
     },
     "/api/orders/{id}/lines/{line_id}": {
@@ -3322,7 +3403,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
       },
       "delete": {
         "tags": [
@@ -3548,7 +3634,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
       }
     },
     "/api/orders/{id}/confirm": {
@@ -3767,7 +3858,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
       }
     },
     "/api/orders/{id}/cancel": {
@@ -3986,7 +4082,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
       }
     },
     "/api/orders/{id}/ship": {
@@ -4205,7 +4306,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
       }
     },
     "/api/invoices": {
@@ -4457,7 +4563,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
       }
     },
     "/api/invoices/{id}": {
@@ -4660,7 +4771,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
       }
     },
     "/api/orders/{id}/invoice": {
@@ -4879,7 +4995,12 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
       }
     },
     "/api/invoices/{id}/payments": {
@@ -4939,44 +5060,65 @@
             "application/json": {
               "schema": {
                 "title": "PaymentCreate",
+                "$defs": {
+                  "PaymentCard": {
+                    "description": "The card object of a card payment.",
+                    "properties": {
+                      "number": {
+                        "description": "The card number. Spaces are allowed and ignored.",
+                        "title": "Number",
+                        "type": "string"
+                      },
+                      "expiry": {
+                        "description": "The expiry date as `MM/YY`.",
+                        "title": "Expiry",
+                        "type": "string"
+                      },
+                      "cvc": {
+                        "description": "The three-digit security code.",
+                        "title": "Cvc",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "number",
+                      "expiry",
+                      "cvc"
+                    ],
+                    "title": "PaymentCard",
+                    "type": "object"
+                  }
+                },
                 "additionalProperties": false,
-                "description": "The documented shape of the payment body.\n\nThe route takes the raw JSON body so the idempotency replay can be decided\nbefore validation; this model only documents the contract in OpenAPI.",
+                "description": "The documented shape of the payment body.\n\n`method` and `amount` are always required. With `method: card`, `card` is required\nand `reference` is not used. With `method: transfer`, `reference` is required and\n`card` is not used. With `method: cash`, neither `card` nor `reference` is used.\n\nThe route receives the raw JSON body so that the idempotency replay can be decided\nbefore validation; this model only documents the contract in OpenAPI.",
                 "properties": {
                   "method": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
+                    "description": "`card`, `transfer` or `cash`.",
+                    "enum": [
+                      "card",
+                      "transfer",
+                      "cash"
                     ],
-                    "title": "Method"
+                    "title": "Method",
+                    "type": "string"
                   },
                   "amount": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "title": "Amount"
+                    "description": "The amount, as a string with at most two decimals.",
+                    "example": "121.00",
+                    "pattern": "^[0-9]{1,10}(\\.[0-9]{1,2})?$",
+                    "title": "Amount",
+                    "type": "string"
                   },
                   "card": {
                     "anyOf": [
                       {
-                        "additionalProperties": {
-                          "type": "string"
-                        },
-                        "type": "object"
+                        "$ref": "#/$defs/PaymentCard"
                       },
                       {
                         "type": "null"
                       }
                     ],
-                    "title": "Card"
+                    "description": "Required with `method: card`; not used with another method."
                   },
                   "reference": {
                     "anyOf": [
@@ -4987,9 +5129,14 @@
                         "type": "null"
                       }
                     ],
+                    "description": "Required with `method: transfer`; not used with another method.",
                     "title": "Reference"
                   }
                 },
+                "required": [
+                  "method",
+                  "amount"
+                ],
                 "type": "object"
               }
             }
@@ -5298,11 +5445,19 @@
               }
             }
           }
-        }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
       }
     },
     "/api/health": {
       "get": {
+        "tags": [
+          "health"
+        ],
         "summary": "Health",
         "operationId": "health_api_health_get",
         "responses": {
@@ -5311,11 +5466,17 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "type": "object",
-                  "title": "Response Health Api Health Get"
+                  "$ref": "#/components/schemas/HealthOut"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error. Code: `INTERNAL_ERROR`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -5425,6 +5586,8 @@
         "properties": {
           "id": {
             "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
             "title": "Id"
           },
           "name": {
@@ -5473,6 +5636,8 @@
           },
           "version": {
             "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
             "title": "Version"
           },
           "created_at": {
@@ -5592,10 +5757,27 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "HealthOut": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "HealthOut",
+        "description": "The answer of the health check."
+      },
       "Invoice": {
         "properties": {
           "id": {
             "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
             "title": "Id"
           },
           "number": {
@@ -5607,6 +5789,8 @@
           },
           "order_id": {
             "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
             "title": "Order Id"
           },
           "order_number": {
@@ -5625,19 +5809,27 @@
           },
           "subtotal": {
             "type": "string",
-            "title": "Subtotal"
+            "pattern": "^[0-9]+\\.[0-9]{2}$",
+            "title": "Subtotal",
+            "example": "19.90"
           },
           "tax_rate": {
             "type": "string",
-            "title": "Tax Rate"
+            "pattern": "^[0-9]+\\.[0-9]{2}$",
+            "title": "Tax Rate",
+            "example": "19.90"
           },
           "tax": {
             "type": "string",
-            "title": "Tax"
+            "pattern": "^[0-9]+\\.[0-9]{2}$",
+            "title": "Tax",
+            "example": "19.90"
           },
           "total": {
             "type": "string",
-            "title": "Total"
+            "pattern": "^[0-9]+\\.[0-9]{2}$",
+            "title": "Total",
+            "example": "19.90"
           },
           "payments": {
             "items": {
@@ -5648,6 +5840,8 @@
           },
           "version": {
             "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
             "title": "Version"
           },
           "created_at": {
@@ -5684,6 +5878,8 @@
         "properties": {
           "id": {
             "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
             "title": "Id"
           },
           "name": {
@@ -5720,10 +5916,14 @@
         "properties": {
           "id": {
             "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
             "title": "Id"
           },
           "product_id": {
             "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
             "title": "Product Id"
           },
           "sku": {
@@ -5740,11 +5940,15 @@
           },
           "unit_price": {
             "type": "string",
-            "title": "Unit Price"
+            "pattern": "^[0-9]+\\.[0-9]{2}$",
+            "title": "Unit Price",
+            "example": "19.90"
           },
           "line_total": {
             "type": "string",
-            "title": "Line Total"
+            "pattern": "^[0-9]+\\.[0-9]{2}$",
+            "title": "Line Total",
+            "example": "19.90"
           }
         },
         "type": "object",
@@ -5806,6 +6010,8 @@
         "properties": {
           "id": {
             "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
             "title": "Id"
           },
           "number": {
@@ -5817,6 +6023,8 @@
           },
           "order_id": {
             "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
             "title": "Order Id"
           },
           "order_number": {
@@ -5829,10 +6037,14 @@
           },
           "total": {
             "type": "string",
-            "title": "Total"
+            "pattern": "^[0-9]+\\.[0-9]{2}$",
+            "title": "Total",
+            "example": "19.90"
           },
           "version": {
             "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
             "title": "Version"
           },
           "created_at": {
@@ -5883,6 +6095,8 @@
         "properties": {
           "id": {
             "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
             "title": "Id"
           },
           "number": {
@@ -5904,24 +6118,34 @@
           },
           "subtotal": {
             "type": "string",
-            "title": "Subtotal"
+            "pattern": "^[0-9]+\\.[0-9]{2}$",
+            "title": "Subtotal",
+            "example": "19.90"
           },
           "tax_rate": {
             "type": "string",
-            "title": "Tax Rate"
+            "pattern": "^[0-9]+\\.[0-9]{2}$",
+            "title": "Tax Rate",
+            "example": "19.90"
           },
           "tax": {
             "type": "string",
-            "title": "Tax"
+            "pattern": "^[0-9]+\\.[0-9]{2}$",
+            "title": "Tax",
+            "example": "19.90"
           },
           "total": {
             "type": "string",
-            "title": "Total"
+            "pattern": "^[0-9]+\\.[0-9]{2}$",
+            "title": "Total",
+            "example": "19.90"
           },
           "invoice_id": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "integer",
+                "maximum": 2147483647.0,
+                "minimum": 1.0
               },
               {
                 "type": "null"
@@ -5931,6 +6155,8 @@
           },
           "version": {
             "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
             "title": "Version"
           },
           "created_at": {
@@ -5953,7 +6179,6 @@
           "tax_rate",
           "tax",
           "total",
-          "invoice_id",
           "version",
           "created_at",
           "updated_at"
@@ -5984,6 +6209,8 @@
         "properties": {
           "id": {
             "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
             "title": "Id"
           },
           "name": {
@@ -6033,10 +6260,14 @@
         "properties": {
           "id": {
             "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
             "title": "Id"
           },
           "product_id": {
             "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
             "title": "Product Id"
           },
           "sku": {
@@ -6053,11 +6284,15 @@
           },
           "unit_price": {
             "type": "string",
-            "title": "Unit Price"
+            "pattern": "^[0-9]+\\.[0-9]{2}$",
+            "title": "Unit Price",
+            "example": "19.90"
           },
           "line_total": {
             "type": "string",
-            "title": "Line Total"
+            "pattern": "^[0-9]+\\.[0-9]{2}$",
+            "title": "Line Total",
+            "example": "19.90"
           }
         },
         "type": "object",
@@ -6184,6 +6419,8 @@
         "properties": {
           "id": {
             "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
             "title": "Id"
           },
           "number": {
@@ -6195,6 +6432,8 @@
           },
           "customer_id": {
             "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
             "title": "Customer Id"
           },
           "customer_name": {
@@ -6207,10 +6446,14 @@
           },
           "total": {
             "type": "string",
-            "title": "Total"
+            "pattern": "^[0-9]+\\.[0-9]{2}$",
+            "title": "Total",
+            "example": "19.90"
           },
           "version": {
             "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
             "title": "Version"
           },
           "created_at": {
@@ -6242,6 +6485,8 @@
         "properties": {
           "id": {
             "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
             "title": "Id"
           },
           "method": {
@@ -6253,7 +6498,9 @@
           },
           "amount": {
             "type": "string",
-            "title": "Amount"
+            "pattern": "^[0-9]+\\.[0-9]{2}$",
+            "title": "Amount",
+            "example": "19.90"
           },
           "reference": {
             "anyOf": [
@@ -6338,6 +6585,8 @@
         "properties": {
           "id": {
             "type": "integer",
+            "maximum": 2147483647.0,
+            "minimum": 1.0,
             "title": "Id"
           },
           "sku": {
@@ -6350,7 +6599,9 @@
           },
           "price": {
             "type": "string",
-            "title": "Price"
+            "pattern": "^[0-9]+\\.[0-9]{2}$",
+            "title": "Price",
+            "example": "19.90"
           },
           "stock": {
             "type": "integer",
@@ -6401,7 +6652,9 @@
           "tax_rate": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^[0-9]{1,3}(\\.[0-9]{1,2})?$",
+                "example": "10.00"
               },
               {
                 "type": "null"
@@ -6419,7 +6672,9 @@
         "properties": {
           "tax_rate": {
             "type": "string",
-            "title": "Tax Rate"
+            "pattern": "^[0-9]+\\.[0-9]{2}$",
+            "title": "Tax Rate",
+            "example": "19.90"
           }
         },
         "type": "object",
@@ -6496,7 +6751,278 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "FieldError": {
+        "description": "One field-level validation error.",
+        "properties": {
+          "field": {
+            "description": "The path of the invalid field, such as `lines[0].quantity`.",
+            "title": "Field",
+            "type": "string"
+          },
+          "code": {
+            "description": "A stable code from the SPEC field-error table.",
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "description": "A Spanish message for the user.",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "code",
+          "message"
+        ],
+        "title": "FieldError",
+        "type": "object"
+      },
+      "Shortage": {
+        "description": "One line whose requested quantity exceeds the available stock.",
+        "properties": {
+          "product_id": {
+            "maximum": 2147483647,
+            "minimum": 1,
+            "title": "Product Id",
+            "type": "integer"
+          },
+          "sku": {
+            "title": "Sku",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "available": {
+            "minimum": 0,
+            "title": "Available",
+            "type": "integer"
+          },
+          "requested": {
+            "minimum": 1,
+            "title": "Requested",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "product_id",
+          "sku",
+          "name",
+          "available",
+          "requested"
+        ],
+        "title": "Shortage",
+        "type": "object"
+      },
+      "Problem": {
+        "description": "An RFC 9457 problem document, served as `application/problem+json`.",
+        "properties": {
+          "type": {
+            "description": "Always `about:blank`.",
+            "title": "Type",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "integer"
+          },
+          "code": {
+            "description": "A stable code from the SPEC error tables.",
+            "title": "Code",
+            "type": "string"
+          },
+          "detail": {
+            "description": "A Spanish message for the user.",
+            "title": "Detail",
+            "type": "string"
+          },
+          "errors": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/FieldError"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "One entry per invalid field, on a 422 `VALIDATION_ERROR`.",
+            "title": "Errors"
+          },
+          "shortages": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Shortage"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The short lines, on a 409 `INSUFFICIENT_STOCK`.",
+            "title": "Shortages"
+          },
+          "payment_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The stored payment, on a 402 `PAYMENT_DECLINED` or a 503 `PAYMENT_GATEWAY_UNAVAILABLE`.",
+            "title": "Payment Id"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "`CARD_DECLINED` or `GATEWAY_UNAVAILABLE` on the same answers.",
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code",
+          "detail"
+        ],
+        "title": "Problem",
+        "type": "object"
+      },
+      "PaymentCard": {
+        "description": "The card object of a card payment.",
+        "properties": {
+          "number": {
+            "description": "The card number. Spaces are allowed and ignored.",
+            "title": "Number",
+            "type": "string"
+          },
+          "expiry": {
+            "description": "The expiry date as `MM/YY`.",
+            "title": "Expiry",
+            "type": "string"
+          },
+          "cvc": {
+            "description": "The three-digit security code.",
+            "title": "Cvc",
+            "type": "string"
+          }
+        },
+        "required": [
+          "number",
+          "expiry",
+          "cvc"
+        ],
+        "title": "PaymentCard",
+        "type": "object"
+      },
+      "PaymentCreate": {
+        "additionalProperties": false,
+        "description": "The documented shape of the payment body.\n\n`method` and `amount` are always required. With `method: card`, `card` is required\nand `reference` is not used. With `method: transfer`, `reference` is required and\n`card` is not used. With `method: cash`, neither `card` nor `reference` is used.\n\nThe route receives the raw JSON body so that the idempotency replay can be decided\nbefore validation; this model only documents the contract in OpenAPI.",
+        "properties": {
+          "method": {
+            "description": "`card`, `transfer` or `cash`.",
+            "enum": [
+              "card",
+              "transfer",
+              "cash"
+            ],
+            "title": "Method",
+            "type": "string"
+          },
+          "amount": {
+            "description": "The amount, as a string with at most two decimals.",
+            "example": "121.00",
+            "pattern": "^[0-9]{1,10}(\\.[0-9]{1,2})?$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "card": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PaymentCard"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Required with `method: card`; not used with another method."
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Required with `method: transfer`; not used with another method.",
+            "title": "Reference"
+          }
+        },
+        "required": [
+          "method",
+          "amount"
+        ],
+        "title": "PaymentCreate",
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "labapp_session",
+        "description": "The session cookie set by `POST /api/auth/login`."
       }
     }
-  }
+  },
+  "tags": [
+    {
+      "name": "auth",
+      "description": "Log in, log out and read the current user (SPEC section 3)."
+    },
+    {
+      "name": "customers",
+      "description": "Customers: list, search, create and edit (SPEC section 4)."
+    },
+    {
+      "name": "orders",
+      "description": "Products, the tax rate and the order flows (SPEC section 5)."
+    },
+    {
+      "name": "invoices",
+      "description": "Invoices and payments (SPEC section 6)."
+    },
+    {
+      "name": "health",
+      "description": "Liveness check."
+    }
+  ]
 }

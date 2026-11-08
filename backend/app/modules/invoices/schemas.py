@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import (
     BaseModel,
     ConfigDict,
+    Field,
     PlainSerializer,
     WithJsonSchema,
     field_serializer,
@@ -16,6 +17,7 @@ from pydantic import (
 
 from app.domain.money import quantize_money
 from app.modules.invoices.models import InvoiceStatus, PaymentStatus
+from app.openapi import ID_MAXIMUM, ID_MINIMUM, MONEY_JSON_SCHEMA, PAYMENT_AMOUNT_PATTERN
 
 
 def _money(value: Decimal) -> str:
@@ -25,7 +27,7 @@ def _money(value: Decimal) -> str:
 Money = Annotated[
     Decimal,
     PlainSerializer(_money, return_type=str),
-    WithJsonSchema({"type": "string"}),
+    WithJsonSchema(MONEY_JSON_SCHEMA),
 ]
 
 
@@ -40,7 +42,7 @@ class _Timestamped(BaseModel):
 class InvoiceCustomer(BaseModel):
     """The customer snapshot taken at issue time."""
 
-    id: int
+    id: int = Field(ge=ID_MINIMUM, le=ID_MAXIMUM)
     name: str
     tax_id: str
     address: str | None
@@ -49,8 +51,8 @@ class InvoiceCustomer(BaseModel):
 class InvoiceLine(BaseModel):
     """One line of the invoice snapshot."""
 
-    id: int
-    product_id: int
+    id: int = Field(ge=ID_MINIMUM, le=ID_MAXIMUM)
+    product_id: int = Field(ge=ID_MINIMUM, le=ID_MAXIMUM)
     sku: str
     name: str
     quantity: int
@@ -61,7 +63,7 @@ class InvoiceLine(BaseModel):
 class Payment(BaseModel):
     """One stored payment attempt."""
 
-    id: int
+    id: int = Field(ge=ID_MINIMUM, le=ID_MAXIMUM)
     method: str
     status: PaymentStatus
     amount: Money
@@ -78,10 +80,10 @@ class Payment(BaseModel):
 class Invoice(_Timestamped):
     """The full invoice representation."""
 
-    id: int
+    id: int = Field(ge=ID_MINIMUM, le=ID_MAXIMUM)
     number: str
     status: InvoiceStatus
-    order_id: int
+    order_id: int = Field(ge=ID_MINIMUM, le=ID_MAXIMUM)
     order_number: str
     customer: InvoiceCustomer
     lines: list[InvoiceLine]
@@ -90,7 +92,7 @@ class Invoice(_Timestamped):
     tax: Money
     total: Money
     payments: list[Payment]
-    version: int
+    version: int = Field(ge=ID_MINIMUM, le=ID_MAXIMUM)
     created_at: datetime
     updated_at: datetime
 
@@ -98,14 +100,14 @@ class Invoice(_Timestamped):
 class InvoiceSummary(BaseModel):
     """One row of the invoice list."""
 
-    id: int
+    id: int = Field(ge=ID_MINIMUM, le=ID_MAXIMUM)
     number: str
     status: InvoiceStatus
-    order_id: int
+    order_id: int = Field(ge=ID_MINIMUM, le=ID_MAXIMUM)
     order_number: str
     customer_name: str
     total: Money
-    version: int
+    version: int = Field(ge=ID_MINIMUM, le=ID_MAXIMUM)
     created_at: datetime
     updated_at: datetime
 
@@ -130,16 +132,38 @@ class PaymentResult(BaseModel):
     invoice: Invoice
 
 
+class PaymentCard(BaseModel):
+    """The card object of a card payment."""
+
+    number: str = Field(description="The card number. Spaces are allowed and ignored.")
+    expiry: str = Field(description="The expiry date as `MM/YY`.")
+    cvc: str = Field(description="The three-digit security code.")
+
+
 class PaymentCreate(BaseModel):
     """The documented shape of the payment body.
 
-    The route takes the raw JSON body so the idempotency replay can be decided
+    `method` and `amount` are always required. With `method: card`, `card` is required
+    and `reference` is not used. With `method: transfer`, `reference` is required and
+    `card` is not used. With `method: cash`, neither `card` nor `reference` is used.
+
+    The route receives the raw JSON body so that the idempotency replay can be decided
     before validation; this model only documents the contract in OpenAPI.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    method: str | None = None
-    amount: str | None = None
-    card: dict[str, str] | None = None
-    reference: str | None = None
+    method: Literal["card", "transfer", "cash"] = Field(description="`card`, `transfer` or `cash`.")
+    amount: str = Field(
+        pattern=PAYMENT_AMOUNT_PATTERN,
+        json_schema_extra={"example": "121.00"},
+        description="The amount, as a string with at most two decimals.",
+    )
+    card: PaymentCard | None = Field(
+        default=None,
+        description="Required with `method: card`; not used with another method.",
+    )
+    reference: str | None = Field(
+        default=None,
+        description="Required with `method: transfer`; not used with another method.",
+    )

@@ -46,6 +46,14 @@ from app.modules.testcontrols.postgres import (
 )
 from app.modules.testcontrols.reset import MemoryResetter, PostgresResetter
 from app.modules.testcontrols.routes import router as testcontrols_router
+from app.openapi import (
+    OPENAPI_DESCRIPTION,
+    OPENAPI_TAGS,
+    HealthOut,
+    application_version,
+    documented_responses,
+    install_openapi,
+)
 
 DEFAULT_SESSION_SECRET = "change-me"
 
@@ -108,7 +116,14 @@ def create_app(
     customers = CustomerService(customer_repository, application_clock)
     orders = OrderService(order_store, application_clock, customer_repository)
 
-    app = FastAPI(title="LabApp API", dependencies=[Depends(origin_guard)])
+    app = FastAPI(
+        title="LabApp API",
+        version=application_version(),
+        description=OPENAPI_DESCRIPTION,
+        servers=[{"url": "/"}],
+        openapi_tags=OPENAPI_TAGS,
+        dependencies=[Depends(origin_guard)],
+    )
     app.state.settings = settings
     app.state.engine = database_engine
     app.state.container = container
@@ -178,9 +193,21 @@ def create_app(
     app.include_router(invoices_router)
     app.include_router(testcontrols_router)
 
-    @app.get("/api/health")
-    async def health() -> dict[str, str]:
-        return {"status": "ok"}
+    @app.get(
+        "/api/health",
+        response_model=HealthOut,
+        tags=["health"],
+        responses=documented_responses(
+            method="GET",
+            protected=False,
+            rate_limited=False,
+            unavailable=None,
+        ),
+    )
+    async def health() -> HealthOut:
+        return HealthOut(status="ok")
+
+    install_openapi(app)
 
     return app
 

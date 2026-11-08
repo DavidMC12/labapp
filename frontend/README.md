@@ -357,6 +357,14 @@ src/
 - The navigation link "Configuración" (`app-nav-settings-link`) is
   visible to every role; the current-section highlight covers it.
 
+## Scrollable tables
+
+Every table that can be wider than the window (the lists and the line and payment tables of the details) sits in
+`TableScroll` (`src/components/ui/TableScroll.tsx`): a focusable `region` with an accessible name, so that the
+keyboard can reach and scroll it (WCAG 2.1.1; axe reports `scrollable-region-focusable` as serious otherwise).
+The global focus style rings it. Its test id uses the `region` kind (`orders-list-scroll-region`). The browser audit
+checks the phone and tablet widths for exactly this, and fails on any page that scrolls sideways.
+
 ## Confirmation dialogs
 
 - **`ConfirmDialog`** (`src/components/ui/ConfirmDialog.tsx`) is the one

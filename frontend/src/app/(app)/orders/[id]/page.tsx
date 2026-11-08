@@ -1,6 +1,13 @@
 "use client";
 
-import { Alert, Button, Input, Link, Select } from "@/components/ui";
+import {
+  Alert,
+  Button,
+  ConfirmDialog,
+  Input,
+  Link,
+  Select,
+} from "@/components/ui";
 import { useMe } from "@/features/auth/hooks";
 import { canManageInvoices } from "@/features/invoices/permissions";
 import { useIssueInvoice } from "@/features/invoices/hooks";
@@ -526,6 +533,9 @@ function OrderDetail({ id }: { id: number }) {
   const [pendingTransition, setPendingTransition] = useState<
     "confirm" | "cancel" | "ship" | null
   >(null);
+  // The confirmation of the destructive cancel (the dialog below): the
+  // click opens it, the confirm runs the same transition as before.
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [pendingIssue, setPendingIssue] = useState(false);
 
   const [addProductId, setAddProductId] = useState("");
@@ -701,6 +711,11 @@ function OrderDetail({ id }: { id: number }) {
       routePageError(error);
     } finally {
       setPendingTransition(null);
+      // The confirmation dialog of the cancel closes when the request
+      // ends, failure or success: the answer is what the screen shows.
+      if (action === "cancel") {
+        setCancelDialogOpen(false);
+      }
     }
   }
 
@@ -826,6 +841,26 @@ function OrderDetail({ id }: { id: number }) {
           ) : null}
         </div>
       ) : null}
+
+      <ConfirmDialog
+        open={cancelDialogOpen}
+        title={`¿Cancelar el pedido ${order?.number ?? ""}?`}
+        titleId="orders-cancel-title"
+        messageId="orders-cancel-message"
+        testId="orders-cancel-confirm-dialog"
+        titleTestId="orders-cancel-title-heading"
+        messageTestId="orders-cancel-message-text"
+        confirmTestId="orders-cancel-confirm-button"
+        cancelTestId="orders-cancel-back-button"
+        confirmLabel="Sí, cancelar pedido"
+        pending={pendingTransition === "cancel"}
+        onConfirm={() => void handleTransition("cancel")}
+        onCancel={() => setCancelDialogOpen(false)}
+      >
+        {order?.status === "confirmed"
+          ? "El stock reservado vuelve al inventario y la factura emitida, si existe, se anula."
+          : "El borrador quedará cancelado."}
+      </ConfirmDialog>
 
       {/* The facts of the order in a surface card. */}
       <div className="mt-6 rounded-lg border border-line bg-surface p-5">
@@ -1080,9 +1115,8 @@ function OrderDetail({ id }: { id: number }) {
             <Button
               testId="orders-detail-cancel-button"
               variant="secondary"
-              loading={pendingTransition === "cancel"}
               disabled={mutationsPending}
-              onClick={() => void handleTransition("cancel")}
+              onClick={() => setCancelDialogOpen(true)}
             >
               Cancelar pedido
             </Button>

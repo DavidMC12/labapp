@@ -128,7 +128,7 @@ def test_cancelling_a_draft_changes_no_stock_and_freezes_the_current_rate(
     assert _stock(clients["sales"], 1) == 120
 
 
-def test_cancelling_a_confirmed_order_returns_stock_and_stores_the_current_rate(
+def test_cancelling_a_confirmed_order_returns_stock_and_keeps_the_frozen_rate(
     clients: dict[str, TestClient],
 ) -> None:
     order = _draft_with_line(clients["sales"])
@@ -145,7 +145,9 @@ def test_cancelling_a_confirmed_order_returns_stock_and_stores_the_current_rate(
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "cancelled"
-    assert body["tax_rate"] == "7.00"
+    assert body["tax_rate"] == confirmed.json()["tax_rate"]
+    assert body["tax_rate"] != "7.00"
+    assert (body["tax"], body["total"]) == (confirmed.json()["tax"], confirmed.json()["total"])
     assert _stock(clients["sales"], 1) == 120
 
 

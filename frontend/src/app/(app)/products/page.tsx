@@ -1,9 +1,18 @@
 "use client";
 
-import { Button, Input, TableScroll } from "@/components/ui";
-import { Alert } from "@/components/ui";
+import { Alert, Button, Input, TableScroll } from "@/components/ui";
+import { SortableHeader, type SortableHeaderState } from "@/components/ui";
+import {
+  flipProductSortDirection,
+  isDefaultProductSort,
+  parseProductListParams,
+  productSortDefaultDirection,
+  productSortLabel,
+  resolveProductSort,
+  type ProductSort,
+  type ProductSortField,
+} from "@/features/products/params";
 import { useProducts } from "@/features/products/hooks";
-import { parseProductListParams } from "@/features/products/params";
 import { productMatchesSearch } from "@/features/products/search";
 import { stockState } from "@/features/products/stock";
 import type { Product } from "@/features/products/hooks";
@@ -11,7 +20,7 @@ import { ApiRequestError, INTERNAL_ERROR_DETAIL } from "@/lib/api";
 import { formatMoney } from "@/lib/format";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 
 /** The classes of a ledger header cell and a ledger body cell. */
 const TABLE_HEAD_CLASSES = [
@@ -56,11 +65,24 @@ function stockBadge(stock: number): StockBadge | null {
 }
 
 /**
- * The url of the search: the only state the catalog has. An empty term
- * drops the parameter, so `/products` and `/products?q=` are one url.
+ * The url of the catalog: the search term when set, and the sort when it
+ * is not the one of the plain catalog. An empty term drops the q
+ * parameter, so `/products` and `/products?q=` are one url; the default
+ * order (`id` ascending) leaves both sort parameters out, so the clean
+ * url is the plain catalog.
  */
-function listUrl(q: string | null): string {
-  return q ? `/products?q=${encodeURIComponent(q)}` : "/products";
+function listUrl(q: string | null, sort: ProductSort): string {
+  const parts: string[] = [];
+  if (q) {
+    parts.push(`q=${encodeURIComponent(q)}`);
+  }
+  if (!isDefaultProductSort(sort)) {
+    // The sort values are literal field names and the two directions;
+    // no url encoding is needed for them.
+    parts.push(`sort=${sort.sort}`);
+    parts.push(`direction=${sort.direction}`);
+  }
+  return parts.length === 0 ? "/products" : `/products?${parts.join("&")}`;
 }
 
 function ProductsListContent() {
@@ -68,7 +90,24 @@ function ProductsListContent() {
   const searchParams = useSearchParams();
 
   const params = parseProductListParams(searchParams);
-  const catalog = useProducts();
+  // The resolved sort is stable while the URL values are: the catalog
+  // request below must not re-key itself for a new object of the same
+  // pair.
+  const sort = useMemo(
+    () =>
+      resolveProductSort({
+        sort: params.sort,
+        direction: params.direction,
+      }),
+    [params.sort, params.direction],
+  );
+  // The plain catalog order travels without parameters: the request
+  // (and the cache entry of the draft editor) stays the same one.
+  const catalog = useProducts(
+    isDefaultProductSort(sort)
+      ? {}
+      : { sort: sort.sort, direction: sort.direction },
+  );
 
   // The field of the search form is local; submitting it writes the url,
   // which is what the client-side filter reads.
@@ -86,7 +125,30 @@ function ProductsListContent() {
   function handleSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const term = qInput.trim();
-    router.push(listUrl(term || null));
+    router.push(listUrl(term || null, sort));
+  }
+
+  /**
+   * Sorting from a header: a new column sorts with its default direction
+   * (ascending, the catalog has none of the created fields), the sorted
+   * one flips; either way the search term stays.
+   */
+  function toggleSort(field: ProductSortField) {
+    const next: ProductSort = field === sort.sort
+      ? {
+        sort: field,
+        direction: flipProductSortDirection(sort.direction),
+      }
+      : { sort: field, direction: productSortDefaultDirection() };
+    router.push(listUrl(params.q, next));
+  }
+
+  /** The header state of one sortable column, the `aria-sort` value. */
+  function headerState(field: ProductSortField): SortableHeaderState {
+    if (sort.sort !== field) {
+      return "none";
+    }
+    return sort.direction === "asc" ? "ascending" : "descending";
   }
 
   function problemDetail(): string {
@@ -110,6 +172,20 @@ function ProductsListContent() {
   return (
     <div>
       <h1 data-testid="products-list-heading">Productos</h1>
+
+      {/*
+       * The live announcement of the order of the table (the same one the
+       * other lists have), hidden from the visual layout.
+       */}
+      <p
+        role="status"
+        data-testid="products-list-sort-text"
+        className="sr-only"
+      >
+        {`Ordenado por ${productSortLabel(sort.sort)}, ${
+          sort.direction === "asc" ? "ascendente" : "descendente"
+        }`}
+      </p>
 
       <form
         data-testid="products-list-search-form"
@@ -177,14 +253,34 @@ function ProductsListContent() {
             >
               <thead>
                 <tr>
-                  <th scope="col" className={TABLE_HEAD_CLASSES}>SKU</th>
-                  <th scope="col" className={TABLE_HEAD_CLASSES}>Producto</th>
-                  <th scope="col" className={TABLE_HEAD_RIGHT_CLASSES}>
-                    Precio
-                  </th>
-                  <th scope="col" className={TABLE_HEAD_RIGHT_CLASSES}>
-                    Stock
-                  </th>
+                  <SortableHeader
+                    label="SKU"
+                    testId="products-list-sort-sku-button"
+                    state={headerState("sku")}
+                    className={TABLE_HEAD_CLASSES}
+                    onClick={() => toggleSort("sku")}
+                  />
+                  <SortableHeader
+                    label="Producto"
+                    testId="products-list-sort-name-button"
+                    state={headerState("name")}
+                    className={TABLE_HEAD_CLASSES}
+                    onClick={() => toggleSort("name")}
+                  />
+                  <SortableHeader
+                    label="Precio"
+                    testId="products-list-sort-price-button"
+                    state={headerState("price")}
+                    className={TABLE_HEAD_RIGHT_CLASSES}
+                    onClick={() => toggleSort("price")}
+                  />
+                  <SortableHeader
+                    label="Stock"
+                    testId="products-list-sort-stock-button"
+                    state={headerState("stock")}
+                    className={TABLE_HEAD_RIGHT_CLASSES}
+                    onClick={() => toggleSort("stock")}
+                  />
                 </tr>
               </thead>
               <tbody>

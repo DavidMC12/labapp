@@ -10,7 +10,6 @@ from decimal import Decimal
 from typing import Any
 
 from app.domain.csv_export import (
-    EXPORT_PAGE_SIZE,
     CsvExport,
     csv_export_filename,
     write_csv,
@@ -178,7 +177,12 @@ class InvoiceService:
     ) -> CsvExport:
         """Validate the list filters and render every match as CSV."""
         normalized_query, sort_spec = self._list_params(None, query, order_id, sort, direction)
-        invoices = self._all_invoices(normalized_query, status, order_id, sort_spec)
+        invoices = self._store.export_rows(
+            query=normalized_query,
+            status=status,
+            order_id=order_id,
+            sort=sort_spec,
+        )
         rows = [
             (
                 invoice.id,
@@ -228,30 +232,6 @@ class InvoiceService:
             default="created_at",
         )
         return normalized_query, sort_spec
-
-    def _all_invoices(
-        self,
-        query: str | None,
-        status: InvoiceStatus | None,
-        order_id: int | None,
-        sort: SortSpec,
-    ) -> list[Invoice]:
-        """Read every match page by page, without the list's page limit."""
-        invoices: list[Invoice] = []
-        page = 1
-        while True:
-            items, _ = self._store.list_invoices(
-                query=query,
-                status=status,
-                order_id=order_id,
-                page=page,
-                page_size=EXPORT_PAGE_SIZE,
-                sort=sort,
-            )
-            invoices.extend(items)
-            if len(items) < EXPORT_PAGE_SIZE:
-                return invoices
-            page += 1
 
     def get(self, id: int) -> Invoice:
         """Return one invoice or raise the 404 problem."""

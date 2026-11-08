@@ -55,8 +55,13 @@ def _records(text: str) -> list[tuple[int, tuple[str, ...]]]:
     ``csv.reader`` consumes a quoted field with line breaks as one record; its
     ``line_num`` is the line where the record ends, so the start is the previous
     end plus one. Blank records are kept here because they move the line number.
+
+    The parser runs in strict mode: an unclosed quoted field or a quote that does
+    not follow the quoting rules raises ``csv.Error`` instead of silently joining
+    the following rows into one field. A bare quote inside an unquoted field is
+    still valid.
     """
-    reader = csv.reader(io.StringIO(text, newline=""))
+    reader = csv.reader(io.StringIO(text, newline=""), strict=True)
     records: list[tuple[int, tuple[str, ...]]] = []
     previous_end = 0
     for cells in reader:

@@ -290,6 +290,65 @@ def test_invalid_utf8_is_invalid(clients: dict[str, TestClient]) -> None:
     import_error(response, "file", "INVALID_FORMAT", "El formato no es válido.")
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        'name,email,address\nAna,a@x.co,"Calle 1\nBeto,b@x.co,Calle 2\n',
+        'name,email,address\nAna,"Calle 1,a@x.co,Calle 2\nBeto,b@x.co,Calle 2\n',
+        'name,email,address\nAna,a@x.co,Calle 1\nBeto,b@x.co,"',
+    ],
+    ids=["last-column", "middle-column", "start-of-field-at-the-end"],
+)
+def test_an_unclosed_quote_rejects_the_whole_file(
+    clients: dict[str, TestClient],
+    text: str,
+) -> None:
+    before = clients["sales"].get("/api/customers").json()["total"]
+
+    response = upload(clients["sales"], text)
+
+    import_error(response, "file", "INVALID_FORMAT", "El formato no es válido.")
+    assert clients["sales"].get("/api/customers").json()["total"] == before
+
+
+def test_a_quote_after_the_closing_quote_rejects_the_whole_file(
+    clients: dict[str, TestClient],
+) -> None:
+    before = clients["sales"].get("/api/customers").json()["total"]
+
+    response = upload(clients["sales"], 'name,email\n"a"b,ab@example.test\n')
+
+    import_error(response, "file", "INVALID_FORMAT", "El formato no es válido.")
+    assert clients["sales"].get("/api/customers").json()["total"] == before
+
+
+def test_a_bare_quote_inside_an_unquoted_field_is_stored(
+    clients: dict[str, TestClient],
+) -> None:
+    response = upload(clients["sales"], 'name,email\n5" pipe,pipe@example.test\n')
+
+    assert response.status_code == 201
+    assert response.json()["items"][0]["name"] == '5" pipe'
+
+
+def test_a_malformed_multipart_body_is_the_framework_400(
+    clients: dict[str, TestClient],
+) -> None:
+    # A body whose boundary does not match the header is rejected by FastAPI
+    # before the route runs: it does not carry the JSON error code.
+    response = clients["sales"].post(
+        "/api/customers/import",
+        content=(
+            b'--nope\r\nContent-Disposition: form-data; name="file"; filename="a.csv"'
+            b"\r\n\r\nname,email\r\nOne,one@example.test\r\n--nope--\r\n"
+        ),
+        headers={"Content-Type": "multipart/form-data; boundary=other"},
+    )
+
+    body = assert_problem(response, 400, "BAD_REQUEST")
+    assert body["detail"] == "No se pudo completar la solicitud."
+
+
 def test_a_missing_file_part_is_required(clients: dict[str, TestClient]) -> None:
     response = clients["sales"].post(
         "/api/customers/import",
@@ -297,6 +356,101 @@ def test_a_missing_file_part_is_required(clients: dict[str, TestClient]) -> None
     )
 
     import_error(response, "file", "REQUIRED", "Este campo es obligatorio.")
+
+
+def test_a_plain_form_field_named_file_is_invalid(clients: dict[str, TestClient]) -> None:
+    # A part without a filename is a plain field, not a file: FastAPI rejects it
+    # and the route answers the field error instead of crashing.
+    response = clients["sales"].post(
+        "/api/customers/import",
+        data={"file": "not a file"},
+    )
+
+    import_error(response, "file", "INVALID_FORMAT", "El formato no es válido.")
+
+
+def test_two_file_parts_use_the_last_one(clients: dict[str, TestClient]) -> None:
+    response = clients["sales"].post(
+        "/api/customers/import",
+        files=[
+            ("file", ("a.csv", b"name,email\nOne,one@example.test\n", CSV)),
+            ("file", ("b.csv", b"name,email\nTwo,two@example.test\n", CSV)),
+        ],
+    )
+
+    assert response.status_code == 201
+    assert [item["name"] for item in response.json()["items"]] == ["Two"]
+
+
+def test_an_empty_filename_is_required(clients: dict[str, TestClient]) -> None:
+    # What a browser sends for an empty file input: no name and no content.
+    response = clients["sales"].post(
+        "/api/customers/import",
+        files={"file": ("", b"", CSV)},
+    )
+
+    import_error(response, "file", "REQUIRED", "Este campo es obligatorio.")
+
+
+def test_a_lone_carriage_return_is_a_line_end(clients: dict[str, TestClient]) -> None:
+    response = upload_bytes(
+        clients["sales"],
+        b"name,email\rOne,one@example.test\r",
+    )
+
+    assert response.status_code == 201
+    assert [item["name"] for item in response.json()["items"]] == ["One"]
+
+
+def test_a_nul_byte_in_a_value_is_invalid(clients: dict[str, TestClient]) -> None:
+    response = upload_bytes(
+        clients["sales"],
+        b"name,email\nA\x00na,ana@example.test\n",
+    )
+
+    import_error(response, "rows[2].name", "INVALID_FORMAT", "El formato no es válido.")
+
+
+def test_a_byte_order_mark_in_the_middle_is_part_of_the_value(
+    clients: dict[str, TestClient],
+) -> None:
+    # Only a leading byte order mark is stripped; U+FEFF elsewhere is a format
+    # character, not a control character, so it stays in the value.
+    response = upload_bytes(
+        clients["sales"],
+        b"name,email\nAna,a@example.test\n\xef\xbb\xbfBeto,b@example.test\n",
+    )
+
+    assert response.status_code == 201
+    assert [item["name"] for item in response.json()["items"]] == ["Ana", "\ufeffBeto"]
+
+
+def test_a_record_with_twenty_thousand_cells_is_a_row_error(
+    clients: dict[str, TestClient],
+) -> None:
+    row = ",".join(["x"] * 20_000)
+    response = upload(clients["sales"], f"name,email\n{row}\n")
+
+    import_error(response, "rows[2]", "INVALID_FORMAT", "El formato no es válido.")
+
+
+def test_two_hundred_rows_of_the_longest_values_exceed_the_body_limit(
+    clients: dict[str, TestClient],
+) -> None:
+    # About 200 short rows are far below the 100 KB limit, but the longest value
+    # of every column crosses it: the body guard answers 413 before parsing.
+    name = "N" * 120
+    email = "e" * 240 + "@example.test"
+    phone = "+1 555 01"
+    tax_id = "T" * 30
+    address = "A" * 200
+    rows = [f"{name},{email},{phone},{tax_id},{address}" for _ in range(200)]
+    text = "name,email,phone,tax_id,address\n" + "\n".join(rows) + "\n"
+    assert len(text.encode("utf-8")) > 100 * 1024
+
+    response = upload(clients["sales"], text)
+
+    assert_problem(response, 413, "PAYLOAD_TOO_LARGE")
 
 
 def test_a_part_with_another_name_is_ignored(

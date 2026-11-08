@@ -88,6 +88,12 @@ def is_lock_timeout(error: BaseException) -> bool:
     return isinstance(original, psycopg.errors.LockNotAvailable)
 
 
+def is_deadlock(error: BaseException) -> bool:
+    """Tell whether the error is PostgreSQL aborting one side of a deadlock (SQLSTATE 40P01)."""
+    original = getattr(error, "orig", error)
+    return isinstance(original, psycopg.errors.DeadlockDetected)
+
+
 def as_utc(value: datetime) -> datetime:
     """Return a driver timestamp as an aware UTC datetime."""
     return value.astimezone(UTC)

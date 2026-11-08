@@ -115,29 +115,51 @@ class InMemoryOrderStore:
         page_size: int,
         sort: SortSpec | None = None,
     ) -> tuple[list[tuple[Order, str]], int]:
-        spec = sort or _ORDER_DEFAULT_SORT
         with self._lock:
-            matches: list[tuple[Order, str]] = []
-            for order in self._orders.values():
-                if status is not None and order.status != status:
-                    continue
-                if customer_id is not None and order.customer_id != customer_id:
-                    continue
-                customer = self._customers.get(order.customer_id)
-                customer_name = customer.name if customer is not None else ""
-                if query is not None:
-                    needle = normalize_for_search(query)
-                    if needle not in normalize_for_search(
-                        order.number
-                    ) and needle not in normalize_for_search(customer_name):
-                        continue
-                matches.append((order, customer_name))
-            matches.sort(
-                key=lambda item: _order_sort_key(item, spec.field),
-                reverse=spec.descending,
-            )
+            matches = self._matches(query, status, customer_id, sort)
             start = (page - 1) * page_size
             return matches[start : start + page_size], len(matches)
+
+    def export_rows(
+        self,
+        *,
+        query: str | None,
+        status: OrderStatus | None,
+        customer_id: int | None,
+        sort: SortSpec | None = None,
+    ) -> list[tuple[Order, str]]:
+        with self._lock:
+            return self._matches(query, status, customer_id, sort)
+
+    def _matches(
+        self,
+        query: str | None,
+        status: OrderStatus | None,
+        customer_id: int | None,
+        sort: SortSpec | None,
+    ) -> list[tuple[Order, str]]:
+        """Return every match in the requested order; the caller holds the lock."""
+        spec = sort or _ORDER_DEFAULT_SORT
+        matches: list[tuple[Order, str]] = []
+        for order in self._orders.values():
+            if status is not None and order.status != status:
+                continue
+            if customer_id is not None and order.customer_id != customer_id:
+                continue
+            customer = self._customers.get(order.customer_id)
+            customer_name = customer.name if customer is not None else ""
+            if query is not None:
+                needle = normalize_for_search(query)
+                if needle not in normalize_for_search(
+                    order.number
+                ) and needle not in normalize_for_search(customer_name):
+                    continue
+            matches.append((order, customer_name))
+        matches.sort(
+            key=lambda item: _order_sort_key(item, spec.field),
+            reverse=spec.descending,
+        )
+        return matches
 
     def get_order(self, id: int) -> Order | None:
         with self._lock:
@@ -306,7 +328,7 @@ class InMemoryOrderStore:
                     if self.invoices is not None:
                         self.invoices.void_for_order(order.id, now)
                 else:
-                    # A confirmed order keeps the rate frozen at confirmation.
+                    # Cancelling a draft stores the current rate.
                     tax_rate = self._tax_rate
 
             return self._update_order(order, now, status=new_status, tax_rate=tax_rate)

@@ -30,6 +30,9 @@ def test_openapi_documents_the_customer_import(clients: dict[str, TestClient]) -
 
     operation = document["paths"]["/api/customers/import"]["post"]
     assert {"201", "400", "401", "403", "409", "413", "422"} <= set(operation["responses"])
+    assert operation["responses"]["400"]["description"] == (
+        "The body is not a valid multipart/form-data body. Code: `BAD_REQUEST`."
+    )
     request = operation["requestBody"]
     assert request["required"] is True
     reference = request["content"]["multipart/form-data"]["schema"]["$ref"]

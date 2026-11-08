@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 from app.domain.csv_export import (
-    EXPORT_PAGE_SIZE,
     CsvExport,
     csv_export_filename,
     write_csv,
@@ -105,7 +104,11 @@ class CustomerService:
     ) -> CsvExport:
         """Validate the list filters and render every match as CSV."""
         normalized_query, sort_spec = self._list_params(None, query, sort, direction)
-        customers = self._all_customers(normalized_query, status, sort_spec)
+        customers = self._repository.export_rows(
+            query=normalized_query,
+            status=status,
+            sort=sort_spec,
+        )
         rows = [
             (
                 customer.id,
@@ -171,28 +174,6 @@ class CustomerService:
             default="created_at",
         )
         return normalized_query, sort_spec
-
-    def _all_customers(
-        self,
-        query: str | None,
-        status: CustomerStatus | None,
-        sort: SortSpec,
-    ) -> list[Customer]:
-        """Read every match page by page, without the list's page limit."""
-        customers: list[Customer] = []
-        page = 1
-        while True:
-            items, _ = self._repository.list(
-                query=query,
-                status=status,
-                page=page,
-                page_size=EXPORT_PAGE_SIZE,
-                sort=sort,
-            )
-            customers.extend(items)
-            if len(items) < EXPORT_PAGE_SIZE:
-                return customers
-            page += 1
 
     def get(self, id: int) -> Customer:
         """Return one customer or raise the 404 problem."""

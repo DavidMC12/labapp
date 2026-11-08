@@ -86,6 +86,38 @@ def test_quoted_fields_hold_commas_quotes_and_line_breaks() -> None:
     assert result.rows[2].line == 5
 
 
+@pytest.mark.parametrize(
+    "text",
+    [
+        'name,email,address\nAna,a@x.co,"Calle 1\nBeto,b@x.co,Calle 2\n',
+        'name,email,address\nAna,"Calle 1,a@x.co,Calle 2\nBeto,b@x.co,Calle 2\n',
+        'name,email,address\nAna,a@x.co,Calle 1\nBeto,b@x.co,"',
+    ],
+    ids=["last-column", "middle-column", "start-of-field-at-the-end"],
+)
+def test_an_unclosed_quote_rejects_the_whole_file(text: str) -> None:
+    assert_file_error(
+        parse(text),
+        "INVALID_FORMAT",
+        "El formato no es válido.",
+    )
+
+
+def test_a_quote_after_the_closing_quote_rejects_the_whole_file() -> None:
+    assert_file_error(
+        parse('name,email\n"a"b,ab@example.test\n'),
+        "INVALID_FORMAT",
+        "El formato no es válido.",
+    )
+
+
+def test_a_bare_quote_inside_an_unquoted_field_is_valid() -> None:
+    result = parse('name,email\n5" pipe,pipe@example.test\n')
+
+    assert result.errors == ()
+    assert result.rows[0].cells == ('5" pipe', "pipe@example.test")
+
+
 def test_blank_lines_are_ignored_but_counted_in_the_line_numbers() -> None:
     text = "name,email\n\nAcme,acme@example.test\n   \n\nBeta,beta@example.test\n"
 

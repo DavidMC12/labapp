@@ -68,6 +68,30 @@ def test_driver_errors_log_only_class_sqlstate_and_request_id(
     assert "UniqueViolation" in logged
 
 
+def test_a_deadlock_logs_only_class_sqlstate_and_request_id(
+    app: FastAPI, caplog: pytest.LogCaptureFixture
+) -> None:
+    @app.get("/explode-deadlock")
+    def explode_deadlock() -> None:
+        raise psycopg.errors.DeadlockDetected(
+            f"deadlock detected while updating {EMAIL} ({PASSWORD_HASH})"
+        )
+
+    with caplog.at_level(logging.ERROR):
+        response = TestClient(app, raise_server_exceptions=False).get(
+            "/explode-deadlock", headers={"X-Request-Id": "req-db"}
+        )
+
+    assert response.status_code == 503
+    assert response.json()["code"] == "LOCK_TIMEOUT"
+    logged = caplog.text
+    assert "DeadlockDetected" in logged
+    assert "40P01" in logged
+    assert "req-db" in logged
+    assert EMAIL not in logged
+    assert PASSWORD_HASH not in logged
+
+
 def test_other_errors_still_log_their_message(
     app: FastAPI, caplog: pytest.LogCaptureFixture
 ) -> None:

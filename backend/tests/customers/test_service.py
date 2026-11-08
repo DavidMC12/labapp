@@ -53,6 +53,42 @@ class RecordingRepository:
         return [], 0
 
 
+class ExportOnlyRepository:
+    """A repository that fails if the export asks for a page."""
+
+    def __init__(self, customers: list[object]) -> None:
+        self.customers = customers
+        self.arguments: dict[str, object] = {}
+
+    def list(self, **_: object) -> tuple[list[object], int]:
+        raise AssertionError("the export must not read the paged list")
+
+    def export_rows(
+        self,
+        *,
+        query: str | None,
+        status: CustomerStatus | None,
+        sort: object = None,
+    ) -> list[object]:
+        self.arguments = {"query": query, "status": status, "sort": sort}
+        return self.customers
+
+
+def test_export_reads_every_row_in_one_call() -> None:
+    customers = seed_customers()
+    repository = ExportOnlyRepository(list(customers))
+    service = CustomerService(  # type: ignore[arg-type]
+        repository, OffsetClock(FixedClock(NOW))
+    )
+
+    document = service.export_customers("  acme  ", None, "name", "asc")
+
+    assert repository.arguments["query"] == "acme"
+    assert repository.arguments["status"] is None
+    assert "Acme Industrial" in document.text
+    assert document.filename == "customers-20260102.csv"
+
+
 def test_list_passes_none_for_an_empty_query() -> None:
     repository = RecordingRepository()
     service = CustomerService(repository, OffsetClock(FixedClock(NOW)))  # type: ignore[arg-type]

@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import DBAPIError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.infra.db import is_lock_timeout
+from app.infra.db import is_deadlock, is_lock_timeout
 
 logger = logging.getLogger(__name__)
 
@@ -231,6 +231,15 @@ async def _handle_database_error(request: Request, exc: Exception) -> JSONRespon
         request_id,
         "".join(traceback.format_tb(exc.__traceback__)),
     )
+    if is_deadlock(exc):
+        # The other transaction kept its locks: this one lost the deadlock and can
+        # retry, exactly like a lock wait that gave up.
+        return problem_response(
+            request_id,
+            status=503,
+            code=LOCK_TIMEOUT,
+            detail=ERROR_MESSAGES[LOCK_TIMEOUT],
+        )
     return problem_response(
         request_id,
         status=500,

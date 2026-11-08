@@ -52,6 +52,31 @@ def customer(
     )
 
 
+def _all_pages(
+    repository: Any,
+    *,
+    query: str | None,
+    status: CustomerStatus | None,
+    sort: SortSpec,
+    page_size: int = 20,
+) -> list[Customer]:
+    """Concatenate every page of ``list`` for the same filters and sort."""
+    items: list[Customer] = []
+    page = 1
+    while True:
+        page_items, _ = repository.list(
+            query=query,
+            status=status,
+            page=page,
+            page_size=page_size,
+            sort=sort,
+        )
+        items.extend(page_items)
+        if len(page_items) < page_size:
+            return items
+        page += 1
+
+
 class CustomerRepositoryContract:
     """The behavior every CustomerRepository adapter must share.
 
@@ -507,6 +532,32 @@ class CustomerRepositoryContract:
         assert total == 45
         assert [item.id for item in first] == list(range(1, 21))
         assert [item.id for item in second] == list(range(21, 41))
+
+    def test_export_rows_equal_every_page_of_the_list(self, repository: Any) -> None:
+        repository.replace_all(
+            [
+                customer(
+                    identifier,
+                    name=f"Customer {identifier:02d}",
+                    email=f"c{identifier:02d}@example.test",
+                    status=(CustomerStatus.ACTIVE if identifier % 3 else CustomerStatus.INACTIVE),
+                    created_at=NOW + timedelta(seconds=identifier),
+                )
+                for identifier in range(1, 46)
+            ]
+        )
+
+        for field in ("created_at", "name", "email"):
+            for descending in (False, True):
+                spec = SortSpec(field, descending)
+                assert repository.export_rows(query=None, status=None, sort=spec) == _all_pages(
+                    repository, query=None, status=None, sort=spec
+                )
+
+        active = SortSpec("name", False)
+        assert repository.export_rows(
+            query="customer 1", status=CustomerStatus.ACTIVE, sort=active
+        ) == _all_pages(repository, query="customer 1", status=CustomerStatus.ACTIVE, sort=active)
 
     def test_concurrent_updates_with_the_same_version_leaves_one_winner(
         self,

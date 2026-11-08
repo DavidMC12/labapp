@@ -61,6 +61,30 @@ def _values(data: NewCustomer, now: datetime) -> dict[str, Any]:
     }
 
 
+def _filters(query: str | None, status: CustomerStatus | None) -> list[Any]:
+    """Return the WHERE clauses shared by ``list`` and ``export_rows``."""
+    filters: list[Any] = []
+    if status is not None:
+        filters.append(customers.c.status == status.value)
+    if query is not None:
+        normalized = normalize_for_search(query)
+        filters.append(
+            or_(
+                customers.c.name_search.contains(normalized, autoescape=True),
+                customers.c.email_search.contains(normalized, autoescape=True),
+            )
+        )
+    return filters
+
+
+def _ordering(spec: SortSpec) -> tuple[Any, Any]:
+    """Return the primary and tie-break ORDER BY expressions of a sort."""
+    column = _SORT_COLUMNS[spec.field]
+    primary = column.desc() if spec.descending else column.asc()
+    secondary = customers.c.id.desc() if spec.descending else customers.c.id.asc()
+    return primary, secondary
+
+
 class PostgresCustomerRepository:
     """A customer repository backed by PostgreSQL."""
 
@@ -96,20 +120,8 @@ class PostgresCustomerRepository:
         sort: SortSpec | None = None,
     ) -> tuple[list[Customer], int]:
         spec = sort or _DEFAULT_SORT
-        column = _SORT_COLUMNS[spec.field]
-        primary = column.desc() if spec.descending else column.asc()
-        secondary = customers.c.id.desc() if spec.descending else customers.c.id.asc()
-        filters = []
-        if status is not None:
-            filters.append(customers.c.status == status.value)
-        if query is not None:
-            normalized = normalize_for_search(query)
-            filters.append(
-                or_(
-                    customers.c.name_search.contains(normalized, autoescape=True),
-                    customers.c.email_search.contains(normalized, autoescape=True),
-                )
-            )
+        filters = _filters(query, status)
+        primary, secondary = _ordering(spec)
 
         offset = (page - 1) * page_size
         with self._engine.begin() as connection:
@@ -128,6 +140,26 @@ class PostgresCustomerRepository:
                 .all()
             )
         return [_customer_from_row(row) for row in rows], total
+
+    def export_rows(
+        self,
+        *,
+        query: str | None,
+        status: CustomerStatus | None,
+        sort: SortSpec | None = None,
+    ) -> list[Customer]:
+        """Read every match in one statement, without paging or counting."""
+        spec = sort or _DEFAULT_SORT
+        primary, secondary = _ordering(spec)
+        with self._engine.begin() as connection:
+            rows = (
+                connection.execute(
+                    select(customers).where(*_filters(query, status)).order_by(primary, secondary)
+                )
+                .mappings()
+                .all()
+            )
+        return [_customer_from_row(row) for row in rows]
 
     def get(self, id: int) -> Customer | None:
         with self._engine.begin() as connection:

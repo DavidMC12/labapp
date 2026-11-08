@@ -90,30 +90,55 @@ class InMemoryInvoiceStore:
         page_size: int,
         sort: SortSpec | None = None,
     ) -> tuple[list[Invoice], int]:
-        spec = sort or _DEFAULT_SORT
         with self._lock:
-            matches: list[Invoice] = []
-            for invoice in self._invoices.values():
-                if status is not None and invoice.status != status:
-                    continue
-                if order_id is not None and invoice.order_id != order_id:
-                    continue
-                if query is not None:
-                    needle = normalize_for_search(query)
-                    if needle not in normalize_for_search(
-                        invoice.number
-                    ) and needle not in normalize_for_search(invoice.customer_name):
-                        continue
-                matches.append(invoice)
-            matches.sort(
-                key=lambda invoice: _invoice_sort_key(invoice, spec.field),
-                reverse=spec.descending,
-            )
+            matches = self._matches(query, status, order_id, sort)
             start = (page - 1) * page_size
             return [
                 replace(invoice, lines=(), payments=())
                 for invoice in matches[start : start + page_size]
             ], len(matches)
+
+    def export_rows(
+        self,
+        *,
+        query: str | None,
+        status: InvoiceStatus | None,
+        order_id: int | None,
+        sort: SortSpec | None = None,
+    ) -> list[Invoice]:
+        with self._lock:
+            return [
+                replace(invoice, lines=(), payments=())
+                for invoice in self._matches(query, status, order_id, sort)
+            ]
+
+    def _matches(
+        self,
+        query: str | None,
+        status: InvoiceStatus | None,
+        order_id: int | None,
+        sort: SortSpec | None,
+    ) -> list[Invoice]:
+        """Return every match in the requested order; the caller holds the lock."""
+        spec = sort or _DEFAULT_SORT
+        matches: list[Invoice] = []
+        for invoice in self._invoices.values():
+            if status is not None and invoice.status != status:
+                continue
+            if order_id is not None and invoice.order_id != order_id:
+                continue
+            if query is not None:
+                needle = normalize_for_search(query)
+                if needle not in normalize_for_search(
+                    invoice.number
+                ) and needle not in normalize_for_search(invoice.customer_name):
+                    continue
+            matches.append(invoice)
+        matches.sort(
+            key=lambda invoice: _invoice_sort_key(invoice, spec.field),
+            reverse=spec.descending,
+        )
+        return matches
 
     def get_invoice(self, id: int) -> Invoice | None:
         with self._lock:

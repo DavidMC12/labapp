@@ -116,6 +116,43 @@ def _number_value(number: str) -> int:
     return int(number.rsplit("-", 1)[-1])
 
 
+def _invoice_filters(
+    query: str | None,
+    status: InvoiceStatus | None,
+    order_id: int | None,
+) -> list[Any]:
+    """Return the WHERE clauses shared by ``list_invoices`` and ``export_rows``."""
+    filters: list[Any] = []
+    if status is not None:
+        filters.append(invoices.c.status == status.value)
+    if order_id is not None:
+        filters.append(invoices.c.order_id == order_id)
+    if query is not None:
+        normalized = normalize_for_search(query)
+        filters.append(
+            or_(
+                func.lower(invoices.c.number).contains(normalized, autoescape=True),
+                invoices.c.customer_name_search.contains(normalized, autoescape=True),
+            )
+        )
+    return filters
+
+
+def _invoice_ordering(spec: SortSpec) -> tuple[Any, Any]:
+    """Return the primary and tie-break ORDER BY expressions of an invoice sort."""
+    if spec.field == "number":
+        sort_column: Any = cast(func.substring(invoices.c.number, "[0-9]+"), Integer)
+    elif spec.field == "customer":
+        sort_column = invoices.c.customer_name_search.collate("C")
+    elif spec.field == "total":
+        sort_column = invoices.c.total
+    else:
+        sort_column = invoices.c.created_at
+    primary = sort_column.desc() if spec.descending else sort_column.asc()
+    secondary = invoices.c.id.desc() if spec.descending else invoices.c.id.asc()
+    return primary, secondary
+
+
 def _foreign_key_violation_of(error: BaseException, constraint_name: str) -> bool:
     """Tell whether the error is a foreign key violation of exactly that constraint."""
     original = getattr(error, "orig", None)
@@ -264,30 +301,8 @@ class PostgresInvoiceStore:
         sort: SortSpec | None = None,
     ) -> tuple[list[Invoice], int]:
         spec = sort or _DEFAULT_SORT
-        if spec.field == "number":
-            sort_column = cast(func.substring(invoices.c.number, "[0-9]+"), Integer)
-        elif spec.field == "customer":
-            sort_column = invoices.c.customer_name_search.collate("C")
-        elif spec.field == "total":
-            sort_column = invoices.c.total
-        else:
-            sort_column = invoices.c.created_at
-        primary = sort_column.desc() if spec.descending else sort_column.asc()
-        secondary = invoices.c.id.desc() if spec.descending else invoices.c.id.asc()
-
-        filters = []
-        if status is not None:
-            filters.append(invoices.c.status == status.value)
-        if order_id is not None:
-            filters.append(invoices.c.order_id == order_id)
-        if query is not None:
-            normalized = normalize_for_search(query)
-            filters.append(
-                or_(
-                    func.lower(invoices.c.number).contains(normalized, autoescape=True),
-                    invoices.c.customer_name_search.contains(normalized, autoescape=True),
-                )
-            )
+        primary, secondary = _invoice_ordering(spec)
+        filters = _invoice_filters(query, status, order_id)
 
         offset = (page - 1) * page_size
         with self._engine.begin() as connection:
@@ -306,6 +321,29 @@ class PostgresInvoiceStore:
                 .all()
             )
         return [_invoice_from_row(row) for row in rows], total
+
+    def export_rows(
+        self,
+        *,
+        query: str | None,
+        status: InvoiceStatus | None,
+        order_id: int | None,
+        sort: SortSpec | None = None,
+    ) -> list[Invoice]:
+        """Read every match in one statement, without paging or counting."""
+        spec = sort or _DEFAULT_SORT
+        primary, secondary = _invoice_ordering(spec)
+        with self._engine.begin() as connection:
+            rows = (
+                connection.execute(
+                    select(invoices)
+                    .where(*_invoice_filters(query, status, order_id))
+                    .order_by(primary, secondary)
+                )
+                .mappings()
+                .all()
+            )
+        return [_invoice_from_row(row) for row in rows]
 
     def get_invoice(self, id: int) -> Invoice | None:
         with self._engine.begin() as connection:

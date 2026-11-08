@@ -6,6 +6,18 @@ Un ERP pequeño de pedido a cobro (clientes, pedidos, facturas, pagos) hecho par
 
 **Estado:** en desarrollo activo, aún sin desplegar. Lo que existe hoy está en "Dónde va"; la especificación, la arquitectura y el contrato de testabilidad están escritos y se mantienen al día con el código.
 
+## Capturas
+
+Tomadas de una compilación de producción con los datos de ejemplo, en las dos versiones del diseño "Libro mayor" y en ancho de teléfono.
+
+| | |
+|---|---|
+| ![Login con los usuarios de la demo](docs/screenshots/login-light.png) | ![Resumen de los datos](docs/screenshots/home-light.png) |
+| ![Lista de clientes](docs/screenshots/customers-light.png) | ![Un pedido confirmado con sus totales](docs/screenshots/order-detail-light.png) |
+| ![Una factura pagada, tema oscuro](docs/screenshots/invoice-detail-dark.png) | ![Catálogo de productos, tema oscuro](docs/screenshots/products-dark.png) |
+
+<img src="docs/screenshots/orders-phone-light.png" alt="La lista de pedidos en un teléfono" width="260">
+
 ## Por qué
 
 Las apps demo públicas para automatización suelen traer elementos sin localizadores fiables, lo que obliga a usar selectores frágiles. LabApp está pensada al revés: la testabilidad es un contrato (ver [docs/TESTABILITY.md](docs/TESTABILITY.md)), que se exige con tipos, reglas de lint y dos auditorías que corren en CI (una estática y otra en navegador con axe).

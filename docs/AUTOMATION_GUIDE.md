@@ -62,3 +62,32 @@ export default defineConfig({ use: { testIdAttribute: 'data-testid' } });
 | `status` | An element with `role="status"`: loading announcements (`Cargando…`, busy) and success announcements | `customers-list-loading-status`, `settings-taxrate-success-status` |
 | `alert` / `error` | Messages from the API. `error` is a field-level message next to its input (`customers-form-email-error`); `alert` is a form- or page-level one (`customers-form-alert`, `customers-detail-error-alert`) | both in `role="alert"` |
 | `dialog` | A confirmation on the native `<dialog>`. There are exactly two in the app: cancelling an order and deactivating a customer; every other action runs at the first click | `orders-cancel-confirm-dialog`, `customers-deactivate-confirm-dialog` |
+
+## 3. Screen map
+
+One row per screen. "Who" is who gets the screen's main function; every logged-in role can open the routes of the shell — reading is open to all roles — but the write controls disappear for the roles without the permission ([SPEC section 2](SPEC.md)). Titles and ids read from the code and [states.json](../tools/audit/states.json).
+
+| Screen | URL | Who | Document title | Main heading id | Main table or form id |
+|---|---|---|---|---|---|
+| Login | `/login` | no session | `Iniciar sesión · LabApp` | `auth-login-heading` | `auth-login-form` |
+| Expired-session notice | `/login?expired=1` | no session | `Iniciar sesión · LabApp` | `auth-login-heading` | `auth-login-form` (alert `auth-login-expired-alert`) |
+| Summary (home) | `/` | all roles | `Resumen · LabApp` | `app-home-heading` | — (counter cards, no table) |
+| Customers list | `/customers` | view: all; write: Admin, Sales | `Clientes · LabApp` | `customers-list-heading` | `customers-list-table` |
+| Customer detail | `/customers/{id}` | view: all; deactivate/reactivate: Admin, Sales | `Cliente {name} · LabApp` | `customers-detail-heading` | — (definition card) |
+| Customer new | `/customers/new` | Admin, Sales (others get the permission alert) | `Nuevo cliente · LabApp` | `customers-form-heading` | `customers-customer-form` |
+| Customer edit | `/customers/{id}/edit` | Admin, Sales (others get the permission alert) | `Editar cliente · LabApp` | `customers-form-heading` | `customers-customer-form` |
+| Orders list | `/orders` | view: all; create: Admin, Sales | `Pedidos · LabApp` | `orders-list-heading` | `orders-list-table` |
+| Order new | `/orders/new` | Admin, Sales (others get the permission alert) | `Nuevo pedido · LabApp` | `orders-form-heading` | `orders-customer-form` |
+| Order detail | `/orders/{id}` | view: all; transitions: Admin, Sales; invoice: Admin, Finance | `Pedido {number} · LabApp` | `orders-detail-heading` | `orders-detail-lines-table` |
+| Invoices list | `/invoices` | view: all (no create button here) | `Facturas · LabApp` | `invoices-list-heading` | `invoices-list-table` |
+| Invoice detail | `/invoices/{id}` | view: all; pay: Admin, Finance, only while issued | `Factura {number} · LabApp` | `invoices-detail-heading` | `invoices-detail-lines-table` (issued: payment form `payments-register-form`) |
+| Products list | `/products` | all roles, read-only | `Productos · LabApp` | `products-list-heading` | `products-list-table` |
+| Settings | `/settings` | view: all; tax rate form: Admin only | `Configuración · LabApp` | `settings-page-heading` | `settings-taxrate-form` (Admin) |
+| Not found (404) | any unmatched route | no session needed | `Página no encontrada · LabApp` | `app-notfound-heading` | — |
+
+Notes a test can rely on:
+
+- Detail titles carry the record only after it loads: until then the tab shows the section title (`Clientes`, `Pedidos`, `Facturas`), per the `useDocumentTitle` hook of the frontend. The state list of `states.json` asserts the loaded title (for example `Pedido PED-0003 · LabApp`).
+- `app-nav-home-link` is the brand "LabApp" in the rail; the section links are `app-nav-customers-link`, `app-nav-orders-link`, `app-nav-products-link`, `app-nav-invoices-link`, `app-nav-settings-link` — visible to every role.
+- Every shell page shares the skip link (`app-skip-link`) and the logout button (`app-logout-button`); "Salir" goes to `/login`.
+- Unknown customer, order or invoice ids render their section's error alert (for example `customers-detail-error-alert` with `No se encontró el recurso solicitado.`) and keep the section title, not a 404 page ([states.json](../tools/audit/states.json) `customers-not-found`).

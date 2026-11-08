@@ -4,11 +4,11 @@ Un ERP pequeño de pedido a cobro (clientes, pedidos, facturas, pagos) hecho par
 
 > English version: [README.md](README.md)
 
-**Estado:** en arranque. La especificación y la arquitectura están escritas; el código de la aplicación llega hito por hito (ver la hoja de ruta).
+**Estado:** en desarrollo activo, aún sin desplegar. Lo que existe hoy está en "Dónde va"; la especificación, la arquitectura y el contrato de testabilidad están escritos y se mantienen al día con el código.
 
 ## Por qué
 
-Las apps demo públicas para automatización suelen traer elementos sin localizadores fiables, lo que obliga a usar selectores frágiles. LabApp está pensada al revés: la testabilidad es un contrato (ver [docs/TESTABILITY.md](docs/TESTABILITY.md)), que se exigirá con tipos, reglas de lint y una auditoría en CI (previsto para M1).
+Las apps demo públicas para automatización suelen traer elementos sin localizadores fiables, lo que obliga a usar selectores frágiles. LabApp está pensada al revés: la testabilidad es un contrato (ver [docs/TESTABILITY.md](docs/TESTABILITY.md)), que se exige con tipos, reglas de lint y dos auditorías que corren en CI (una estática y otra en navegador con axe).
 
 ## Qué hace
 
@@ -20,7 +20,7 @@ Tres flujos principales, que se pulen antes de añadir módulos nuevos:
 
 Roles: Admin, Ventas, Finanzas y Solo lectura. La pantalla está en español. Las reglas de negocio están en [docs/SPEC.md](docs/SPEC.md) (en inglés).
 
-## Tecnologías previstas
+## Tecnologías
 
 | Capa | Elección |
 |---|---|
@@ -29,6 +29,21 @@ Roles: Admin, Ventas, Finanzas y Solo lectura. La pantalla está en español. La
 | Contrato | OpenAPI generado por el backend y cliente tipado generado para el frontend |
 | Local | Un script de arranque (`mise run dev`), datos en memoria o una base Neon de desarrollo, pasarela de pagos falsa; el correo falso solo se escribe en los logs |
 | Demo en línea | Vercel (web y API en un solo proyecto), Neon (Postgres), todo en capas gratuitas |
+
+## Dónde va
+
+| Área | Estado |
+|---|---|
+| Login, sesiones y los cuatro roles | Hecho (en memoria y en PostgreSQL) |
+| Clientes: API, pantallas, almacén en PostgreSQL | Hecho |
+| Pedidos: API, pantallas, almacén en PostgreSQL con stock y numeración bajo concurrencia | Hecho |
+| Configuración (impuesto, solo Admin) y resumen de inicio | Hecho |
+| Diseño: tema "Libro mayor" en versión clara y oscura, selector que se recuerda por navegador | Hecho |
+| Protecciones de petición: origen, JSON mal formado, tamaño, límites, tiempos de espera de bloqueos | Hecho |
+| Auditorías de testabilidad en CI: auditoría estática de testid, auditoría en navegador (testid y axe) en los dos temas, pruebas de integración con PostgreSQL | Hecho |
+| Facturas y pagos: pantallas | Hecho; backend en curso |
+| Controles solo para pruebas (reset, seed, reloj, inyección de fallas) con estado en PostgreSQL | En curso |
+| Primer despliegue en línea (Vercel y Neon) y reinicio nocturno de datos | Configurado, aún sin desplegar |
 
 ## Hoja de ruta
 
@@ -42,21 +57,26 @@ Roles: Admin, Ventas, Finanzas y Solo lectura. La pantalla está en español. La
 
 ## Usuarios de la demo
 
-Desde M1, la pantalla de login de la demo en línea mostrará las credenciales de cuatro usuarios de ejemplo, uno por rol: `admin@labapp.test`, `sales@labapp.test`, `finance@labapp.test` y `readonly@labapp.test`. Los datos serán compartidos y se reiniciarán cada noche.
+La pantalla de login muestra las credenciales de cuatro usuarios de ejemplo, uno por rol: `admin@labapp.test`, `sales@labapp.test`, `finance@labapp.test` y `readonly@labapp.test`. En la demo en línea los datos serán compartidos y se reiniciarán cada noche.
 
 ## Estructura del repositorio
 
 | Ruta | Propósito |
 |---|---|
-| `backend/` | Aplicación FastAPI y sus pruebas internas (desde M1) |
-| `frontend/` | Aplicación Next.js y sus pruebas de componentes (desde M1) |
-| `tools/audit/` | Auditorías de testid y accesibilidad que corren en CI (desde M1) |
+| `backend/` | Aplicación FastAPI y sus pruebas internas |
+| `frontend/` | Aplicación Next.js y sus pruebas de componentes |
+| `tools/audit/` | Auditorías de testid y accesibilidad que corren en CI |
 | `tests/` | Reservada para la suite de automatización E2E y de API del dueño |
-| `docs/` | Especificación, arquitectura y contrato de testabilidad; las instrucciones de tareas y los registros de revisión se añaden al empezar el trabajo |
+| `docs/` | Especificación, arquitectura, contrato de testabilidad, guías de despliegue y de desarrollo; las instrucciones de cada tarea y el registro de revisión de cada tarea mergeada |
 
 ## Cómo empezar
 
-Disponible desde M1. Las versiones de las herramientas (Node, uv, pnpm) están fijadas en `mise.toml`; todo arranca con un solo script que ejecuta la API y la web contra una base de desarrollo.
+```bash
+mise install    # una vez: Node, pnpm y uv en las versiones fijadas
+mise run dev    # API en 127.0.0.1:8000, web en localhost:3000, datos en memoria
+```
+
+Abre <http://localhost:3000> e ingresa con uno de los usuarios de la demo. Mira [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) (en inglés) para la opción con base de datos y los demás comandos, y [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) para el despliegue en línea.
 
 ## Licencia
 

@@ -10,11 +10,14 @@ Un ERP pequeño de pedido a cobro (clientes, pedidos, facturas, pagos) hecho par
 
 Tomadas de una compilación de producción con los datos de ejemplo, en las dos versiones del diseño "Libro mayor" y en ancho de teléfono.
 
-| | |
-|---|---|
-| ![Login con los usuarios de la demo](docs/screenshots/login-light.png) | ![Resumen de los datos](docs/screenshots/home-light.png) |
-| ![Lista de clientes](docs/screenshots/customers-light.png) | ![Un pedido confirmado con sus totales](docs/screenshots/order-detail-light.png) |
-| ![Una factura pagada, tema oscuro](docs/screenshots/invoice-detail-dark.png) | ![Catálogo de productos, tema oscuro](docs/screenshots/products-dark.png) |
+<p>
+  <img src="docs/screenshots/login-light.png" alt="Login con los usuarios de la demo" width="48%">
+  <img src="docs/screenshots/home-light.png" alt="Resumen de los datos" width="48%">
+  <img src="docs/screenshots/customers-light.png" alt="Lista de clientes" width="48%">
+  <img src="docs/screenshots/order-detail-light.png" alt="Un pedido confirmado con sus totales" width="48%">
+  <img src="docs/screenshots/invoice-detail-dark.png" alt="Una factura pagada, tema oscuro" width="48%">
+  <img src="docs/screenshots/products-dark.png" alt="Catálogo de productos, tema oscuro" width="48%">
+</p>
 
 <img src="docs/screenshots/orders-phone-light.png" alt="La lista de pedidos en un teléfono" width="260">
 

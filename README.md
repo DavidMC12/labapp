@@ -10,11 +10,14 @@ A small order-to-cash ERP (customers, orders, invoices, payments) built to be an
 
 Taken from a production build with the seed data, in the two voices of the "Libro mayor" design and at phone width.
 
-| | |
-|---|---|
-| ![Login with the demo users](docs/screenshots/login-light.png) | ![Summary of the data](docs/screenshots/home-light.png) |
-| ![Customers list](docs/screenshots/customers-light.png) | ![A confirmed order with its totals](docs/screenshots/order-detail-light.png) |
-| ![A paid invoice, dark theme](docs/screenshots/invoice-detail-dark.png) | ![Products catalog, dark theme](docs/screenshots/products-dark.png) |
+<p>
+  <img src="docs/screenshots/login-light.png" alt="Login with the demo users" width="48%">
+  <img src="docs/screenshots/home-light.png" alt="Summary of the data" width="48%">
+  <img src="docs/screenshots/customers-light.png" alt="Customers list" width="48%">
+  <img src="docs/screenshots/order-detail-light.png" alt="A confirmed order with its totals" width="48%">
+  <img src="docs/screenshots/invoice-detail-dark.png" alt="A paid invoice, dark theme" width="48%">
+  <img src="docs/screenshots/products-dark.png" alt="Products catalog, dark theme" width="48%">
+</p>
 
 <img src="docs/screenshots/orders-phone-light.png" alt="The orders list on a phone" width="260">
 

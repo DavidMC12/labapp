@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
+import sys
 from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
 from alembic import command
 from alembic.config import Config
@@ -31,6 +34,7 @@ from app.modules.orders.tables import products as products_table
 from app.modules.testcontrols.reset import PostgresResetter
 
 ALEMBIC_INI = Path(__file__).resolve().parent.parent / "migrations" / "alembic.ini"
+OPENAPI_EXPORT_SECRET = "openapi-export"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -39,6 +43,15 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("migrate", help="Apply the database migrations")
     subparsers.add_parser("seed", help="Load the demo data into an empty database")
+    openapi = subparsers.add_parser(
+        "openapi",
+        help="Print the OpenAPI document of the application",
+    )
+    openapi.add_argument(
+        "--output",
+        metavar="FILE",
+        help="Write the document to FILE instead of standard output",
+    )
     reset = subparsers.add_parser(
         "reset",
         help="Restore the demo data (local use, requires TEST_MODE=1)",
@@ -79,6 +92,29 @@ def skip_reason(production_only: bool, environment: Mapping[str, str]) -> str | 
     if deployment and deployment != "production":
         return f"Skipping the database setup on a {deployment} deployment."
     return None
+
+
+def openapi_document() -> dict[str, Any]:
+    """Build the OpenAPI document without a database and without environment variables."""
+    # Importing app.main also builds its module-level application, whose startup guard
+    # rejects an empty or default SESSION_SECRET; the playground secret below is enough for
+    # that. The exported application is built again with no database and its own settings.
+    previous = os.environ.get("SESSION_SECRET")
+    os.environ["SESSION_SECRET"] = OPENAPI_EXPORT_SECRET
+    try:
+        from app.main import create_app
+    finally:
+        if previous is None:
+            os.environ.pop("SESSION_SECRET", None)
+        else:
+            os.environ["SESSION_SECRET"] = previous
+    application = create_app(Settings(session_secret=OPENAPI_EXPORT_SECRET, database_url=None))
+    return application.openapi()
+
+
+def render_openapi(document: Mapping[str, Any]) -> str:
+    """Return the document as the JSON text that the command and the tests compare."""
+    return json.dumps(document, indent=2, ensure_ascii=False) + "\n"
 
 
 def _alembic_config(settings: Settings) -> Config:
@@ -170,6 +206,12 @@ def main(argv: list[str] | None = None) -> int:
     elif arguments.command == "seed":
         seed_database(Settings())
         print("Database seed complete.")
+    elif arguments.command == "openapi":
+        text = render_openapi(openapi_document())
+        if arguments.output is None:
+            sys.stdout.write(text)
+        else:
+            Path(arguments.output).write_text(text, encoding="utf-8")
     elif arguments.command == "reset":
         settings = Settings()
         reason = reset_refusal(

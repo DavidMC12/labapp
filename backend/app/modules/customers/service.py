@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from app.domain.sorting import parse_sort
+from app.domain.csv_export import (
+    EXPORT_PAGE_SIZE,
+    CsvExport,
+    csv_export_filename,
+    write_csv,
+)
+from app.domain.sorting import SortSpec, parse_sort
 from app.errors import ERROR_MESSAGES, NOT_FOUND, ApiError
 from app.infra.clock import Clock
 from app.modules.customers.models import Changes, Customer, CustomerStatus
@@ -26,6 +32,17 @@ MAX_PAGE = 1_000_000
 MAX_ID = 2_147_483_647
 MAX_QUERY_LENGTH = 100
 SORT_FIELDS = ("created_at", "name", "email")
+CUSTOMER_COLUMNS = (
+    "id",
+    "name",
+    "email",
+    "phone",
+    "tax_id",
+    "address",
+    "status",
+    "created_at",
+    "updated_at",
+)
 
 VERSION_CONFLICT_MESSAGE = "El registro cambió mientras lo editabas. Recarga e inténtalo de nuevo."
 EMAIL_TAKEN_MESSAGE = "Ya existe un cliente con ese email."
@@ -67,8 +84,54 @@ class CustomerService:
         direction: str | None = None,
     ) -> tuple[list[Customer], int]:
         """Validate the list parameters and return one page plus its total."""
+        normalized_query, sort_spec = self._list_params(page, query, sort, direction)
+        return self._repository.list(
+            query=normalized_query,
+            status=status,
+            page=page,
+            page_size=PAGE_SIZE,
+            sort=sort_spec,
+        )
+
+    def export_customers(
+        self,
+        query: str | None,
+        status: CustomerStatus | None,
+        sort: str | None = None,
+        direction: str | None = None,
+    ) -> CsvExport:
+        """Validate the list filters and render every match as CSV."""
+        normalized_query, sort_spec = self._list_params(None, query, sort, direction)
+        customers = self._all_customers(normalized_query, status, sort_spec)
+        rows = [
+            (
+                customer.id,
+                customer.name,
+                customer.email,
+                customer.phone,
+                customer.tax_id,
+                customer.address,
+                customer.status,
+                customer.created_at,
+                customer.updated_at,
+            )
+            for customer in customers
+        ]
+        return CsvExport(
+            filename=csv_export_filename("customers", self._clock.now()),
+            text=write_csv(CUSTOMER_COLUMNS, rows),
+        )
+
+    def _list_params(
+        self,
+        page: int | None,
+        query: str | None,
+        sort: str | None,
+        direction: str | None,
+    ) -> tuple[str | None, SortSpec]:
+        """Validate the filters, the sort and (when given) the page."""
         errors: list[dict[str, str]] = []
-        if not 1 <= page <= MAX_PAGE:
+        if page is not None and not 1 <= page <= MAX_PAGE:
             errors.append(
                 _error(
                     "page",
@@ -104,13 +167,29 @@ class CustomerService:
             allowed=SORT_FIELDS,
             default="created_at",
         )
-        return self._repository.list(
-            query=normalized_query,
-            status=status,
-            page=page,
-            page_size=PAGE_SIZE,
-            sort=sort_spec,
-        )
+        return normalized_query, sort_spec
+
+    def _all_customers(
+        self,
+        query: str | None,
+        status: CustomerStatus | None,
+        sort: SortSpec,
+    ) -> list[Customer]:
+        """Read every match page by page, without the list's page limit."""
+        customers: list[Customer] = []
+        page = 1
+        while True:
+            items, _ = self._repository.list(
+                query=query,
+                status=status,
+                page=page,
+                page_size=EXPORT_PAGE_SIZE,
+                sort=sort,
+            )
+            customers.extend(items)
+            if len(items) < EXPORT_PAGE_SIZE:
+                return customers
+            page += 1
 
     def get(self, id: int) -> Customer:
         """Return one customer or raise the 404 problem."""

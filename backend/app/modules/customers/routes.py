@@ -7,6 +7,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Header, Response, status
 
+from app.domain.csv_export import CSV_CONTENT_TYPE, csv_response
 from app.domain.permissions import Action
 from app.domain.sorting import SortDirection
 from app.errors import ApiError
@@ -31,6 +32,10 @@ _LIST_RESPONSES = documented_responses(
     method="GET",
     extra={422: "The query parameters are invalid. Code: `VALIDATION_ERROR` (with `errors[]`)."},
 )
+_EXPORT_RESPONSES = {
+    200: csv_response("The customers of the list filters as a CSV file."),
+    **_LIST_RESPONSES,
+}
 _CREATE_RESPONSES = documented_responses(
     method="POST",
     body=True,
@@ -141,6 +146,27 @@ def list_customers(
         page=page,
         page_size=PAGE_SIZE,
         total=total,
+    )
+
+
+@router.get("/export", response_class=Response, responses=_EXPORT_RESPONSES)
+def export_customers(
+    user: Annotated[User, Depends(get_current_user)],
+    service: Annotated[CustomerService, Depends(get_service)],
+    q: str | None = None,
+    status: CustomerStatus | None = None,
+    sort: SortField | None = None,
+    direction: SortDirection | None = None,
+) -> Response:
+    """Export every customer of the list filters as a CSV file."""
+    document = service.export_customers(q, status, sort, direction)
+    return Response(
+        content=document.text,
+        media_type=CSV_CONTENT_TYPE,
+        headers={
+            "Content-Disposition": f'attachment; filename="{document.filename}"',
+            "Cache-Control": "no-store",
+        },
     )
 
 

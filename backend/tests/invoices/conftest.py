@@ -2,18 +2,21 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.domain.money import quantize_money
-from app.infra.clock import OffsetClock, SystemClock
+from app.infra.clock import OffsetClock
 from app.main import create_app
 from app.modules.auth.seed import DEMO_PASSWORD
 from app.modules.customers.seed import seed_customers
 from app.modules.invoices.seed import seed_invoices, seed_payments
 from app.modules.orders.seed import seed_orders, seed_products
+from tests.infra.helpers import FixedClock
 
 CLIENTS = {
     "admin": "admin@labapp.test",
@@ -24,14 +27,19 @@ CLIENTS = {
 
 
 @pytest.fixture(scope="module")
-def app() -> FastAPI:
+def app_clock() -> OffsetClock:
+    return OffsetClock(FixedClock(datetime(2026, 11, 5, 23, 0, tzinfo=UTC)))
+
+
+@pytest.fixture(scope="module")
+def app(app_clock: OffsetClock) -> FastAPI:
     return create_app(
         Settings(
             session_secret="test-secret",
             test_mode=False,
             app_origin="http://localhost:3000",
         ),
-        clock=OffsetClock(SystemClock()),
+        clock=app_clock,
     )
 
 

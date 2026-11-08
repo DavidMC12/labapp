@@ -9,9 +9,15 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
+from app.domain.csv_export import (
+    EXPORT_PAGE_SIZE,
+    CsvExport,
+    csv_export_filename,
+    write_csv,
+)
 from app.domain.money import quantize_money
 from app.domain.payments import Card, parse_card, validate_transfer_reference
-from app.domain.sorting import parse_sort
+from app.domain.sorting import SortSpec, parse_sort
 from app.errors import ERROR_MESSAGES, NOT_FOUND, ApiError, problem_response
 from app.infra.clock import Clock
 from app.modules.customers.ports import CustomerRepository
@@ -38,6 +44,21 @@ MAX_PAGE = 1_000_000
 MAX_ID = 2_147_483_647
 MAX_QUERY_LENGTH = 100
 SORT_FIELDS = ("created_at", "number", "customer", "total")
+INVOICE_COLUMNS = (
+    "id",
+    "number",
+    "status",
+    "order_id",
+    "order_number",
+    "customer_name",
+    "tax_id",
+    "subtotal",
+    "tax_rate",
+    "tax",
+    "total",
+    "created_at",
+    "updated_at",
+)
 
 VALIDATION_DETAIL = "Revisa los datos ingresados."
 VERSION_CONFLICT_MESSAGE = "El registro cambió mientras lo editabas. Recarga e inténtalo de nuevo."
@@ -137,8 +158,61 @@ class InvoiceService:
         direction: str | None = None,
     ) -> tuple[list[Invoice], int]:
         """Validate the list parameters and return one page plus the total."""
+        normalized_query, sort_spec = self._list_params(page, query, order_id, sort, direction)
+        return self._store.list_invoices(
+            query=normalized_query,
+            status=status,
+            order_id=order_id,
+            page=page,
+            page_size=PAGE_SIZE,
+            sort=sort_spec,
+        )
+
+    def export_invoices(
+        self,
+        query: str | None,
+        status: InvoiceStatus | None,
+        order_id: int | None,
+        sort: str | None = None,
+        direction: str | None = None,
+    ) -> CsvExport:
+        """Validate the list filters and render every match as CSV."""
+        normalized_query, sort_spec = self._list_params(None, query, order_id, sort, direction)
+        invoices = self._all_invoices(normalized_query, status, order_id, sort_spec)
+        rows = [
+            (
+                invoice.id,
+                invoice.number,
+                invoice.status,
+                invoice.order_id,
+                invoice.order_number,
+                invoice.customer_name,
+                invoice.customer_tax_id,
+                invoice.subtotal,
+                invoice.tax_rate,
+                invoice.tax,
+                invoice.total,
+                invoice.created_at,
+                invoice.updated_at,
+            )
+            for invoice in invoices
+        ]
+        return CsvExport(
+            filename=csv_export_filename("invoices", self._clock.now()),
+            text=write_csv(INVOICE_COLUMNS, rows),
+        )
+
+    def _list_params(
+        self,
+        page: int | None,
+        query: str | None,
+        order_id: int | None,
+        sort: str | None,
+        direction: str | None,
+    ) -> tuple[str | None, SortSpec]:
+        """Validate the filters, the sort and (when given) the page."""
         errors: list[dict[str, str]] = []
-        if not 1 <= page <= MAX_PAGE:
+        if page is not None and not 1 <= page <= MAX_PAGE:
             errors.append(_out_of_range("page", 1, MAX_PAGE))
         errors.extend(_query_order_id_errors(order_id))
         normalized_query, query_error = _normalize_query(query)
@@ -153,14 +227,31 @@ class InvoiceService:
             allowed=SORT_FIELDS,
             default="created_at",
         )
-        return self._store.list_invoices(
-            query=normalized_query,
-            status=status,
-            order_id=order_id,
-            page=page,
-            page_size=PAGE_SIZE,
-            sort=sort_spec,
-        )
+        return normalized_query, sort_spec
+
+    def _all_invoices(
+        self,
+        query: str | None,
+        status: InvoiceStatus | None,
+        order_id: int | None,
+        sort: SortSpec,
+    ) -> list[Invoice]:
+        """Read every match page by page, without the list's page limit."""
+        invoices: list[Invoice] = []
+        page = 1
+        while True:
+            items, _ = self._store.list_invoices(
+                query=query,
+                status=status,
+                order_id=order_id,
+                page=page,
+                page_size=EXPORT_PAGE_SIZE,
+                sort=sort,
+            )
+            invoices.extend(items)
+            if len(items) < EXPORT_PAGE_SIZE:
+                return invoices
+            page += 1
 
     def get(self, id: int) -> Invoice:
         """Return one invoice or raise the 404 problem."""

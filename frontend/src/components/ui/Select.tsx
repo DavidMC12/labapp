@@ -11,11 +11,13 @@ type SelectProps = Omit<SelectHTMLAttributes<HTMLSelectElement>, "id"> & {
   labelClassName?: string;
   /** Visually hides the label; it stays linked for screen readers. */
   hideLabel?: boolean;
+  /** Sizes to its content on the phone and fills its column from md up. */
+  compact?: boolean;
   children: ReactNode;
 };
 
 const CONTROL_CLASSES: string = [
-  "w-full rounded-md border bg-surface px-[10px]",
+  "rounded-md border bg-surface px-[10px]",
   // Touch targets are 44px below 768px; the control is 38px from then up.
   "h-[44px] md:h-[38px]",
   // 16px below 768px: iOS Safari zooms the control on focus at smaller
@@ -25,6 +27,15 @@ const CONTROL_CLASSES: string = [
   // The only allowed transition: 120ms of color.
   "transition-colors duration-120",
 ].join(" ");
+
+// The width the control takes. Default: it fills its field. `compact`
+// sizes to the content on the phone and fills its column from md up
+// (task 038: the theme select shares the user row instead of taking a
+// row of its own).
+const WIDTH_CLASSES: Record<"full" | "compact", string> = {
+  full: "w-full",
+  compact: "w-auto md:w-full",
+};
 
 /**
  * Real labeled `<select>`; the options are passed as children. Like
@@ -40,6 +51,7 @@ export function Select({
   error,
   labelClassName,
   hideLabel,
+  compact = false,
   children,
   ...rest
 }: SelectProps) {
@@ -60,6 +72,7 @@ export function Select({
         data-testid={testId}
         className={[
           CONTROL_CLASSES,
+          compact ? WIDTH_CLASSES.compact : WIDTH_CLASSES.full,
           error ? "border-danger" : "border-control-border",
         ]
           .filter(Boolean)

@@ -311,6 +311,7 @@ export function CustomersImportForm() {
             type="file"
             accept=".csv,text/csv"
             ref={inputRef}
+            disabled={formState === "loading"}
             {...fieldControlProps(
               "customers-import-file-input",
               undefined,
@@ -319,9 +320,20 @@ export function CustomersImportForm() {
             aria-describedby="customers-import-help-text"
             data-testid="customers-import-file-input"
             onChange={(event) => {
-              // A new file chosen returns the form to idle: the success
-              // and error of the previous attempt are no longer current.
+              // A change event while the request is in flight never acts:
+              // the input is disabled and the pending state must not drop
+              // early, whatever arrives in the event (the answer of file A
+              // is the only one that decides the form's state).
+              if (formState === "loading") {
+                return;
+              }
+              // A new file chosen in idle returns the form to idle and
+              // clears the previous attempt completely: its success and
+              // error are no longer current with a different file.
               setFormState("idle");
+              setResultText(null);
+              setAlertText(null);
+              setErrorRows(null);
               setFile(event.target.files?.[0] ?? null);
             }}
             className={FILE_INPUT_CLASSES}

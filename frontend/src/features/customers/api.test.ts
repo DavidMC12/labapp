@@ -41,6 +41,24 @@ describe("buildCustomerListQuery", () => {
     ).toBe("page=2&q=ana&status=inactive");
   });
 
+  it("carries the sort only when the request has one, with both parameters", () => {
+    // The default order travels exactly as before the sorting existed.
+    expect(
+      buildCustomerListQuery({ page: 1 }).has("sort"),
+    ).toBe(false);
+    expect(
+      buildCustomerListQuery({ page: 1 }).has("direction"),
+    ).toBe(false);
+    expect(
+      buildCustomerListQuery({ page: 1, sort: "name", direction: "desc" })
+        .toString(),
+    ).toBe("page=1&sort=name&direction=desc");
+    // A sort without a direction takes the default direction of the field.
+    expect(
+      buildCustomerListQuery({ page: 1, sort: "email" }).get("direction"),
+    ).toBe("asc");
+  });
+
   it("encodes reserved characters of q", () => {
     expect(buildCustomerListQuery({ page: 1, q: "R&D" }).toString()).toBe(
       "page=1&q=R%26D",

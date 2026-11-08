@@ -335,6 +335,7 @@ Common errors not tied to one feature:
 | All password-check slots busy for 2 seconds | 503 | `SERVICE_BUSY` | El servicio está ocupado. Inténtalo de nuevo en unos segundos. |
 | Method not allowed | 405 | `METHOD_NOT_ALLOWED` | Método no permitido para este recurso. |
 | Injected fault (test controls only) | 400 to 599 as configured | `INJECTED_FAULT` | Falla inyectada para pruebas. |
+| Reset hit a request in flight (test controls only) | 409 | `RESET_CONFLICT` | No se pudo reiniciar porque hay una operación en curso. Inténtalo de nuevo. |
 
 Field-level errors: a 422 `VALIDATION_ERROR` lists one entry per field in `errors[]`, with `field` (a path such as `lines[0].quantity`), `code` and `message`:
 

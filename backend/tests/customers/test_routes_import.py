@@ -331,6 +331,24 @@ def test_a_bare_quote_inside_an_unquoted_field_is_stored(
     assert response.json()["items"][0]["name"] == '5" pipe'
 
 
+def test_a_malformed_multipart_body_is_the_framework_400(
+    clients: dict[str, TestClient],
+) -> None:
+    # A body whose boundary does not match the header is rejected by FastAPI
+    # before the route runs: it does not carry the JSON error code.
+    response = clients["sales"].post(
+        "/api/customers/import",
+        content=(
+            b'--nope\r\nContent-Disposition: form-data; name="file"; filename="a.csv"'
+            b"\r\n\r\nname,email\r\nOne,one@example.test\r\n--nope--\r\n"
+        ),
+        headers={"Content-Type": "multipart/form-data; boundary=other"},
+    )
+
+    body = assert_problem(response, 400, "BAD_REQUEST")
+    assert body["detail"] == "No se pudo completar la solicitud."
+
+
 def test_a_missing_file_part_is_required(clients: dict[str, TestClient]) -> None:
     response = clients["sales"].post(
         "/api/customers/import",

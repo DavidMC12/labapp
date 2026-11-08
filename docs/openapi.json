@@ -983,7 +983,7 @@
             }
           },
           "400": {
-            "description": "The request body is not valid JSON. Code: `MALFORMED_JSON`.",
+            "description": "The body is not a valid multipart/form-data body. Code: `BAD_REQUEST`.",
             "content": {
               "application/problem+json": {
                 "schema": {

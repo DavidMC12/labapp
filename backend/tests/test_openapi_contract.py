@@ -26,6 +26,9 @@ PUBLIC_OPERATIONS = {
     ("GET", "/api/health"),
 }
 LOGIN = ("POST", "/api/auth/login")
+# The import reads a multipart body, so its 400 comes from the framework parser
+# and not from the JSON guard.
+MULTIPART_OPERATIONS = {("POST", "/api/customers/import")}
 MONEY_PATTERN = r"^[0-9]+\.[0-9]{2}$"
 TAX_RATE_PATTERN = r"^[0-9]{1,3}(\.[0-9]{1,2})?$"
 PAYMENT_AMOUNT_PATTERN = r"^[0-9]{1,10}(\.[0-9]{1,2})?$"
@@ -200,7 +203,10 @@ def test_every_operation_documents_the_answers_that_apply_to_it() -> None:
         assert ("503" in responses) is (not health), operation_name
 
         if has_body:
-            assert "MALFORMED_JSON" in _description(operation, 400), operation_name
+            if (method, path) in MULTIPART_OPERATIONS:
+                assert "BAD_REQUEST" in _description(operation, 400), operation_name
+            else:
+                assert "MALFORMED_JSON" in _description(operation, 400), operation_name
             assert "PAYLOAD_TOO_LARGE" in _description(operation, 413), operation_name
         if protected:
             assert "UNAUTHENTICATED" in _description(operation, 401), operation_name

@@ -23,7 +23,7 @@ from app.modules.customers.schemas import (
     CustomerPatch,
 )
 from app.modules.customers.service import MAX_ID, PAGE_SIZE, CustomerService
-from app.openapi import body_examples, documented_responses, response_examples
+from app.openapi import body_examples, documented_responses, problem, response_examples
 from app.openapi_examples import (
     CUSTOMER_CREATE_EXAMPLES,
     CUSTOMER_CREATED_EXAMPLES,
@@ -72,6 +72,12 @@ _IMPORT_RESPONSES = {
             409: CUSTOMER_EMAIL_TAKEN_EXAMPLES,
             422: CUSTOMER_IMPORT_VALIDATION_EXAMPLES,
         },
+    ),
+    # A malformed multipart body is rejected by the framework before the route
+    # runs, with a 400 that does not carry the JSON code.
+    400: problem(
+        "The body is not a valid multipart/form-data body. Code: `BAD_REQUEST`.",
+        status=400,
     ),
     201: response_examples(CUSTOMER_IMPORT_CREATED_EXAMPLES),
 }

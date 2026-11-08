@@ -582,7 +582,9 @@ optional value is stored as `null`, and the email is trimmed and lowercased. Whi
 is invalid the answer is 422 `VALIDATION_ERROR` with every error in file order (at most 100
 entries, `rows[N]` names the physical line), and nothing is created. Otherwise the answer is
 201 `{created, items}` and an email taken between the validation and the insert is 409
-`CUSTOMER_EMAIL_TAKEN`. The whole request shares the 100 KB body limit.
+`CUSTOMER_EMAIL_TAKEN`. The whole request shares the 100 KB body limit. A body that is
+not valid `multipart/form-data` (a wrong boundary) is the framework's own 400
+`BAD_REQUEST` with the generic detail.
 
 ```bash
 curl -i -b /tmp/labapp-cookies \

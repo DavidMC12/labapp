@@ -1,0 +1,21 @@
+# Review: import customers from a CSV file, backend (task 058, 2026-11-08)
+
+- **Branch:** `w1/customers-import`, by Worker 1 (12 commits, plus 4 for the review feedback and 2 by the supervisor).
+- **Reviewer:** Supervisor.
+- **Verdict:** Ready to merge after the fixes below. No Critical findings in the final code.
+- **What it does:** `POST /api/customers/import` as the **Import** rule of `docs/SPEC.md` section 4 defines it: a multipart upload of a CSV file that creates customers all or nothing. A pure parser (`app/domain/csv_import.py`: UTF-8 with an optional BOM, the `.csv` name, RFC 4180 quoting, blank lines that still count in the line numbers, the header rule, 1 to 200 rows), the validation of every row with the same code as customer creation, the errors of every row as `rows[N].<column>` in file order (at most 100), `CUSTOMER_EMAIL_TAKEN` for an email already used or repeated in the file, and an atomic `add_many` in both stores (one PostgreSQL transaction, one lock in memory). The route is documented in the OpenAPI contract (the `file` part as binary, a 201 and a 422 example). One new dependency: `python-multipart` 0.0.33, which FastAPI needs to read an upload.
+- **Verified by the supervisor:** `ruff check`, `ruff format --check` and the unit suite with the coverage floor exit 0 (1874 passed). A script of the supervisor's own uploaded files with `curl -F` to a live server: a good file of three rows (ids 11 to 13, emails lowercased, a quoted field with a comma and one with a line break), every kind of row error with its line number and the exact `errors[]` entry, nothing created on any rejection, the whole-file errors (`.txt`, `.CSV` accepted, invalid UTF-8, an unknown, a duplicated and a missing column, header only, 201 rows, 200 rows accepted, an empty file, a missing part), the cap of 100 entries, a 120 KB file (413), a BOM with blank lines and the line numbers after them, the permission matrix (the 403 even for an invalid file, the 401), the formula text and a leading quote stored as given, and the response headers. The integration tests were run against a real PostgreSQL (Neon, random schema): the customer adapter contract (33 tests, including the batch insert and two concurrent imports of the same email with one winner) and an end-to-end import over HTTP.
+
+## Findings and what happened to them
+
+| # | Severity | Finding | Disposition |
+|---|---|---|---|
+| 1 | Critical (caught before the merge) | `PostgresCustomerRepository.add_many` took a parameter called `customers`, which shadowed the module's `customers` table, so `insert(customers)` received the list: **every import over PostgreSQL would have answered 500**. The in-memory tests could not see it; only the run against a real database did (4 integration failures). | Fixed by Worker 1: the parameter is renamed, and a unit test compiles the statement with the PostgreSQL dialect and checks it is an `INSERT INTO customers` with two rows and a `RETURNING`, so the class of error is caught without a database. |
+| 2 | Important | The import route was `async def` and called the synchronous service, which opens a PostgreSQL transaction: the event loop would be blocked for the duration of the transaction. | Fixed by Worker 1: a plain `def` (FastAPI runs it in the thread pool) that reads `file.file`; a test pins that the endpoint is not a coroutine, with the reason. |
+| 3 | Important | No test sent an upload through the whole application over PostgreSQL, which is how the first finding hid. | Added by the supervisor: `tests/integration/test_customer_import_http.py` (201, the search columns, a taken email in another case, nothing created on a 422, the sequence, 200 rows in one transaction, the permission, the export); run against Neon. |
+| 4 | Note | A file that starts with blank lines takes the first non-blank line as the header. | Accepted. |
+| 5 | Note | The contract also lists a 400 for the route, because the shared test of operations with a body requires it. | Accepted. |
+
+## Lesson
+
+The contract tests that run against both stores are not enough for a new store method: the shadowing could only fail against PostgreSQL. Run the integration tests before every merge, and for a new write path add one test that goes through the real application over the real database.

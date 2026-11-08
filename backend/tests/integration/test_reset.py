@@ -10,6 +10,7 @@ from decimal import Decimal
 from threading import Barrier, Event
 from time import sleep
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, create_engine, event, select, text
 from sqlalchemy.pool import NullPool
@@ -42,6 +43,23 @@ TABLES = (
     "payments",
     "idempotency_keys",
     "fault_rules",
+)
+SEQUENCES = (
+    "users_id_seq",
+    "customers_id_seq",
+    "products_id_seq",
+    "orders_id_seq",
+    "order_lines_id_seq",
+    "invoices_id_seq",
+    "invoice_lines_id_seq",
+    "payments_id_seq",
+    "order_number_seq",
+    "invoice_number_seq",
+)
+COUNT_STATEMENT = text(
+    "select (select count(*) from customers), "
+    "(select count(*) from orders), "
+    "(select count(*) from invoices)"
 )
 
 
@@ -77,36 +95,135 @@ def _count(engine: Engine, table: str) -> int:
         return connection.execute(text(f"select count(*) from {table}")).scalar_one()
 
 
+def _snapshot(engine: Engine) -> tuple[dict[str, int], dict[str, tuple[int, bool]]]:
+    """Read every row count and the state of every sequence."""
+    with engine.connect() as connection:
+        counts = {
+            table: connection.execute(text(f"select count(*) from {table}")).scalar_one()
+            for table in TABLES
+        }
+        sequences = {
+            name: tuple(connection.execute(text(f"select last_value, is_called from {name}")).one())
+            for name in SEQUENCES
+        }
+    return counts, sequences
+
+
+def _add_extra_rows(app) -> None:
+    """Leave the database in a non-empty state that differs from the seed."""
+    for index in range(3):
+        app.state.customer_repository.add(
+            NewCustomer(
+                f"Extra {index}",
+                f"extra-{index}@example.test",
+                None,
+                None,
+                None,
+            ),
+            NOW,
+        )
+    app.state.order_store.create_order(1, NOW)
+    app.state.invoice_store.issue_invoice(2, None, NOW)
+
+
 def test_the_reset_is_atomic_for_a_reader(
     database_settings: Settings,
     database_engine: Engine,
 ) -> None:
     with _app(database_settings) as app:
-        app.state.resetter.seed("empty")
+        app.state.resetter.reset()
+        _add_extra_rows(app)
+        with database_engine.connect() as connection:
+            old = tuple(connection.execute(COUNT_STATEMENT).one())
         stop = Event()
-        counts: list[int] = []
+        started = Event()
+        triples: list[tuple[int, int, int]] = []
         failures: list[BaseException] = []
 
         def read() -> None:
             try:
                 with database_engine.connect() as connection:
                     while not stop.is_set():
-                        counts.append(
-                            connection.execute(text("select count(*) from customers")).scalar_one()
-                        )
+                        triples.append(tuple(connection.execute(COUNT_STATEMENT).one()))
+                        started.set()
                         sleep(0.002)
             except BaseException as error:  # pragma: no cover - reported below
                 failures.append(error)
 
         with ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(read)
+            assert started.wait(timeout=10)
             app.state.resetter.reset()
             stop.set()
             future.result(timeout=15)
 
+    new = (10, 7, 3)
     assert failures == []
-    assert set(counts) <= {0, 10}
+    assert old == (13, 8, 4)
+    assert set(triples) <= {old, new}
+    assert old in triples
     assert _count(database_engine, "customers") == 10
+    assert _count(database_engine, "orders") == 7
+    assert _count(database_engine, "invoices") == 3
+
+
+def test_a_failed_data_step_leaves_the_rows_and_the_sequences(
+    database_settings: Settings,
+    database_engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _app(database_settings) as app:
+        app.state.resetter.reset()
+        _add_extra_rows(app)
+        before = _snapshot(database_engine)
+
+        original = app.state.invoice_store.replace_all
+        calls = {"count": 0}
+
+        def fail_on_the_seed_step(*args: object, **kwargs: object) -> None:
+            calls["count"] += 1
+            if calls["count"] == 2:
+                raise RuntimeError("the last data step failed")
+            original(*args, **kwargs)  # type: ignore[arg-type]
+
+        monkeypatch.setattr(app.state.resetter._invoices, "replace_all", fail_on_the_seed_step)
+
+        with pytest.raises(RuntimeError, match="the last data step failed"):
+            app.state.resetter.reset()
+
+        after = _snapshot(database_engine)
+
+    assert calls["count"] == 2
+    assert after == before
+
+
+def test_a_failed_deferred_step_leaves_the_rows_and_the_sequences(
+    database_settings: Settings,
+    database_engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _app(database_settings) as app:
+        app.state.resetter.reset()
+        _add_extra_rows(app)
+        before = _snapshot(database_engine)
+
+        def fail_before_the_first_setval(connection: object, deferred: object) -> None:
+            # setval is not undone by a rollback, so the failure must happen before
+            # the first restart for the test to assert that nothing changed.
+            raise RuntimeError("the deferred step failed")
+
+        monkeypatch.setattr(
+            PostgresResetter,
+            "_run_deferred",
+            staticmethod(fail_before_the_first_setval),
+        )
+
+        with pytest.raises(RuntimeError, match="the deferred step failed"):
+            app.state.resetter.reset()
+
+        after = _snapshot(database_engine)
+
+    assert after == before
 
 
 def test_the_reset_keeps_the_sessions(database_settings: Settings) -> None:

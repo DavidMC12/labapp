@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from contextlib import nullcontext
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import BigInteger, cast, delete, func, literal, select, text, update
+from sqlalchemy import BigInteger, Table, cast, delete, func, literal, select, text, update
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.engine import Connection, Engine
 
@@ -67,11 +67,15 @@ class PostgresUserRepository:
         replacement: Iterable[User],
         *,
         connection: Connection | None = None,
+        defer_sequences: list[Callable[[Connection], None]] | None = None,
     ) -> None:
         """Replace the users, keeping the sessions of the users that remain.
 
         With ``connection`` it runs inside the caller's transaction and does not open
-        its own; without it, the replacement is one transaction.
+        its own; without it, the replacement is one transaction. With
+        ``defer_sequences`` the sequence restart is appended to that list instead of
+        running now, so the caller can run it once every data step succeeded
+        (``setval`` is not undone by a rollback).
         """
         replacements = list(replacement)
         ids = [user.id for user in replacements]
@@ -109,13 +113,30 @@ class PostgresUserRepository:
                     },
                 )
                 connection.execute(statement)
-            connection.execute(
-                text("select setval(pg_get_serial_sequence(:table_name, 'id'), :next_id, false)"),
-                {
-                    "table_name": qualified_table_name(self._engine, users),
-                    "next_id": next_id,
-                },
-            )
+            restart_sequence = _sequence_restart(self._engine, users, next_id)
+            if defer_sequences is None:
+                restart_sequence(connection)
+            else:
+                defer_sequences.append(restart_sequence)
+
+
+def _sequence_restart(
+    engine: Engine,
+    table: Table,
+    next_id: int,
+) -> Callable[[Connection], None]:
+    """Build the ``setval`` call that restarts a table's id sequence."""
+
+    def restart(connection: Connection) -> None:
+        connection.execute(
+            text("select setval(pg_get_serial_sequence(:table_name, 'id'), :next_id, false)"),
+            {
+                "table_name": qualified_table_name(engine, table),
+                "next_id": next_id,
+            },
+        )
+
+    return restart
 
 
 class PostgresSessionStore:

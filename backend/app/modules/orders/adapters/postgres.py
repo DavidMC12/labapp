@@ -10,13 +10,13 @@ version and the state are checked after locking.
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from contextlib import nullcontext
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import delete, func, insert, or_, select, text, update
+from sqlalchemy import Sequence, Table, delete, func, insert, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.exc import IntegrityError
@@ -637,11 +637,15 @@ class PostgresOrderStore:
         tax_rate: Decimal,
         *,
         connection: Connection | None = None,
+        defer_sequences: list[Callable[[Connection], None]] | None = None,
     ) -> None:
         """Replace the catalog, the orders and the tax rate in one transaction.
 
         With ``connection`` it runs inside the caller's transaction and does not open
-        its own; without it, the replacement is one transaction.
+        its own; without it, the replacement is one transaction. With
+        ``defer_sequences`` the sequence restarts are appended to that list instead of
+        running now, so the caller can run them once every data step succeeded
+        (``setval`` is not undone by a rollback).
         """
         product_list = list(product_rows)
         order_list = list(order_rows)
@@ -708,33 +712,57 @@ class PostgresOrderStore:
             next_order_id = max((order.id for order in order_list), default=0) + 1
             next_line_id = max((line.id for _, line in line_list), default=0) + 1
             next_number = max((_number_value(order.number) for order in order_list), default=0) + 1
-            connection.execute(
-                text(
-                    "select setval(CAST(pg_get_serial_sequence(:table_name, 'id') AS regclass), "
-                    ":next_value, false)"
-                ),
-                {
-                    "table_name": qualified_table_name(self._engine, orders),
-                    "next_value": next_order_id,
-                },
-            )
-            connection.execute(
-                text(
-                    "select setval(CAST(pg_get_serial_sequence(:table_name, 'id') AS regclass), "
-                    ":next_value, false)"
-                ),
-                {
-                    "table_name": qualified_table_name(self._engine, order_lines),
-                    "next_value": next_line_id,
-                },
-            )
-            connection.execute(
-                text("select setval(CAST(:sequence_name AS regclass), :next_value, false)"),
-                {
-                    "sequence_name": qualified_sequence_name(self._engine, order_number_seq),
-                    "next_value": next_number,
-                },
-            )
+            restarts = [
+                _id_sequence_restart(self._engine, orders, next_order_id),
+                _id_sequence_restart(self._engine, order_lines, next_line_id),
+                _number_sequence_restart(self._engine, order_number_seq, next_number),
+            ]
+            if defer_sequences is None:
+                for restart in restarts:
+                    restart(connection)
+            else:
+                defer_sequences.extend(restarts)
+
+
+def _id_sequence_restart(
+    engine: Engine,
+    table: Table,
+    next_value: int,
+) -> Callable[[Connection], None]:
+    """Build the ``setval`` call that restarts an identity column's sequence."""
+
+    def restart(connection: Connection) -> None:
+        connection.execute(
+            text(
+                "select setval(CAST(pg_get_serial_sequence(:table_name, 'id') AS regclass), "
+                ":next_value, false)"
+            ),
+            {
+                "table_name": qualified_table_name(engine, table),
+                "next_value": next_value,
+            },
+        )
+
+    return restart
+
+
+def _number_sequence_restart(
+    engine: Engine,
+    sequence: Sequence,
+    next_value: int,
+) -> Callable[[Connection], None]:
+    """Build the ``setval`` call that restarts a standalone number sequence."""
+
+    def restart(connection: Connection) -> None:
+        connection.execute(
+            text("select setval(CAST(:sequence_name AS regclass), :next_value, false)"),
+            {
+                "sequence_name": qualified_sequence_name(engine, sequence),
+                "next_value": next_value,
+            },
+        )
+
+    return restart
 
 
 __all__ = ["PostgresOrderStore", "attach_invoice_in", "mark_paid_in"]

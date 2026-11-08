@@ -347,7 +347,7 @@ The local start script sets `TEST_MODE=1`, so local runs need no header at all; 
 
 **The token and the rate limits.** The request rate limits (120 requests per minute and 10 login attempts per minute per client IP) apply only when `TEST_MODE=0`, and a request with a valid `X-Test-Token` is exempt from them even then — so adding the token header to every request of an online suite removes the risk of 429 entirely (it does nothing locally, where the limits are always off). Exceeding a limit answers 429 `RATE_LIMITED` with a `Retry-After` header and a `retry_after` member with the same seconds.
 
-All three of the following have been verified against the local server: `BASE=http://127.0.0.1:8000` for the direct API (with `TEST_MODE=1` from `mise run dev`; the same paths also work through the web origin).
+The recipes below were verified request by request against the local server: `BASE=http://127.0.0.1:8000` for the direct API (with `TEST_MODE=1` from `mise run dev`; the same paths also work through the web origin).
 
 ### Reset before a suite
 
@@ -396,7 +396,7 @@ curl -s -H 'Content-Type: application/json' \
   -d '{"offset_seconds": 0}' "$BASE/__test__/clock"        # put the clock back
 ```
 
-In the browser, the same advance ends with the UI redirecting to `/login?expired=1`, where the login shows the notice `Tu sesión expiró. Inicia sesión de nuevo.` (part 1, section 8). Moving the clock that far also expires every other session of the demo, so log in again afterwards; setting the offset back to 0 does not restore sessions that already expired.
+In the browser, the same advance ends with the UI redirecting to `/login?expired=1`, where the login shows the notice `Tu sesión expiró. Inicia sesión de nuevo.` (part 1, section 8). The expiry is only a comparison of the application clock against the session's idle window — the session itself is not deleted, and a cookie that answered `SESSION_EXPIRED` works again once the offset is back below the window (verified against the server; a login purges only sessions idle for more than 32 hours). Moving the clock as this recipe does expires every other session of the demo for as long as the offset stays up, so log in again after moving it and set the offset back to 0 at the end.
 
 **Provoke `CARD_EXPIRED`.** A card's `MM/YY` expiry month is valid through its last day, compared against the application clock. The expiry `12/30` therefore means December **2030**:
 
@@ -461,7 +461,7 @@ curl -s -i -b /tmp/labapp-cookies -H 'Content-Type: application/json' \
 
 `payment_id` is the id of the stored attempt and depends on what exists: after a fresh reset the next payment id is 5 ([docs/SEED.md](SEED.md)).
 
-A golden rule of the idempotency machinery applies here (section 13): the failed attempt consumed the key, so a retry of this payment needs a **new** key.
+A golden rule of the idempotency machinery applies here (section 12): the failed attempt consumed the key, so a retry of this payment needs a **new** key.
 
 **What a rule can and cannot.** A `route` rule matches one HTTP method (any method when `method` is absent) and an **exact path**: no prefixes, no patterns, no query strings (`/api/customers` does not match `/api/customers/11`, and the query parameters are not part of the path). A `gateway` rule takes none of `method`, `path` or `status` — sending any of them is a 422 on that field. The rule fields and their limits, validated before the rule is stored (each problem is a 422 `VALIDATION_ERROR` entry):
 

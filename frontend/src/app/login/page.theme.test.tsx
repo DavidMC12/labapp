@@ -46,6 +46,16 @@ describe("the login theme pieces", () => {
     );
   });
 
+  it("separates the theme selector and the heading", () => {
+    // Tailwind's preflight zeroes the heading margins, so the space is
+    // set here: 1rem on a phone, 1.5rem from 768px up ("Libro mayor"
+    // spacing of the column).
+    renderLoginPage();
+
+    const heading = screen.getByTestId("auth-login-heading");
+    expect(heading).toHaveClass("mt-4", "md:mt-6");
+  });
+
   it("keeps the new ids of the page valid test ids", () => {
     for (const id of [
       "auth-login-tagline-text",

@@ -179,6 +179,28 @@ the difference, and no `data-testid`, text or DOM order changes:
   (`md:mt-auto md:flex-col md:items-stretch …`) do not change, and the
   fade, the scroll and the selectors are covered by the layout tests.
 
+## Security headers
+
+- `next.config.ts` sends every page of the web app the five
+  environment-independent headers (`X-Content-Type-Options: nosniff`,
+  `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`,
+  `Permissions-Policy` with the app's unused surfaces switched off and
+  `Cross-Origin-Opener-Policy: same-origin`), and a strict
+  `Content-Security-Policy` in production only. The `source`
+  `/((?!api|__test__).*)` excludes the API paths: the API service answers
+  them (and the Swagger page that `/api/docs` serves loads its assets
+  from a CDN, which the policy forbids). The details and the deployment
+  story are in the "Security headers" section of
+  [docs/DEPLOYMENT.md](../docs/DEPLOYMENT.md).
+- `'unsafe-inline'` for scripts is needed by the framework's own inline
+  bootstrap and by the no-flash theme script of `src/app/layout.tsx`;
+  a nonce-based policy is the next step. The function
+  `securityHeaders(nodeEnv)` is pure so the tests can run it with and
+  without `NODE_ENV=production`.
+- On the login, the heading carries `mt-4 md:mt-6`: Tailwind's preflight
+  zeroes the heading margins, and without it the theme selector sat
+  almost against "Iniciar sesión".
+
 ## Test id contract
 
 - The grammar (`<module>-<name>-<kind>` with the numeric record id as the

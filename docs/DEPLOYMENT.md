@@ -39,6 +39,27 @@ The Neon integration for Vercel can create `DATABASE_URL` and `DATABASE_URL_UNPO
 - `POST /__test__/reset` answers 404 without a token and 200 with `X-Test-Token: <TEST_TOKEN>`; then `GET /api/customers` (after logging in) lists the 10 seeded customers. The nightly workflow does the same call.
 - Rotate the database password and update the two connection strings if the string was ever pasted into a chat or a ticket.
 
+## Security headers
+
+The web app sends five headers on every page (`next.config.ts`):
+`X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+`Referrer-Policy: strict-origin-when-cross-origin`, a
+`Permissions-Policy` that switches off camera, microphone, geolocation,
+payment and usb, and `Cross-Origin-Opener-Policy: same-origin`. A strict
+`Content-Security-Policy` (`default-src 'self'` with `frame-ancestors
+'none'`, `object-src 'none'` and no remote origins) is added **in
+production only**: in development Next.js needs `eval` and inline styles
+for its error overlay, so no CSP is sent there.
+
+The `source` of the entry excludes the API: `/((?!api|__test__).*)`
+never matches `/api/*` or `/__test__/*`. Those paths are served by the
+API service (the local rewrite forwards them), and their responses must
+not carry the web app's policy — the Swagger page that `/api/docs`
+serves loads its assets from a CDN, which `default-src 'self'`
+forbids. `'unsafe-inline'` for scripts is what the framework's own
+inline bootstrap and the no-flash theme script need; a nonce-based
+policy is the next step after the first real deployment.
+
 ## Nightly reset
 
 The workflow [`nightly-reset.yml`](../.github/workflows/nightly-reset.yml) calls `POST /__test__/reset` every day at 03:17 UTC and can be started by hand from the Actions tab. It needs two settings in the GitHub repository (Settings, Secrets and variables, Actions):

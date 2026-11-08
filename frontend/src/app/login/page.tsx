@@ -216,7 +216,12 @@ function LoginPageContent() {
                 <ThemeSelect testId="auth-login-theme-select" id="auth-login-theme" />
               </div>
             </div>
-            <h1 data-testid="auth-login-heading">Iniciar sesión</h1>
+            <h1
+              data-testid="auth-login-heading"
+              className="mt-4 md:mt-6"
+            >
+              Iniciar sesión
+            </h1>
 
             {formError ? (
               <div className="mt-3">

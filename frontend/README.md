@@ -38,7 +38,9 @@ The test id contract implemented here is defined in `docs/TESTABILITY.md`.
   writes `data-theme` on `<html>` for an explicit choice and removes the
   attribute for "Sistema". It appears in the user block of the shell rail
   (`app-theme-select`, which is the same DOM slot under the links on the
-  phone layout) and at the top right of the form column of the login
+  phone layout; on the phone its label is `sr-only` and it sizes to its
+  content with the `compact` option of `Select`, filling the rail column
+  again from md up) and at the top right of the form column of the login
   (`auth-login-theme-select`), above the heading.
 - **The choice is remembered** in `localStorage` under the key
   `labapp-theme` with the values `light` and `dark` (no key means
@@ -149,6 +151,33 @@ src/
               format.ts — money and UTC date/time formatting (SPEC 8)
   test/       Vitest setup
 ```
+
+### The shell on a phone (task 038)
+
+On a phone the shell header is at most three rows and keeps its desktop
+rail untouched from 768px up; the markup is the same, the classes carry
+the difference, and no `data-testid`, text or DOM order changes:
+
+- **Brand row:** `py-2` (it loses the vertical padding of the rail;
+  `md:pt-4 md:pb-3` restore the rail padding).
+- **Navigation:** one row that scrolls horizontally in its own container
+  (`overflow-x-auto`, no wrap; links with `shrink-0`), with the current
+  section link kept visible: the shell calls
+  `scrollIntoView({ inline: "nearest", block: "nearest" })` on the
+  link of the section when the pathname changes and again after the
+  session load makes the nav exist (deep links included). The affordance
+  is a fade over the right edge, a `bg-linear-to-r from-transparent
+  to-rail` overlay (`md:hidden`) — never a scrollbar, and every link
+  keeps its test id and its order. From md up the rail column
+  (`md:flex-col`, `md:overflow-x-visible`) is what it was.
+- **User block:** one row that only wraps when the name is long — the
+  name and the role stacked in a small block on the left (a wrapper that
+  reads as its `md:contents` children in the rail column), the theme
+  select sized to its content (`compact`, `w-auto md:w-full`) with its
+  label `sr-only md:not-sr-only` (the accessible name stays "Tema"),
+  and "Salir" pushed right (`ml-auto`). The desktop classes
+  (`md:mt-auto md:flex-col md:items-stretch …`) do not change, and the
+  fade, the scroll and the selectors are covered by the layout tests.
 
 ## Test id contract
 

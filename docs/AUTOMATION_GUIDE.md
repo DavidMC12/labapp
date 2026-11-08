@@ -580,4 +580,18 @@ curl -s -i -b $J -H 'Content-Type: application/json' -H 'Idempotency-Key: pay-00
 
 The declined and unavailable outcomes do not change the invoice or the order. `4000 0000 0000 0002` (or a gateway fault) answers 402 with extra `payment_id` and `reason`, the attempt is stored and appears in the invoice's `payments` array; `4000 0000 0009 0003` answers 503 the same way with `reason: "GATEWAY_UNAVAILABLE"` ([SPEC section 6](SPEC.md#6-invoices-and-payments-flow-3) lists both problems verbatim).
 
+### The lists: paging, search and filters
+
+All four list endpoints share one shape ([SPEC section 8](SPEC.md#8-formats-and-conventions)): `{"items": [...], "page", "page_size": 20, "total"}`. The page size is fixed at 20 — the client cannot change it — `total` counts every match and not only the current page, the order is `created_at` descending then `id` descending, and asking for a page beyond the last one answers 200 with an empty `items` array. `page` is an integer from 1 to 1000000: a non-integer is 422 `INVALID_FORMAT` on `page`, any other value 422 `OUT_OF_RANGE`.
+
+The search parameter `q` is the same on the three modules: trimmed, ignored when empty, at most 100 characters, no control characters, and **literal** — `%`, `_` and `\` mean themselves, there is no pattern syntax. The match is a "contains" that ignores case and accents (verified: `?q=ferreteria` finds the invoice of `Ferretería Fénix`):
+
+| Endpoint | `q` matches | Filters |
+|---|---|---|
+| `GET /api/customers` | the name or the email | `status=active\|inactive` |
+| `GET /api/orders` | the order number or the customer's name | `status=` one of `draft, confirmed, paid, shipped, cancelled`; `customer_id=` an integer id |
+| `GET /api/invoices` | the invoice number or the snapshot customer name | `status=` one of `issued, paid, void`; `order_id=` an integer id |
+
+A wrongly shaped filter value is a 422 too: `status` outside its list is `INVALID_FORMAT` on `status`; a non-integer `customer_id`/`order_id` is `INVALID_FORMAT`, and one outside 1–2147483647 is `OUT_OF_RANGE`. An id that simply does not exist is not an error: it matches nothing. Finally, `GET /api/products` is the whole read-only catalog in one answer (`{"items": [...]}`, ordered by `id`, no paging) and `GET /api/settings` answers `{"tax_rate": "10.00"}`.
+
 - Stable codes pointer… (placeholder)

@@ -77,6 +77,11 @@ export default function AppLayout({
   const logout = useLogout();
   const loggingOutRef = useRef(false);
 
+  // The current section link of the phone navigation row (task 038): the
+  // row scrolls horizontally, so the section the user navigated to is
+  // scrolled into view.
+  const currentLinkRef = useRef<HTMLAnchorElement | null>(null);
+
   const pathname = usePathname();
 
   // No session: the redirect says why. A 401 SESSION_EXPIRED left the flag
@@ -90,6 +95,17 @@ export default function AppLayout({
       router.replace(expired ? "/login?expired=1" : "/login");
     }
   }, [me.isSuccess, me.data, queryClient, router]);
+
+  // Keep the current navigation link visible on the phone: the single
+  // scrollable row moves to the section that just came into view. A no-op
+  // on the home (no link is current) and on the desktop rail (never
+  // overflows).
+  useEffect(() => {
+    currentLinkRef.current?.scrollIntoView({
+      inline: "nearest",
+      block: "nearest",
+    });
+  }, [pathname]);
 
   async function handleLogout() {
     // The guard lives in the handler: state updates arrive too late for a
@@ -236,32 +252,47 @@ export default function AppLayout({
             </Link>
           </div>
 
-          <nav
-            aria-label="Principal"
-            className="flex flex-wrap gap-1 p-1.5 md:mt-4 md:flex-col md:px-3"
-          >
-            {navItems.map((item) => {
-              const current = isCurrentSection(pathname, item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  testId={item.testId}
-                  variant="rail"
-                  aria-current={current ? "page" : undefined}
-                  className={[
-                    "whitespace-nowrap",
-                    current
-                      ? "bg-rail-active font-semibold text-rail-active-ink"
-                      : "text-rail-muted",
-                  ].join(" ")}
-                >
-                  {item.icon}
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
+          {/*
+           * Below 768px the navigation is one row that scrolls
+           * horizontally in its own container (task 038): no wrap, the
+           * current link held by `scrollIntoView`, and a fade over the
+           * right edge (the rail token) as the visible affordance, over
+           * the partially cut last link. From md up the rail keeps its
+           * wrapped column; the fade disappears.
+           */}
+          <div className="relative">
+            <nav
+              aria-label="Principal"
+              className="flex gap-1 overflow-x-auto px-1 py-1.5 md:mt-4 md:flex-col md:overflow-x-visible md:px-3"
+            >
+              {navItems.map((item) => {
+                const current = isCurrentSection(pathname, item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    testId={item.testId}
+                    variant="rail"
+                    ref={current ? currentLinkRef : undefined}
+                    aria-current={current ? "page" : undefined}
+                    className={[
+                      "shrink-0 whitespace-nowrap",
+                      current
+                        ? "bg-rail-active font-semibold text-rail-active-ink"
+                        : "text-rail-muted",
+                    ].join(" ")}
+                  >
+                    {item.icon}
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-linear-to-r from-transparent to-rail md:hidden"
+            />
+          </div>
 
           <div className="flex flex-wrap items-center gap-3 px-4 pb-2 md:mt-auto md:flex-col md:items-stretch md:border-t md:border-rail-muted/40 md:px-3 md:py-3">
             <p

@@ -360,7 +360,7 @@ describe("app shell logout", () => {
 });
 
 describe("the shell navigation row", () => {
-  it("wraps the phone row instead of scrolling it sideways", async () => {
+  it("scrolls the phone row in one line instead of wrapping it", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(userPayload("admin", "admin@labapp.test"), 200,
         "application/json"),
@@ -374,11 +374,17 @@ describe("the shell navigation row", () => {
 
     const nav = screen.getByRole("navigation", { name: "Principal" });
 
-    // The four links wrap onto a second row on a phone (and the desktop
-    // rail keeps its column).
-    expect(nav.className).toContain("flex-wrap");
-    expect(nav.className).not.toContain("overflow-x-auto");
+    // One horizontal line on a phone inside its own scroll container,
+    // with the right-edge fade as the affordance; the rail keeps its
+    // column from md up (task 038).
+    expect(nav.className).not.toContain("flex-wrap");
+    expect(nav.className).toContain("overflow-x-auto");
     expect(nav.className).toContain("md:flex-col");
+    expect(nav.className).toContain("md:overflow-x-visible");
+    // The fade is the div after the nav, over its right edge.
+    const fade = nav.parentElement?.querySelector('div[aria-hidden="true"]');
+    expect(fade?.className).toContain("bg-linear-to-r");
+    expect(fade?.className).toContain("md:hidden");
   });
 });
 

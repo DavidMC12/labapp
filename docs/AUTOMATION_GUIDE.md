@@ -141,7 +141,7 @@ await page.getByTestId("customers-list-new-link").click();
 await page.getByTestId("customers-form-name-input").fill(name);
 await page.getByTestId("customers-form-email-input").fill("prueba@example.test");
 await page.getByTestId("customers-form-submit-button").click();
-await page.getByTestId("customers-detail-heading").toHaveText(name);
+await expect(page.getByTestId("customers-detail-heading")).toHaveText(name);
 await expect(page.getByTestId("customers-detail-state-status")).toHaveText("Activo");
 ```
 
@@ -168,7 +168,7 @@ Errors a test can provoke:
 await page.getByTestId("orders-list-new-link").click();
 await page.getByTestId("orders-form-customer-select").selectOption({ label: "Acme Industrial S.A." });
 await page.getByTestId("orders-form-submit-button").click();
-await page.getByTestId("orders-detail-state-status").toHaveText("Borrador");
+await expect(page.getByTestId("orders-detail-state-status")).toHaveText("Borrador");
 await page.getByTestId("orders-detail-addline-product-select").selectOption({ label: "Teclado USB (KB-100) — $19.90 — stock 120" });
 await page.getByTestId("orders-detail-addline-quantity-input").fill("2");
 await page.getByTestId("orders-detail-addline-submit-button").click();

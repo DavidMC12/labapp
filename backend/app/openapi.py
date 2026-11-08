@@ -117,12 +117,19 @@ class Problem(BaseModel):
     )
     payment_id: int | None = Field(
         default=None,
+        ge=ID_MINIMUM,
+        le=ID_MAXIMUM,
         description="The stored payment, on a 402 `PAYMENT_DECLINED` or a 503 "
         "`PAYMENT_GATEWAY_UNAVAILABLE`.",
     )
     reason: str | None = Field(
         default=None,
         description="`CARD_DECLINED` or `GATEWAY_UNAVAILABLE` on the same answers.",
+    )
+    retry_after: int | None = Field(
+        default=None,
+        description="The seconds to wait, on a 429 `RATE_LIMITED`; the same value "
+        "is sent in the `Retry-After` header.",
     )
 
 

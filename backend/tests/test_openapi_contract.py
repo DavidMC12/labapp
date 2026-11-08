@@ -166,11 +166,13 @@ def test_the_problem_component_describes_the_error_members() -> None:
         "errors",
         "payment_id",
         "reason",
+        "retry_after",
     } <= set(properties)
     assert _non_null(properties["errors"])["type"] == "array"
     assert _non_null(properties["errors"])["items"] == {"$ref": "#/components/schemas/FieldError"}
     assert _non_null(properties["payment_id"])["type"] == "integer"
     assert _non_null(properties["reason"])["type"] == "string"
+    assert _non_null(properties["retry_after"])["type"] == "integer"
 
     field_error = schemas["FieldError"]
     assert set(field_error["required"]) == {"field", "code", "message"}

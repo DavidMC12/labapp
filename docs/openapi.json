@@ -4527,6 +4527,8 @@
           "payment_id": {
             "anyOf": [
               {
+                "maximum": 2147483647,
+                "minimum": 1,
                 "type": "integer"
               },
               {
@@ -4549,6 +4551,19 @@
             "default": null,
             "description": "`CARD_DECLINED` or `GATEWAY_UNAVAILABLE` on the same answers.",
             "title": "Reason"
+          },
+          "retry_after": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The seconds to wait, on a 429 `RATE_LIMITED`; the same value is sent in the `Retry-After` header.",
+            "title": "Retry After"
           }
         },
         "required": [

@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from app.errors import ERROR_MESSAGES, NOT_FOUND, VALIDATION_ERROR, ApiError
 from app.modules.testcontrols.models import NewRule, Rule
@@ -21,6 +23,9 @@ from app.modules.testcontrols.validation import validate_rule
 from app.security.controls_guard import controls_allowed
 
 MAX_FAULT_TIMES = 1_000
+DEADLOCK_SQLSTATE = "40P01"
+
+logger = logging.getLogger(__name__)
 
 
 def require_controls(
@@ -117,20 +122,42 @@ def _rule_out(rule: Rule) -> dict[str, object]:
     }
 
 
+def _sqlstate(error: BaseException) -> str | None:
+    original = getattr(error, "orig", None)
+    return getattr(original, "sqlstate", None) or getattr(error, "sqlstate", None)
+
+
+def _is_reset_conflict(error: DBAPIError) -> bool:
+    """Tell whether the reset lost a race with a concurrent writer."""
+    return isinstance(error, IntegrityError) or _sqlstate(error) == DEADLOCK_SQLSTATE
+
+
+def _run_reset(action: Callable[[], None]) -> None:
+    """Run a reset or a seed and turn a lost race into a 409."""
+    try:
+        action()
+    except DBAPIError as error:
+        if not _is_reset_conflict(error):
+            raise
+        logger.warning(
+            "Test controls conflict %s (SQLSTATE %s)",
+            type(error).__name__,
+            _sqlstate(error) or "unknown",
+        )
+        raise ApiError(409, RESET_CONFLICT, RESET_CONFLICT_DETAIL) from error
+
+
 @router.post("/reset")
 def reset(request: Request) -> dict[str, str]:
     """Restore the demo data, the sequences, the clock and the faults."""
-    try:
-        request.app.state.resetter.reset()
-    except IntegrityError as error:
-        raise ApiError(409, RESET_CONFLICT, RESET_CONFLICT_DETAIL) from error
+    _run_reset(request.app.state.resetter.reset)
     return {"status": "ok"}
 
 
 @router.post("/seed")
 def seed(payload: SeedBody, request: Request) -> dict[str, str]:
     """Load the ``default`` data or leave only the users and the settings."""
-    request.app.state.resetter.seed(payload.dataset)
+    _run_reset(lambda: request.app.state.resetter.seed(payload.dataset))
     return {"dataset": payload.dataset}
 
 

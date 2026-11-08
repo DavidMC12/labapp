@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 
+import psycopg
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from app.domain.orders import OrderAction, OrderStatus
 from app.modules.testcontrols.models import NewRule
@@ -92,3 +95,73 @@ def test_a_foreign_key_error_answers_conflict(
     assert response.status_code == 409
     assert response.json()["code"] == "RESET_CONFLICT"
     assert "Inténtalo de nuevo." in response.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    ("error", "sqlstate"),
+    [
+        (
+            IntegrityError(
+                "statement",
+                {},
+                psycopg.errors.ForeignKeyViolation("foreign key secret"),
+            ),
+            "23503",
+        ),
+        (
+            DBAPIError(
+                "statement",
+                {},
+                psycopg.errors.DeadlockDetected("deadlock secret"),
+            ),
+            "40P01",
+        ),
+    ],
+)
+def test_a_lost_race_answers_conflict_and_logs_safely(
+    controls_app: FastAPI,
+    controls_client: TestClient,
+    caplog: pytest.LogCaptureFixture,
+    error: DBAPIError,
+    sqlstate: str,
+) -> None:
+    def fail(_dataset: str | None = None) -> None:
+        raise error
+
+    controls_app.state.resetter = SimpleNamespace(reset=fail, seed=fail)
+
+    with caplog.at_level(logging.WARNING):
+        reset = controls_client.post("/__test__/reset")
+        seeded = controls_client.post("/__test__/seed", json={"dataset": "default"})
+
+    for response in (reset, seeded):
+        assert response.status_code == 409
+        assert response.json()["code"] == "RESET_CONFLICT"
+    assert type(error).__name__ in caplog.text
+    assert sqlstate in caplog.text
+    assert "secret" not in caplog.text
+
+
+def test_another_database_error_stays_a_500(
+    controls_app: FastAPI,
+    controls_client: TestClient,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    error = DBAPIError(
+        "statement",
+        {},
+        psycopg.errors.UndefinedTable("relation secret does not exist"),
+    )
+
+    def fail(_dataset: str | None = None) -> None:
+        raise error
+
+    controls_app.state.resetter = SimpleNamespace(reset=fail, seed=fail)
+
+    with caplog.at_level(logging.ERROR):
+        response = controls_client.post("/__test__/reset")
+
+    assert response.status_code == 500
+    assert response.json()["code"] == "INTERNAL_ERROR"
+    assert "42P01" in caplog.text
+    assert "secret" not in caplog.text

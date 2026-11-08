@@ -152,9 +152,11 @@ def test_the_reset_is_atomic_for_a_reader(
 
         with ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(read)
-            assert started.wait(timeout=10)
-            app.state.resetter.reset()
-            stop.set()
+            try:
+                assert started.wait(timeout=10)
+                app.state.resetter.reset()
+            finally:
+                stop.set()
             future.result(timeout=15)
 
     new = (10, 7, 3)

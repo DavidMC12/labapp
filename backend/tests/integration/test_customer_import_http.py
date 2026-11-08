@@ -42,7 +42,12 @@ def test_the_csv_import_works_end_to_end_over_http_on_postgres(
             assert client.get("/api/customers?q=imp%20dos").json()["total"] == 1
             assert client.get("/api/customers?q=UNO@X.test").json()["total"] == 1
             # an email that exists (any case) and a repeated one: nothing is created
-            bad = "name,email\r\nOtro Uno,uno@X.TEST\r\nOtro Dos,nuevo@x.test\r\nOtro Tres,nuevo@x.test\r\n"
+            bad = (
+                "name,email\r\n"
+                "Otro Uno,uno@X.TEST\r\n"
+                "Otro Dos,nuevo@x.test\r\n"
+                "Otro Tres,nuevo@x.test\r\n"
+            )
             r = _upload(client, bad)
             assert r.status_code == 422, r.text
             fields = [(e["field"], e["code"]) for e in r.json()["errors"]]

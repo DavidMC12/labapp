@@ -31,6 +31,14 @@ const base = (option("--base") ?? process.env.AUDIT_BASE_URL ?? config.baseUrl).
 const only = option("--only")?.split(",");
 const asJson = args.includes("--json");
 const catalogPath = option("--catalog");
+if (args.includes("--catalog") && (!catalogPath || catalogPath.startsWith("--"))) {
+  console.error("--catalog needs a file name, for example --catalog docs/TESTIDS.md");
+  process.exit(2);
+}
+if (catalogPath && only) {
+  console.error("--catalog describes every state, so it cannot be combined with --only");
+  process.exit(2);
+}
 // --theme light|dark or --theme=light|dark; any other spelling or value stops the audit before it starts,
 // so a typo can never turn into a silently unpinned run.
 const themeArgs = args.filter((arg) => arg === "--theme" || arg.startsWith("--theme"));
@@ -84,11 +92,11 @@ const PAGE_CHECK = `(() => {
       if (tabindex !== null && Number(tabindex) >= 0) return true;
       return roles.has(el.getAttribute("role") ?? "");
     });
-  const withId = [...document.querySelectorAll("[data-testid]")];
+  const withId = [...document.querySelectorAll("[data-testid]")].filter((el) => !inDevTools(el));
   const all = withId.map((el) => el.getAttribute("data-testid"));
   const elements = withId.map((el) => {
     const tag = el.tagName.toLowerCase();
-    const type = tag === "input" ? el.getAttribute("type") : null;
+    const type = tag === "input" ? el.type : null;
     const role = el.getAttribute("role");
     return { id: el.getAttribute("data-testid"), element: tag + (type ? "[type=" + type + "]" : "") + (role ? "[role=" + role + "]" : "") };
   });
@@ -101,25 +109,51 @@ const PAGE_CHECK = `(() => {
   };
 })()`;
 
-// The catalog: every state with its test ids and the element that carries each, sorted so that two runs on the
-// same data produce the same file.
+// Natural order, independent of the locale: digit runs compare as numbers, everything else by code unit.
+function naturalCompare(a, b) {
+  const partsA = a.match(/\d+|\D+/g) ?? [];
+  const partsB = b.match(/\d+|\D+/g) ?? [];
+  for (let i = 0; i < Math.min(partsA.length, partsB.length); i++) {
+    const [x, y] = [partsA[i], partsB[i]];
+    if (x === y) continue;
+    if (/^\d/.test(x) && /^\d/.test(y)) return Number(x) - Number(y) || (x < y ? -1 : 1);
+    return x < y ? -1 : 1;
+  }
+  return partsA.length - partsB.length;
+}
+
+// The catalog: the test ids of every state and the element that carries each. Ids present in every logged-in state
+// (the app shell) are listed once. Sorted, so that two runs on the same data produce the same file.
 function renderCatalog(report) {
+  const loggedIn = report.filter((entry) => config.states.find((state) => state.name === entry.name)?.user);
+  const shell = loggedIn.length > 1
+    ? new Set(loggedIn[0].elements.map((row) => row.id).filter((id) => loggedIn.every((entry) => entry.elements.some((row) => row.id === id))))
+    : new Set();
+  const table = (rows) => ["| Test id | Element |", "|---|---|", ...[...rows].sort((a, b) => naturalCompare(a.id, b.id) || naturalCompare(a.element, b.element)).map((row) => `| \`${row.id}\` | \`${row.element}\` |`), ""];
   const lines = [
     "# Test id catalog",
     "",
-    "Every `data-testid` found in each audited state, with the element that carries it. It is **generated**:",
-    "`node tools/audit/browser-audit.mjs --catalog docs/TESTIDS.md` against a freshly seeded application, and CI fails",
-    "when the committed copy is out of date. Ids that end in a number (`customers-list-row-3`) carry the id of a record",
-    "of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).",
+    "Every `data-testid` found in each audited state, with the element that carries it (its tag, the type of an input and",
+    "an explicit `role`, not the implicit one). It is **generated**: `node tools/audit/browser-audit.mjs --catalog docs/TESTIDS.md`",
+    "against a freshly seeded application, and CI fails when the committed copy is out of date.",
+    "",
+    "- Elements that are not visible but carry an id are included.",
+    "- A number at the end of an id is the id of a record of the seed data (`customers-list-row-3`), or a position in a list",
+    "  (`auth-login-demo-item-2`).",
+    "- Only the states of `tools/audit/states.json` are covered. An id that appears only after an interaction (a field error",
+    "  after a failed submit, a confirmation message) is not here until a state reaches it; the grammar still applies to it",
+    "  ([TESTABILITY.md](TESTABILITY.md)).",
+    "- The ids of the app shell that every logged-in state has are listed once, under \"App shell\".",
     "",
   ];
+  if (shell.size > 0) {
+    lines.push("## App shell", "", "Present in every logged-in state.", "", ...table(loggedIn[0].elements.filter((row) => shell.has(row.id))));
+  }
   for (const entry of report) {
     const state = config.states.find((candidate) => candidate.name === entry.name);
-    lines.push(`## ${entry.name}`, "", `\`${entry.path}\`, ${state?.user ? `logged in as \`${state.user}\`` : "no session"}.`, "");
-    const rows = [...(entry.elements ?? [])].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-    lines.push("| Test id | Element |", "|---|---|", ...rows.map((row) => `| \`${row.id}\` | \`${row.element}\` |`), "");
+    lines.push(`## ${entry.name}`, "", `\`${entry.path}\`, ${state?.user ? `logged in as \`${state.user}\`` : "no session"}.`, "", ...table(entry.elements.filter((row) => !shell.has(row.id))));
   }
-  return `${lines.join("\n")}\n`;
+  return `${lines.join("\n").replace(/\n+$/, "")}\n`;
 }
 
 async function main() {
@@ -168,6 +202,8 @@ async function main() {
         if (!cookies.has(state.user)) cookies.set(state.user, await login(state.user));
         await send("Network.setCookie", { name: "labapp_session", value: cookies.get(state.user), url: base, httpOnly: true });
       }
+      // A blank document first, so that the poll below can never read the previous state's page.
+      await send("Page.navigate", { url: "about:blank" });
       await send("Page.navigate", { url: `${base}${state.path}` });
       const entry = { name: state.name, path: state.path, failures: [], warnings: [], ids: 0 };
       let rendered = false;
@@ -177,6 +213,18 @@ async function main() {
       }
       if (!rendered) {
         entry.failures.push(`the state never rendered the element "${state.waitFor}"`);
+        report.push(entry);
+        continue;
+      }
+      // Settled: no request is still loading (the home counters, for example, each load on their own), so the ids
+      // and the axe run see the final page, and the catalog never records a loading state.
+      let settled = false;
+      for (let i = 0; i < 80 && !settled; i++) {
+        settled = await evaluate(`!document.querySelector('[aria-busy="true"], [data-testid$="-loading-status"]')`).catch(() => false);
+        if (!settled) await sleep(250);
+      }
+      if (!settled) {
+        entry.failures.push("the state never finished loading (an element with aria-busy or a loading status stayed on the page)");
         report.push(entry);
         continue;
       }
@@ -208,7 +256,14 @@ async function main() {
 }
 
 const report = await main();
-if (catalogPath) writeFileSync(catalogPath, renderCatalog(report));
+if (catalogPath) {
+  const incomplete = report.filter((entry) => !entry.elements);
+  if (incomplete.length > 0) {
+    console.error(`Not writing ${catalogPath}: ${incomplete.length} state(s) did not render (${incomplete.map((entry) => entry.name).join(", ")}).`);
+  } else {
+    writeFileSync(catalogPath, renderCatalog(report));
+  }
+}
 if (asJson) console.log(JSON.stringify(report.map(({ elements, ...entry }) => entry), null, 2));
 let failed = 0;
 for (const entry of report) {

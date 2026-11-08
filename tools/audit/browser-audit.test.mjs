@@ -24,3 +24,15 @@ for (const args of [
     assert.match(result.stderr, /--theme must be given once/);
   });
 }
+
+for (const args of [
+  ["--catalog"],
+  ["--catalog", "--json"],
+  ["--catalog", "docs/TESTIDS.md", "--only", "login"],
+]) {
+  test(`rejects ${args.join(" ")}`, () => {
+    const result = run(...args);
+    assert.equal(result.status, 2, result.stdout + result.stderr);
+    assert.match(result.stderr, /--catalog/);
+  });
+}

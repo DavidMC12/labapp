@@ -151,7 +151,7 @@ function renderCatalog(report) {
   }
   for (const entry of report) {
     const state = config.states.find((candidate) => candidate.name === entry.name);
-    lines.push(`## ${entry.name}`, "", `\`${entry.path}\`, ${state?.user ? `logged in as \`${state.user}\`` : "no session"}.`, "", ...table(entry.elements.filter((row) => !shell.has(row.id))));
+    lines.push(`## ${entry.name}`, "", `\`${entry.path}\`, ${state?.user ? `logged in as \`${state.user}\`` : "no session"}. Page title: \`${entry.title}\`.`, "", ...table(entry.elements.filter((row) => !shell.has(row.id))));
   }
   return `${lines.join("\n").replace(/\n+$/, "")}\n`;
 }
@@ -234,6 +234,8 @@ async function main() {
         const applied = await evaluate(`document.documentElement.getAttribute("data-theme")`);
         if (applied !== theme) entry.failures.push(`the ${theme} theme was not applied (data-theme is ${applied === null ? "absent" : `"${applied}"`})`);
       }
+      entry.title = await evaluate("document.title");
+      if (state.title !== undefined && entry.title !== state.title) entry.failures.push(`the page title is "${entry.title}", expected "${state.title}"`);
       const check = await evaluate(PAGE_CHECK);
       entry.ids = check.ids.length;
       entry.elements = check.elements;

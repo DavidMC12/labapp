@@ -7,11 +7,13 @@ from dataclasses import replace
 from datetime import datetime
 from threading import Lock
 
+from app.domain.sorting import SortSpec
 from app.modules.customers.models import Changes, Customer, CustomerStatus, NewCustomer
 from app.modules.customers.ports import CustomerNotFound, EmailTaken, VersionConflict
 from app.modules.customers.search import normalize_for_search
 
 _FIELDS = ("name", "email", "phone", "tax_id", "address")
+_DEFAULT_SORT = SortSpec("created_at", True)
 
 
 class InMemoryCustomerRepository:
@@ -37,7 +39,9 @@ class InMemoryCustomerRepository:
         status: CustomerStatus | None,
         page: int,
         page_size: int,
+        sort: SortSpec | None = None,
     ) -> tuple[list[Customer], int]:
+        spec = sort or _DEFAULT_SORT
         with self._lock:
             matches = [
                 customer
@@ -52,9 +56,16 @@ class InMemoryCustomerRepository:
                     if normalized in self._search[customer.id][0]
                     or normalized in self._search[customer.id][1]
                 ]
-            matches.sort(key=lambda customer: (customer.created_at, customer.id), reverse=True)
+            matches.sort(key=self._sort_key(spec.field), reverse=spec.descending)
             start = (page - 1) * page_size
             return matches[start : start + page_size], len(matches)
+
+    def _sort_key(self, field: str):
+        if field == "name":
+            return lambda customer: (self._search[customer.id][0], customer.id)
+        if field == "email":
+            return lambda customer: (self._search[customer.id][1], customer.id)
+        return lambda customer: (customer.created_at, customer.id)
 
     def get(self, id: int) -> Customer | None:
         with self._lock:

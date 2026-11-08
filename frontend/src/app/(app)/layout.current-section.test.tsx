@@ -72,6 +72,7 @@ describe("the current section of the rail", () => {
     { pathname: "/customers/7", testId: "app-nav-customers-link", label: "Clientes" },
     { pathname: "/customers/new", testId: "app-nav-customers-link", label: "Clientes" },
     { pathname: "/orders", testId: "app-nav-orders-link", label: "Pedidos" },
+    { pathname: "/products", testId: "app-nav-products-link", label: "Productos" },
     { pathname: "/invoices", testId: "app-nav-invoices-link", label: "Facturas" },
     { pathname: "/settings", testId: "app-nav-settings-link", label: "Configuración" },
   ];

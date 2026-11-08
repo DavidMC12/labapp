@@ -214,6 +214,12 @@ describe("app shell session", () => {
         "href",
         "/orders",
       );
+      // The catalog is read-only and open to every role (docs/SPEC.md
+      // section 5), so the link never hides.
+      expect(screen.getByTestId("app-nav-products-link")).toHaveAttribute(
+        "href",
+        "/products",
+      );
       expect(screen.getByTestId("app-nav-invoices-link")).toHaveAttribute(
         "href",
         "/invoices",
@@ -235,6 +241,9 @@ describe("app shell session", () => {
       expect(
         screen.getByRole("link", { name: "Pedidos" }),
       ).toHaveAttribute("href", "/orders");
+      expect(
+        screen.getByRole("link", { name: "Productos" }),
+      ).toHaveAttribute("href", "/products");
       expect(
         screen.getByRole("link", { name: "Facturas" }),
       ).toHaveAttribute("href", "/invoices");

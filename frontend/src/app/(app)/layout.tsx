@@ -294,29 +294,43 @@ export default function AppLayout({
             />
           </div>
 
+          {/*
+           * The user block on the phone (task 038): one row that only
+           * wraps when the name is long — the name and the role stacked
+           * in a small block on the left, the theme select sized to its
+           * content with its label hidden (`sr-only`, the accessible name
+           * stays "Tema") and "Salir" at the right. The wrapper of the
+           * name and the role reads as its `md:contents` children again
+           * in the rail column, so the desktop keeps its layout. From md
+           * up the visible label comes back.
+           */}
           <div className="flex flex-wrap items-center gap-3 px-4 pb-2 md:mt-auto md:flex-col md:items-stretch md:border-t md:border-rail-muted/40 md:px-3 md:py-3">
-            <p
-              data-testid="app-user-name-text"
-              className="text-[15px] font-medium"
-            >
-              {user.name}
-            </p>
-            <p
-              data-testid="app-user-role-text"
-              className="text-[13px] text-rail-muted"
-            >
-              {roleLabel(user.role)}
-            </p>
+            <div className="flex flex-col leading-tight md:contents">
+              <p
+                data-testid="app-user-name-text"
+                className="text-[15px] font-medium"
+              >
+                {user.name}
+              </p>
+              <p
+                data-testid="app-user-role-text"
+                className="text-[13px] text-rail-muted"
+              >
+                {roleLabel(user.role)}
+              </p>
+            </div>
             {/*
              * The theme selector lives in the user block: at the bottom of
              * the rail on desktop, in the same block under the links on the
-             * phone layout. On the phone it takes a row of its own.
+             * phone layout. It shares the row now instead of taking a row
+             * of its own, so the label is visually hidden on the phone.
              */}
-            <div className="w-full basis-full md:w-auto md:basis-auto">
+            <div className="md:w-auto md:basis-auto">
               <ThemeSelect
                 testId="app-theme-select"
                 id="app-theme"
-                labelClassName="text-rail-ink"
+                labelClassName="text-rail-ink sr-only md:not-sr-only"
+                compact
               />
             </div>
             <Button

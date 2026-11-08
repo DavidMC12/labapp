@@ -214,6 +214,53 @@ await expect(page.getByTestId("invoices-detail-state-status")).toHaveText("Pagad
 await expect(page.getByTestId("invoices-detail-closed-text")).toHaveText("Esta factura está pagada.");
 ```
 
+### Sort the four lists
+
+Every sortable column header of the four lists is a real `<button>` inside `aria-sort`-carrying `<th>` corners, and the 14 buttons share one id shape, `<module>-list-sort-<field>-button` (`created_at` is written `created`). The list's other filters and the export link sit around the table; the columns that nothing sorts by (`ID fiscal`, `Estado`, …) are plain `<th>` without a button.
+
+| List | Sort buttons and field each one sorts by |
+|---|---|
+| `/customers` | `customers-list-sort-name-button` (name), `customers-list-sort-email-button` (email), `customers-list-sort-created-button` (`created_at`) |
+| `/orders` | `orders-list-sort-number-button` (number), `orders-list-sort-customer-button` (customer name), `orders-list-sort-created-button` (`created_at`) |
+| `/invoices` | `invoices-list-sort-number-button` (number), `invoices-list-sort-customer-button` (customer name), `invoices-list-sort-total-button` (total), `invoices-list-sort-created-button` (`created_at`) |
+| `/products` | `products-list-sort-sku-button` (sku), `products-list-sort-name-button` (name), `products-list-sort-price-button` (price), `products-list-sort-stock-button` (stock) |
+
+**What a click does.** The first click sorts the column with the default direction of its field (`created_at` descending, every other field ascending — the API's defaults, section 12), and a second click on the sorted column flips the direction. There is **no unsorted state**: the plain list *is* the default sort (`created_at` descending; the products catalog, `id` ascending), and both URL parameters are left out of it. Either kind of click returns the list to page 1 and keeps every other filter.
+
+**What to assert.** The sorted column announces itself in three places, and the click is over when the data lands:
+
+| Where | Attribute | Values |
+|---|---|---|
+| the `<th>` (`aria-sort`) | `aria-sort` | `ascending` / `descending` when the table is sorted by it, no attribute otherwise |
+| the button | `data-state` | `ascending` / `descending` when sorted, no attribute otherwise |
+| the hidden status | text | `Ordenado por {label}, {ascendente\|descendente}` (e.g. `Ordenado por Nombre, ascendente`) in `*-list-sort-text`, a visually hidden `role="status"` paragraph |
+
+The sort lives in the URL next to the filters: `?page=1&sort=name&direction=asc`. A list loaded directly from that URL arrives sorted (the API request carries the parameters), and an invalid `sort` or `direction` in the URL falls back to the default, like an invalid `status` does. Every change updates the URL, the `aria-sort`, the `data-state` and the hidden status together.
+
+```ts
+// Illustrative, not run in CI.
+const th = page.getByTestId("customers-list-sort-name-button").locator("..");
+await page.getByTestId("customers-list-sort-name-button").click();
+await expect(th).toHaveAttribute("aria-sort", "ascending");
+await expect(th.getByTestId("customers-list-sort-name-button"))
+  .toHaveAttribute("data-state", "ascending");
+await expect(page).toHaveURL(/sort=name&direction=asc/);
+await expect(page.getByTestId("customers-list-sort-text"))
+  .toHaveText("Ordenado por Nombre, ascendente");
+```
+
+**The order of the rows.** The attribute says which column is sorted; a test that wants to be sure about the array order reads one column's cells and compares with the expected order. Every cell carries the record id as its suffix (`customers-list-name-cell-1` is customer 1), so a locator prefix reaches all the rows:
+
+```ts
+// Illustrative, not run in CI. On ten seeded customers, names ascend and
+// the accents ignore themselves: `Ferretería Fénix` lands in the F position.
+await page.getByTestId("customers-list-sort-name-button").click();
+const names = await page.locator('[data-testid^="customers-list-name-cell-"]').allTextContents();
+expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, "es")));
+```
+
+**The traps.** Sorting silently resets the page (`?page=` goes back to 1) while surviving filters (`q`, `status`, …) keep travelling in the URL; because the sort is a URL parameter, a test can skip the clicks and open the sorted list directly, and it must not expect an unsorted state to come back. Text columns compare the **normalized** text — accents and upper case are ignored, so `Álvaro` sorts with `A` (section 12 explains the normalization) — and `number` sorts `PED-0009` after `PED-0002` because it compares the numeric part as an integer.
+
 ## 6. Waiting and state
 
 Wait for observable markers instead of fixed timeouts; every one is in the code.

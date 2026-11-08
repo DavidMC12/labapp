@@ -1,0 +1,42 @@
+# Task 058: import customers from a CSV file (backend)
+
+Assignee: Worker 1. Branch: `w1/customers-import`. Reviewer: Supervisor.
+
+**Base.** Branch from `main`.
+
+## Goal
+
+File upload is one of the classic things a test engineer has to automate (choose a file, submit, read the result, handle a rejected file), and the application has none. Add `POST /api/customers/import`: a multipart upload of a CSV file that creates customers, all or nothing, with a precise report of every row that is wrong. The contract is the **Import** rule of `docs/SPEC.md` section 4 (Customers API) and the new row of its table: read it twice, every sentence of it is a requirement. This task is the backend only; the screen comes later (task 059) and this task must not change any screen.
+
+## Read first
+
+`docs/SPEC.md`: the **Import** rule of the Customers API, the rules of customer creation above it (the validation every row obeys), section 7 (errors, the order of the checks, the body limit) and section 8 (the error format); `backend/app/modules/customers/` (`routes.py`, `service.py`, `validation.py`, `ports.py`, `adapters/memory.py`, `adapters/postgres.py`: how a customer is validated and added, how the email uniqueness is enforced and mapped to `CUSTOMER_EMAIL_TAKEN`), `backend/app/errors.py` (how a 422 with `errors[]` is built and how `ApiError` is raised), `backend/app/middleware.py` (`BodySizeLimitMiddleware`: the 100 KB limit), `backend/app/domain/csv_export.py` (the writer of task 052, for the vocabulary), `backend/tests/customers/` (the contract tests that run against both adapters) and `docs/openapi.json` (how the contract is regenerated: `backend/README.md`).
+
+## Scope
+
+You may edit under `backend/`: the customers module (routes, service, validation helpers, the port and both adapters), a new pure module for the CSV parsing (for example `app/domain/csv_import.py`), `pyproject.toml` and `uv.lock` for **one** new dependency, `python-multipart` (FastAPI needs it to read an uploaded file; add it with `uv add python-multipart`, say the version in the report, and do not add anything else), the tests, `backend/README.md` (a short "Customer import" paragraph with a `curl` example) and `docs/openapi.json` regenerated. Do not edit `docs/SPEC.md`, the frontend, `tools/` or `tests/`.
+
+## Requirements
+
+1. **The parser** (pure, in its own module, no framework imports): given the bytes of the file and its name, it returns the header and the data rows with their file line numbers, or the list of the whole-file errors (`REQUIRED`, `INVALID_FORMAT`, `OUT_OF_RANGE` on `file`), exactly as the SPEC defines: UTF-8 with an optional byte order mark, the name must end in `.csv` in any case, comma separator and RFC 4180 quoting (a quoted field may hold commas, doubled quotes and line breaks; you may use `csv.reader` here), CRLF or LF, blank lines ignored but still counted in the line numbers (a row's `N` is the physical line where the record starts), the header rule (trimmed cells, each of the five names at most once, `name` and `email` present, nothing else), 1 to 200 data rows. A record with a different number of cells than the header is reported as `rows[N]` `INVALID_FORMAT` (not as a whole-file error).
+2. **The service method** `import_customers(...)`: parse; validate every row with the **same code** as customer creation (do not copy the rules); detect an email already used by a customer (the repository's email lookup, case-insensitive, as the creation does) or by an earlier row of the file; collect every error of every row in file order, at most 100 entries (a 101st is dropped); with any error raise the 422 `VALIDATION_ERROR` and create nothing; otherwise create all the customers in one atomic step.
+3. **Atomic creation.** A new repository method (for example `add_many(customers, now)`) in the port and in both adapters: PostgreSQL inserts every row in **one transaction** and the in-memory store under its lock, so a failure in the middle leaves nothing; an email that was taken between the validation and the insert raises the existing email-taken error and nothing is created, which the route answers as the 409 `CUSTOMER_EMAIL_TAKEN` of the creation. Ids are consecutive in file order. Add the shared contract tests for `add_many` (all inserted in order with consecutive ids; one duplicate email in the batch inserts nothing, and the store is unchanged afterwards; the version and status of every row). The PostgreSQL adapter fills its search columns exactly as `add` does.
+4. **The route** `POST /api/customers/import` (declared before the `/{id}` routes), `multipart/form-data` with one file part `file`. The permission check is the one of customer creation, before the body (403 before any validation, 401 before the permission); a missing or empty `file` is `REQUIRED`; a body above 100 KB is already the 413 of the middleware. The answer is 201 `{created, items}` with the `Customer` objects of the creation (same schema), `Cache-Control: no-store` like the other API answers. A second part named otherwise is ignored. Document the route in the OpenAPI contract: the `multipart/form-data` request body with the `file` part as binary, the 201, and the error answers (401, 403, 409, 413, 422) like the creation does; one request example is not possible for a file, so describe the CSV format in the operation description (columns, limits) and add one response example of the 201 and one of the 422 with `rows[2].email` entries.
+5. **Tests.**
+   - The parser: a clean file; a byte order mark; CRLF and LF; a quoted field with a comma, a doubled quote and a line break; blank lines (line numbers after a blank line); every whole-file error (an empty file, a file with only the header, 201 rows, a name without `.csv`, `.CSV` accepted, invalid UTF-8, an unknown column, a duplicated column, a missing `email` column); a row with a missing and with an extra cell; optional columns absent.
+   - The service and the route, on the in-memory app with the seed: a clean import of three rows (201, `created` 3, the ids 11 to 13 in order, the customers readable afterwards); every kind of row error with the exact `errors[]` entry (`rows[2].name` `TOO_SHORT`, `rows[3].email` `INVALID_FORMAT`, a phone with letters, a name above 120 characters, an email that exists in the seed, an email repeated inside the file with the second occurrence reported, `rows[4]` `INVALID_FORMAT` for a short row), several errors in several rows in file order and nothing created (list the customers before and after); 100 entries cap (a file of 150 bad rows reports 100 entries); the whole-file errors; the permission matrix (Admin and Sales 201; Finance and Read-only 403, and the 403 even for an invalid file); 401 without a session; 413 for a file of 120 KB; a missing part; an empty value in an optional column becomes `null`; the email lowercased and trimmed; the formula quote is kept (`'=1+1` stays `'=1+1`).
+   - An integration test (skipped without `TEST_DATABASE_URL`, the supervisor runs it): the contract tests of `add_many` against PostgreSQL, and one test that two concurrent imports with the same email leave exactly one winner and the loser's whole file is not created.
+6. **Contract and README.** Regenerate `docs/openapi.json` (the drift test passes); the README paragraph.
+
+## Acceptance criteria
+
+From `backend/`: `uv run ruff check .`, `uv run ruff format --check .` and `uv run pytest -q -W error --cov=app --cov-report=term` pass (the coverage floor holds). The supervisor runs the integration tests against a real database and uploads files with `curl -F` to a live server.
+
+## Rules for this task
+
+- Commit as you go, in small real steps (about 10 to 14 commits: the dependency, the parser, the port and adapters, the service, the route, the contract, the README). Conventional Commits, in English.
+- Do not add `Co-Authored-By` or any tool-attribution line. Do not change the git identity.
+- Do not push. Do not merge. Do not touch `main`.
+- Use paths relative to your working directory. Your copies of the project documents are in `.context/` (ignored by git; never stage them). Never read `backend/.env` or any file outside your working directory.
+- If the spec is ambiguous, do not guess: write the question in your report.
+- When done, reply with: the branch, the commit range, the exact commands you ran with their exit codes, the version of `python-multipart` you added, which tests are integration-only, and any deviation or open question.

@@ -312,7 +312,7 @@ def test_every_row_has_the_seven_cells() -> None:
 def test_every_id_is_unique_and_has_the_area_form() -> None:
     rows = support.practice_rows()
     ids = [row.id for row in rows]
-    malformed = [row.id for row in rows if re.fullmatch(r"[A-H]-\d+", row.id) is None]
+    malformed = [row.id for row in rows if re.fullmatch(r"[A-I]-\d+", row.id) is None]
     repeated = sorted({identifier for identifier in ids if ids.count(identifier) > 1})
     assert malformed == []
     assert repeated == []
@@ -331,8 +331,13 @@ def test_the_numbers_of_each_area_are_consecutive_from_one() -> None:
     assert wrong == {}
 
 
-def test_the_eight_area_tables_are_present() -> None:
-    assert {row.area for row in support.practice_rows()} == set("ABCDEFGH")
+def test_the_nine_area_tables_are_present() -> None:
+    assert {row.area for row in support.practice_rows()} == set("ABCDEFGHI")
+
+
+def test_the_lists_area_exists_and_has_at_least_thirty_rows() -> None:
+    rows = [row for row in support.practice_rows() if row.area == "I"]
+    assert len(rows) >= 30
 
 
 def test_every_quoted_code_exists() -> None:

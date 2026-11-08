@@ -84,6 +84,9 @@ What a reader can rely on:
 - **Metadata.** `info.version` is the package version, the tags group the operations by
   module and `servers` has one relative entry, `{"url": "/"}`, because the web app and the
   API share one origin locally and online.
+- **Examples.** The requests and the answers that matter carry named examples in the
+  contract, written once in `app/openapi_examples.py` and proved by the tests, so "Try it
+  out" fills a body that works.
 
 ### OpenAPI contract online
 

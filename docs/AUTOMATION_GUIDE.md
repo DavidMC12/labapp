@@ -36,3 +36,29 @@ Password for all four: `Demo-LabApp-2026!`. What each role can do ([SPEC section
 
 - **Local:** in-memory data, restored from the seed on every start; `TEST_MODE=1`, so the request rate limits are off.
 - **Online:** one shared dataset (strangers may move it between your runs), rate limits active — 120 requests per minute and 10 login attempts per minute per client IP; exceeding one answers HTTP 429 with code `RATE_LIMITED` and the message `Demasiadas solicitudes. Espera un momento e inténtalo de nuevo.` ([SPEC section 3](SPEC.md)). A nightly reset workflow at 03:17 UTC restores the seed, but it only works once the test controls are deployed (task 022, part 2 of this guide).
+
+## 2. Locators
+
+Every screen stakes its locators up front, in [docs/TESTABILITY.md](TESTABILITY.md).
+
+**The grammar in three sentences.** An id is `<module>-<name>-<kind>` in kebab-case, where `module` is one of `app`, `auth`, `home`, `customers`, `orders`, `products`, `invoices`, `payments`, `settings`, and `kind` is one of `button`, `input`, `select`, `textarea`, `checkbox`, `radio`, `switch`, `link`, `tab`, `menuitem`, `form`, `table`, `row`, `cell`, `list`, `item`, `dialog`, `alert`, `error`, `status`, `text`, `heading`, `region`. The `name` is one or more kebab-case words describing the element (`form-email`, `list`, `cancel-confirm`). A numeric id can appear only as the **final** segment: a record id appended after the kind (`customers-list-row-42`); `customers-list-row-42-view-button` and `orders-line-7-quantity-input` are invalid — write `orders-line-quantity-input-7`.
+
+**Why `data-testid` and not `data-test`.** `data-testid` is the attribute Playwright looks for by default, so it needs no selector magic; LabApp emits it on every interactive element, every field error, every heading and every value a test would assert on. Pin it explicitly anyway in your own config so the suite does not depend on the default:
+
+```ts
+// playwright.config.ts
+export default defineConfig({ use: { testIdAttribute: 'data-testid' } });
+```
+
+**Finding an id.** The generated catalog [docs/TESTIDS.md](TESTIDS.md) lists every id of every audited state with its element — grep it, link it, do not copy from the code by hand. The browser audit regenerates it (`node tools/audit/browser-audit.mjs --catalog docs/TESTIDS.md`) and CI fails when the committed copy is stale. An id that only appears after an interaction (a field error after a failed submit, a success message) is not in the catalog until an audited state reaches it; grep the source (`data-testid` in `frontend/src`) for those.
+
+**What a trailing number means.** Two cases, per the catalog's own notes: a **record id** — `customers-list-row-4` is the row of customer 4, `orders-detail-line-quantity-input-10` the quantity editor of order line 10 — or a **position in a list** — `auth-login-demo-item-2` is the second entry of the login demo box. The record-id case dominates; the login demo box is a position.
+
+**The four special kinds.**
+
+| Kind | What it marks | Example |
+|---|---|---|
+| `region` | The scrollable wrapper of a wide table ([TableScroll](../frontend/src/components/ui/TableScroll.tsx), keyboard-focusable) | `customers-list-scroll-region` |
+| `status` | An element with `role="status"`: loading announcements (`Cargando…`, busy) and success announcements | `customers-list-loading-status`, `settings-taxrate-success-status` |
+| `alert` / `error` | Messages from the API. `error` is a field-level message next to its input (`customers-form-email-error`); `alert` is a form- or page-level one (`customers-form-alert`, `customers-detail-error-alert`) | both in `role="alert"` |
+| `dialog` | A confirmation on the native `<dialog>`. There are exactly two in the app: cancelling an order and deactivating a customer; every other action runs at the first click | `orders-cancel-confirm-dialog`, `customers-deactivate-confirm-dialog` |

@@ -13,6 +13,7 @@ import ast
 import json
 import re
 from dataclasses import dataclass
+from http import HTTPStatus
 
 from app import errors
 
@@ -23,6 +24,8 @@ CODE_IN_BACKTICKS = re.compile(r"`([^`]+)`")
 QUOTED = re.compile(r'"([^"]*)"')
 AFTER_MESSAGE_LABEL = re.compile(r'\b(?:message|detail)\b(?:\s*["\']?\s*:)?\s*"([^"]*)"')
 METHOD_PATH = re.compile(r"\b(GET|POST|PATCH|PUT|DELETE)\s+(/[^\s`]+)")
+STATUS_AT_START = re.compile(r"^(?P<status>[1-5]\d{2})\b")
+VALID_STATUSES = {status.value for status in HTTPStatus}
 
 # Code-shaped tokens in backticks that are not error codes. Keep this list
 # short and explained: every other token must be a code of the SPEC or of the
@@ -253,6 +256,41 @@ def check_endpoints(rows: list[support.PracticeRow]) -> list[Violation]:
     return violations
 
 
+def status_candidates(
+    rows: list[support.PracticeRow],
+) -> list[tuple[support.PracticeRow, str, str, str, dict[str, object]]]:
+    """Rows with one request, an operation and a status at the start of Expected."""
+    paths = _openapi_paths()
+    candidates: list[tuple[support.PracticeRow, str, str, str, dict[str, object]]] = []
+    for row in rows:
+        requests = _method_paths(row)
+        if len(requests) != 1:
+            continue
+        match = STATUS_AT_START.match(row.expected)
+        if match is None or int(match.group("status")) not in VALID_STATUSES:
+            continue
+        method, path = requests[0]
+        resolved = resolve_operation(method, path, paths)
+        if resolved is None:
+            continue
+        template, operation = resolved
+        candidates.append((row, method, path, match.group("status"), operation))
+    return candidates
+
+
+def check_statuses(rows: list[support.PracticeRow]) -> list[Violation]:
+    violations: list[Violation] = []
+    for row, method, path, status, operation in status_candidates(rows):
+        declared = set(operation.get("responses", {}))
+        behind_session = bool(operation.get("security"))
+        if status in declared or (status in {"401", "403", "422"} and behind_session):
+            continue
+        violations.append(
+            Violation(row.id, f"the status {status} is not declared for {method} {path}")
+        )
+    return violations
+
+
 def test_the_catalog_has_at_least_a_hundred_scenario_rows() -> None:
     assert len(support.practice_rows()) >= 100
 
@@ -296,6 +334,13 @@ def test_every_quoted_spanish_message_exists() -> None:
 
 def test_every_endpoint_exists() -> None:
     violations = check_endpoints(support.practice_rows())
+    assert violations == [], _report(violations)
+
+
+def test_every_single_request_status_is_declared() -> None:
+    rows = support.practice_rows()
+    assert status_candidates(rows), "the status check covered no row"
+    violations = check_statuses(rows)
     assert violations == [], _report(violations)
 
 

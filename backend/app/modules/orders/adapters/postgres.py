@@ -82,9 +82,10 @@ _DUPLICATE_PRODUCT_MESSAGE = "Ese producto ya está en el pedido; edita su canti
 _LINE_PRODUCT_CONSTRAINT = "order_lines_order_product_key"
 _ORDER_DEFAULT_SORT = SortSpec("created_at", True)
 _PRODUCT_DEFAULT_SORT = SortSpec("id", False)
+# Text sorts must follow Python's code point order, not the database collation.
 _PRODUCT_SORT_COLUMNS = {
     "id": products.c.id,
-    "sku": products.c.sku,
+    "sku": products.c.sku.collate("C"),
     "price": products.c.price,
     "stock": products.c.stock,
 }
@@ -345,7 +346,7 @@ class PostgresOrderStore:
         if spec.field == "number":
             sort_column = cast(func.substring(orders.c.number, "[0-9]+"), Integer)
         elif spec.field == "customer":
-            sort_column = customers.c.name_search
+            sort_column = customers.c.name_search.collate("C")
         else:
             sort_column = orders.c.created_at
         primary = sort_column.desc() if spec.descending else sort_column.asc()

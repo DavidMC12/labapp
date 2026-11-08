@@ -243,6 +243,72 @@ class OrderStoreContract:
         ]
         assert [name for _, name in items] == ["Alba", "Álvaro", "Ana", "Beto"]
 
+    def test_the_product_sku_sort_uses_the_code_point_order(self, store: Any) -> None:
+        store.replace_all(
+            [
+                Product(id=1, sku="A1", name="One", price=Decimal("1.00"), stock=1),
+                Product(id=2, sku="A-2", name="Two", price=Decimal("2.00"), stock=2),
+                Product(id=3, sku="A-1", name="Three", price=Decimal("3.00"), stock=3),
+            ],
+            [],
+            SEED_RATE,
+        )
+
+        asc = store.list_products(sort=SortSpec("sku", False))
+        desc = store.list_products(sort=SortSpec("sku", True))
+
+        assert [product.sku for product in asc] == ["A-1", "A-2", "A1"]
+        assert [product.sku for product in desc] == ["A1", "A-2", "A-1"]
+
+    def test_the_customer_sort_uses_the_code_point_order(
+        self,
+        store: Any,
+        customer_repository: CustomerRepository,
+    ) -> None:
+        customer_repository.replace_all([])
+        names = ("ab-c", "ab", "a-c", "a b")
+        customers = [
+            customer_repository.add(
+                NewCustomer(
+                    name=name,
+                    email=f"{index}@example.test",
+                    phone=None,
+                    tax_id=None,
+                    address=None,
+                ),
+                NOW,
+            )
+            for index, name in enumerate(names, start=1)
+        ]
+        store.replace_all(
+            seed_products(),
+            [
+                _order(index, number=f"PED-{index:04d}", customer_id=customer.id)
+                for index, customer in enumerate(customers, start=1)
+            ],
+            SEED_RATE,
+        )
+
+        asc, _ = store.list_orders(
+            query=None,
+            status=None,
+            customer_id=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("customer", False),
+        )
+        desc, _ = store.list_orders(
+            query=None,
+            status=None,
+            customer_id=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("customer", True),
+        )
+
+        assert [name for _, name in asc] == ["a b", "a-c", "ab", "ab-c"]
+        assert [name for _, name in desc] == ["ab-c", "ab", "a-c", "a b"]
+
     def test_the_number_sorts_as_an_integer(self, store: Any) -> None:
         store.replace_all(
             seed_products(),

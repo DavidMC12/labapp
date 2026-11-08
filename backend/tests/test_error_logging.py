@@ -80,3 +80,42 @@ def test_other_errors_still_log_their_message(
 
     assert response.status_code == 500
     assert "plain failure" in caplog.text
+
+
+def test_database_error_logs_the_stack_frames_but_not_the_message(
+    app: FastAPI, caplog: pytest.LogCaptureFixture
+) -> None:
+    @app.get("/explode-with-frames")
+    def explode_with_frames() -> None:
+        raise IntegrityError(
+            "INSERT INTO users (email) VALUES (:email)",
+            {"email": EMAIL},
+            psycopg.errors.UniqueViolation(f"DETAIL: Key (email)=({EMAIL}) already exists"),
+        )
+
+    with caplog.at_level(logging.ERROR):
+        TestClient(app, raise_server_exceptions=False).get(
+            "/explode-with-frames", headers={"X-Request-Id": "req-db"}
+        )
+
+    assert "explode_with_frames" in caplog.text
+    assert EMAIL not in caplog.text
+    assert "already exists" not in caplog.text
+
+
+def test_lock_timeout_logs_the_method_and_path_but_no_message(
+    app: FastAPI, caplog: pytest.LogCaptureFixture
+) -> None:
+    @app.post("/timed-out")
+    def timed_out() -> None:
+        raise psycopg.errors.LockNotAvailable("canceling statement due to lock timeout")
+
+    with caplog.at_level(logging.WARNING):
+        response = TestClient(app, raise_server_exceptions=False).post(
+            "/timed-out", headers={"X-Request-Id": "req-lock"}
+        )
+
+    assert response.status_code == 503
+    assert "POST /timed-out" in caplog.text
+    assert "req-lock" in caplog.text
+    assert "canceling statement" not in caplog.text

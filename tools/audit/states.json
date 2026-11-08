@@ -3,7 +3,7 @@
   "password": "Demo-LabApp-2026!",
   "states": [
     { "name": "login", "path": "/login", "user": null, "waitFor": "auth-login-form" },
-    { "name": "home", "path": "/", "user": "sales@labapp.test", "waitFor": "app-nav-customers-link" },
+    { "name": "home", "path": "/", "user": "sales@labapp.test", "waitFor": "home-customers-active-count-text" },
     { "name": "customers-list", "path": "/customers", "user": "sales@labapp.test", "waitFor": "customers-list-table" },
     { "name": "customers-list-readonly", "path": "/customers", "user": "readonly@labapp.test", "waitFor": "customers-list-table" },
     { "name": "customers-detail", "path": "/customers/2", "user": "sales@labapp.test", "waitFor": "customers-detail-heading" },
@@ -17,6 +17,8 @@
     { "name": "orders-detail-confirmed", "path": "/orders/3", "user": "sales@labapp.test", "waitFor": "orders-detail-heading" },
     { "name": "orders-detail-shipped", "path": "/orders/5", "user": "sales@labapp.test", "waitFor": "orders-detail-heading" },
     { "name": "orders-detail-cancelled", "path": "/orders/6", "user": "sales@labapp.test", "waitFor": "orders-detail-heading" },
-    { "name": "invoices-placeholder", "path": "/invoices", "user": "finance@labapp.test", "waitFor": "app-nav-invoices-link" }
+    { "name": "invoices-placeholder", "path": "/invoices", "user": "finance@labapp.test", "waitFor": "app-nav-invoices-link" },
+    { "name": "settings-admin", "path": "/settings", "user": "admin@labapp.test", "waitFor": "settings-taxrate-form" },
+    { "name": "settings-readonly", "path": "/settings", "user": "sales@labapp.test", "waitFor": "settings-taxrate-readonly-text" }
   ]
 }

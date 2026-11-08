@@ -73,6 +73,7 @@ describe("the current section of the rail", () => {
     { pathname: "/customers/new", testId: "app-nav-customers-link", label: "Clientes" },
     { pathname: "/orders", testId: "app-nav-orders-link", label: "Pedidos" },
     { pathname: "/invoices", testId: "app-nav-invoices-link", label: "Facturas" },
+    { pathname: "/settings", testId: "app-nav-settings-link", label: "Configuración" },
   ];
 
   for (const { pathname, testId } of cases) {

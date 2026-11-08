@@ -118,9 +118,6 @@ class PostgresSessionStore:
 
     def create(self, session: Session) -> None:
         with self._engine.begin() as connection:
-            connection.execute(
-                select(func.pg_advisory_xact_lock(cast(_SESSION_LOCK_KEY, BigInteger)))
-            )
             statement = postgres_insert(sessions).values(
                 token_hash=session.token_hash,
                 user_id=session.user_id,
@@ -137,6 +134,12 @@ class PostgresSessionStore:
             )
             connection.execute(statement)
 
+            # Only the count and the trim need the lock, so it is held for about three round
+            # trips instead of six. Under READ COMMITTED each waiter counts after the previous
+            # commit, so the last one trims to exactly the cap.
+            connection.execute(
+                select(func.pg_advisory_xact_lock(cast(_SESSION_LOCK_KEY, BigInteger)))
+            )
             count = connection.execute(select(func.count()).select_from(sessions)).scalar_one()
             excess = count - self._max_sessions
             if excess > 0:

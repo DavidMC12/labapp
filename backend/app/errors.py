@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import traceback
 from http import HTTPStatus
 from typing import Any
 from uuid import uuid4
@@ -11,6 +12,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import DBAPIError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from app.infra.db import is_lock_timeout
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +26,7 @@ PAYLOAD_TOO_LARGE = "PAYLOAD_TOO_LARGE"
 VALIDATION_ERROR = "VALIDATION_ERROR"
 INTERNAL_ERROR = "INTERNAL_ERROR"
 MALFORMED_JSON = "MALFORMED_JSON"
+LOCK_TIMEOUT = "LOCK_TIMEOUT"
 
 ERROR_MESSAGES: dict[str, str] = {
     NOT_FOUND: "No se encontró el recurso solicitado.",
@@ -31,6 +35,7 @@ ERROR_MESSAGES: dict[str, str] = {
     VALIDATION_ERROR: "Revisa los datos ingresados.",
     INTERNAL_ERROR: "Ocurrió un error inesperado. Inténtalo de nuevo.",
     MALFORMED_JSON: "El cuerpo de la solicitud no es un JSON válido.",
+    LOCK_TIMEOUT: "El recurso está ocupado. Inténtalo de nuevo.",
 }
 
 DEFAULT_ERROR_DETAIL = "No se pudo completar la solicitud."
@@ -194,18 +199,48 @@ async def _handle_validation_error(request: Request, exc: RequestValidationError
     )
 
 
-async def _handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
-    if isinstance(exc, (DBAPIError, psycopg.Error)):
-        original = getattr(exc, "orig", None)
-        sqlstate = getattr(original, "sqlstate", None) or getattr(exc, "sqlstate", None)
-        logger.error(
-            "Unhandled database exception %s (SQLSTATE %s) on request %s",
-            type(exc).__name__,
-            sqlstate or "unknown",
-            get_request_id(request),
+async def _handle_database_error(request: Request, exc: Exception) -> JSONResponse:
+    """Render a database error without ever logging its message.
+
+    The driver message can carry row values (``Key (email)=(...) already exists``), so only
+    the class, the SQLSTATE, the request id and the stack frames are logged. Registered for
+    the specific classes, Starlette's ``ExceptionMiddleware`` handles these and does not
+    re-raise them, so no server log prints the exception message either. A lock wait that
+    gave up is a 503 the client can retry; any other database error is a 500.
+    """
+    request_id = get_request_id(request)
+    if is_lock_timeout(exc):
+        logger.warning(
+            "Lock wait timed out on %s %s (request %s)",
+            request.method,
+            request.url.path,
+            request_id,
         )
-    else:
-        logger.error("Unhandled exception on %s %s", request.method, request.url.path, exc_info=exc)
+        return problem_response(
+            request_id,
+            status=503,
+            code=LOCK_TIMEOUT,
+            detail=ERROR_MESSAGES[LOCK_TIMEOUT],
+        )
+    original = getattr(exc, "orig", None)
+    sqlstate = getattr(original, "sqlstate", None) or getattr(exc, "sqlstate", None)
+    logger.error(
+        "Unhandled database exception %s (SQLSTATE %s) on request %s\n%s",
+        type(exc).__name__,
+        sqlstate or "unknown",
+        request_id,
+        "".join(traceback.format_tb(exc.__traceback__)),
+    )
+    return problem_response(
+        request_id,
+        status=500,
+        code=INTERNAL_ERROR,
+        detail=ERROR_MESSAGES[INTERNAL_ERROR],
+    )
+
+
+async def _handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
+    logger.error("Unhandled exception on %s %s", request.method, request.url.path, exc_info=exc)
     return problem_response(
         get_request_id(request),
         status=500,
@@ -219,4 +254,6 @@ def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(ApiError, _handle_api_error)
     app.add_exception_handler(StarletteHTTPException, _handle_http_exception)
     app.add_exception_handler(RequestValidationError, _handle_validation_error)
+    app.add_exception_handler(DBAPIError, _handle_database_error)
+    app.add_exception_handler(psycopg.Error, _handle_database_error)
     app.add_exception_handler(Exception, _handle_unexpected_error)

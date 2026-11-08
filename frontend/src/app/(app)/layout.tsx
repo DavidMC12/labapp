@@ -52,6 +52,12 @@ function FacturasIcon() {
   );
 }
 
+function ConfiguracionIcon() {
+  return (
+    <StrokeIcon shapes={<><circle cx="8" cy="8" r="2.5" /><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4" /></>} />
+  );
+}
+
 export default function AppLayout({
   children,
 }: Readonly<{
@@ -162,6 +168,12 @@ export default function AppLayout({
       testId: "app-nav-invoices-link",
       label: "Facturas",
       icon: <FacturasIcon />,
+    },
+    {
+      href: "/settings",
+      testId: "app-nav-settings-link",
+      label: "Configuración",
+      icon: <ConfiguracionIcon />,
     },
   ];
 

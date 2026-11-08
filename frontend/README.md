@@ -156,6 +156,38 @@ src/
   throw `ApiRequestError` with the problem document, or a synthesized
   `INTERNAL_ERROR` problem for non-JSON bodies and network errors.
 
+## Summary
+
+- The home page (`/`, after login) is the "Resumen": a heading, the line
+  "Hola, {name} · {role label}" (`useMe`), and three sections — Clientes
+  (Activos, Inactivos), Pedidos (Borrador, Confirmado, Pagado, Enviado,
+  Cancelado) and Facturas (Emitida, Pagada, Anulada) — in a responsive
+  grid (one column on a phone, up to four on a wide screen).
+- The data layer is `src/features/summary/hooks.ts`: `useSummary()`
+  returns the three groups, each group its counters, and each counter is
+  the **live `total` of a list request** (`GET ...?page=1&status=...`,
+  `retry: false`), made through the list hooks of the customers, orders
+  and invoices modules. Nothing is hard coded, and because the request is
+  the same one the list screens make, the summary and a visited list
+  share the cache entry. A failing request breaks only its own card:
+  the counter shows "—" while the section shows a "Reintentar" button,
+  and a card that is loading shows "Cargando…". A 401 keeps the other
+  hooks' behavior (it writes `null` into the me key, so the shell
+  redirects to the login).
+- Every counter is a link to the filtered list (what the parsers of the
+  three list screens read): `/customers?status=active`,
+  `/orders?status=confirmed`, `/invoices?status=issued`, and so on.
+  The counts use `Intl.NumberFormat("es-US")` thousands separators
+  (`src/features/summary/format.ts`) and the labels come from the label
+  helpers of each module (`statusLabel`, `orderStatusLabel`,
+  `invoiceStatusLabel`); they are never retyped.
+- The ids use the `home` module of the test id contract
+  (`home-customers-active-link`, `home-orders-draft-count-text`,
+  `home-customers-active-count-text`), with the per-counter
+  `home-{group}-{status}-loading-status` while a card loads and
+  `home-{group}-retry-button` while a group has failed; the id list is
+  asserted valid and unique in `src/app/(app)/page.test.tsx`.
+
 ## Invoices and payments
 
 - Pages: the invoices list (`/invoices`) and the invoice detail
@@ -226,6 +258,36 @@ src/
 - Customer pickers (create and "Cambiar cliente") start with a disabled
   "Elige un cliente" placeholder, list at most 20 active customers and
   reset a choice the list no longer contains.
+
+## Settings
+
+- Page `/settings` ("Configuración"), feature code in
+  `src/features/settings/` (`api.ts`, `hooks.ts`, `permissions.ts`,
+  `types.ts`). Data layer on TanStack Query with `retry: false`:
+  `useSettings()` (`GET /api/settings`, key `["settings"]`) and
+  `useUpdateTaxRate()` (`PATCH /api/settings` with the body
+  `{"tax_rate": "<the string exactly as typed>"}`; on success the answer
+  replaces the `["settings"]` entry and every query whose key starts with
+  `"orders"` is invalidated, so the draft previews and totals read the
+  new rate).
+- **Permission rule** (`canChangeTaxRate`): exactly `admin` (docs/SPEC.md
+  section 2). Every role sees the heading, the "Impuesto" section and the
+  current rate ("10.00 %"); only the Admin sees the form, the other roles
+  see "Solo un administrador puede cambiar el impuesto." The server
+  remains the authority.
+- **The screen adds no validation**: no `min`/`max`/`step`, no trimming,
+  no parsing. The input is `type="text" inputMode="decimal"` inside a
+  `noValidate` form and the raw string travels to the server exactly as
+  typed, so `" 7"`, `"1e1"` and `"10.123"` reach the API and come back as
+  errors. The field errors of `tax_rate` (422 `INVALID_FORMAT` and
+  `OUT_OF_RANGE`, with the `message` of the answer) show next to the
+  field with the derived id `settings-taxrate-error` (the
+  `errorTestId()` pattern of the other forms); any other problem (403,
+  500, network) shows its `detail` in the form alert
+  `settings-taxrate-alert`. On success the returned value stays in the
+  input and a `role="status"` region announces it.
+- The navigation link "Configuración" (`app-nav-settings-link`) is
+  visible to every role; the current-section highlight covers it.
 
 ## Customers
 

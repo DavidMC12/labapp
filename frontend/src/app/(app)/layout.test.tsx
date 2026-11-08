@@ -200,6 +200,15 @@ describe("app shell session", () => {
         "href",
         "/invoices",
       );
+      // The settings screen exists for every role (the form inside is
+      // what hides for the non-admin roles).
+      expect(screen.getByTestId("app-nav-settings-link")).toHaveAttribute(
+        "href",
+        "/settings",
+      );
+      expect(
+        screen.getByRole("link", { name: "Configuración" }),
+      ).toHaveAttribute("href", "/settings");
       expect(screen.getByRole("navigation", { name: "Principal" }))
         .toBeInTheDocument();
       expect(

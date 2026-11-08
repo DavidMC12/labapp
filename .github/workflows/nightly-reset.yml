@@ -1,0 +1,55 @@
+name: nightly-reset
+
+# Restores the shared data of the online demo every night (SPEC section 9).
+# It calls the test-only reset of the deployed API with the test token. It runs only where the repository
+# variable DEMO_URL is set (docs/DEPLOYMENT.md); without it the job shows as skipped.
+
+on:
+  schedule:
+    - cron: "17 3 * * *" # 03:17 UTC, off the congested minute 0
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: nightly-reset
+  cancel-in-progress: false
+
+jobs:
+  reset:
+    if: vars.DEMO_URL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Reset the data of the online demo
+        env:
+          DEMO_URL: ${{ vars.DEMO_URL }}
+          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
+        run: |
+          if [ -z "$TEST_TOKEN" ]; then
+            echo "::error::DEMO_URL is set but the TEST_TOKEN secret is empty"
+            exit 1
+          fi
+          case "$DEMO_URL" in
+            *@*|*[[:space:]]*) echo "::error::DEMO_URL must not contain credentials or spaces"; exit 1 ;;
+            https://*) ;;
+            *) echo "::error::DEMO_URL must start with https://"; exit 1 ;;
+          esac
+          url="${DEMO_URL%/}/__test__/reset"
+          # The token travels in a header read from the environment and is never printed. Redirects are not
+          # followed (the token must not leave the configured host), so only an exact 200 counts as a reset.
+          status=$(curl --silent --show-error --max-time 60 \
+            --retry 3 --retry-max-time 120 --retry-delay 10 \
+            --request POST --header "X-Test-Token: ${TEST_TOKEN}" \
+            --output response.txt --write-out '%{http_code}' "$url") || {
+            echo "::error::The request to the demo failed"
+            exit 1
+          }
+          cat response.txt
+          echo
+          if [ "$status" != "200" ]; then
+            echo "::error::The reset answered HTTP ${status}, expected 200"
+            exit 1
+          fi
+          echo "Reset done at $(date -u +%FT%TZ)."

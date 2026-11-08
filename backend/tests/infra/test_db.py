@@ -142,3 +142,44 @@ def test_unique_violation_of_rejects_other_database_errors() -> None:
 
     assert unique_violation_of(error, "users_email_lower_key") is False
     assert unique_violation_of(ValueError("not a database error"), "users_email_lower_key") is False
+
+
+def test_create_db_engine_sets_a_lock_timeout_on_every_transaction() -> None:
+    engine = create_db_engine(Settings(database_url=DATABASE_URL, lock_timeout_ms=1500))
+    statements: list[str] = []
+
+    class RecordingConnection:
+        def exec_driver_sql(self, statement: str) -> None:
+            statements.append(statement)
+
+    listeners = list(engine.dispatch.begin)
+    assert len(listeners) == 1
+    listeners[0](RecordingConnection())
+
+    assert statements == ["SET LOCAL lock_timeout = 1500"]
+
+
+def test_create_db_engine_keeps_the_lock_timeout_on_the_schema_translated_engine() -> None:
+    engine = create_db_engine(Settings(database_url=DATABASE_URL, database_schema=SCHEMA))
+
+    assert len(list(engine.dispatch.begin)) == 1
+
+
+def test_lock_timeout_setting_is_bounded() -> None:
+    with pytest.raises(ValueError):
+        Settings(lock_timeout_ms=99)
+    with pytest.raises(ValueError):
+        Settings(lock_timeout_ms=60001)
+    assert Settings(lock_timeout_ms=100).lock_timeout_ms == 100
+    assert Settings(lock_timeout_ms=60000).lock_timeout_ms == 60000
+
+
+def test_is_lock_timeout_recognizes_only_the_lock_not_available_error() -> None:
+    from sqlalchemy.exc import OperationalError
+
+    from app.infra.db import is_lock_timeout
+
+    assert is_lock_timeout(OperationalError("s", {}, psycopg.errors.LockNotAvailable("x")))
+    assert is_lock_timeout(psycopg.errors.LockNotAvailable("x"))
+    assert not is_lock_timeout(OperationalError("s", {}, psycopg.errors.DeadlockDetected("x")))
+    assert not is_lock_timeout(ValueError("x"))

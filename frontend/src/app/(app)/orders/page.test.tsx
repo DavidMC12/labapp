@@ -746,3 +746,114 @@ describe("the customer filter of the orders list", () => {
     );
   });
 });
+
+describe("the orders list sorting", () => {
+  function seededSummaries(): OrderSummary[] {
+    // Names in a different order than the numbers, so an ascending sort
+    // of one is not an ascending sort of the other.
+    return [
+      summary(2, { number: "PED-0002", customer_name: "Zeta Ferretería" }),
+      summary(1, { number: "PED-0001", customer_name: "Acme Industrial S.A." }),
+      summary(3, { number: "PED-0003", customer_name: "Cafetería La Esquina" }),
+    ];
+  }
+
+  it("renders a sorting button with its label in the Número, Cliente and Creado headers", async () => {
+    respondList(listPageOf(seededSummaries()));
+    renderAt("");
+    await waitFor(() => {
+      expect(screen.getByTestId("orders-list-table")).toBeInTheDocument();
+    });
+
+    expect(screen.getByRole("button", { name: "Número" }))
+      .toHaveAttribute("data-testid", "orders-list-sort-number-button");
+    expect(screen.getByRole("button", { name: "Cliente" }))
+      .toHaveAttribute("data-testid", "orders-list-sort-customer-button");
+    expect(screen.getByRole("button", { name: "Creado" }))
+      .toHaveAttribute("data-testid", "orders-list-sort-created-button");
+
+    // On arrival Creado sorts descending (the plain order) and every
+    // other column has no aria-sort.
+    expect(
+      screen.getByRole("columnheader", { name: "Creado" }),
+    ).toHaveAttribute("aria-sort", "descending");
+    expect(
+      screen.getByRole("columnheader", { name: "Número" }),
+    ).not.toHaveAttribute("aria-sort");
+    expect(
+      screen.getByRole("columnheader", { name: "Cliente" }),
+    ).not.toHaveAttribute("aria-sort");
+    expect(screen.getByTestId("orders-list-sort-text")).toHaveTextContent(
+      "Ordenado por Creado, descendente",
+    );
+  });
+
+  it("sorts Cliente ascending on the first click and flips it on the second", async () => {
+    respondList(listPageOf(seededSummaries(), 80));
+    const { rerenderAt } = renderAt("");
+    await waitFor(() => {
+      expect(screen.getByTestId("orders-list-table")).toBeInTheDocument();
+    });
+
+    await userEvent.setup().click(screen.getByTestId("orders-list-sort-customer-button"));
+    expect(state.router.push).toHaveBeenCalledWith(
+      "/orders?page=1&sort=customer&direction=asc",
+    );
+
+    rerenderAt("page=1&sort=customer&direction=asc");
+    await waitFor(() => {
+      expect(listRequests().at(-1)).toBe(
+        "/api/orders?page=1&sort=customer&direction=asc",
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("orders-list-table")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("columnheader", { name: "Cliente" }),
+    ).toHaveAttribute("aria-sort", "ascending");
+    expect(screen.getByTestId("orders-list-sort-customer-button"))
+      .toHaveAttribute("data-state", "ascending");
+    expect(screen.getByTestId("orders-list-sort-text")).toHaveTextContent(
+      "Ordenado por Cliente, ascendente",
+    );
+
+    state.router.push.mockClear();
+    await userEvent.setup().click(screen.getByTestId("orders-list-sort-customer-button"));
+    expect(state.router.push).toHaveBeenCalledWith(
+      "/orders?page=1&sort=customer&direction=desc",
+    );
+  });
+
+  it("keeps the filters and the customer filter on a sort", async () => {
+    respondList(listPageOf(seededSummaries(), 80));
+    const { rerenderAt } = renderAt("page=2&q=ped&status=draft&customer_id=4");
+    await waitFor(() => {
+      expect(listRequests().at(-1)).toBe(
+        "/api/orders?page=2&q=ped&status=draft&customer_id=4",
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("orders-list-table")).toBeInTheDocument();
+    });
+
+    await userEvent.setup().click(screen.getByTestId("orders-list-sort-number-button"));
+    expect(state.router.push).toHaveBeenCalledWith(
+      "/orders?page=1&q=ped&status=draft&customer_id=4&sort=number&direction=asc",
+    );
+
+    // The follow-up navigation keeps the whole state and asks the API.
+    rerenderAt("page=1&q=ped&status=draft&customer_id=4&sort=number&direction=asc");
+    await waitFor(() => {
+      expect(listRequests().at(-1)).toBe(
+        "/api/orders?page=1&q=ped&status=draft&customer_id=4&sort=number&direction=asc",
+      );
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("orders-list-table")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByRole("columnheader", { name: "Número" }),
+    ).toHaveAttribute("aria-sort", "ascending");
+  });
+});

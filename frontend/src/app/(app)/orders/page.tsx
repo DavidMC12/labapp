@@ -1,28 +1,48 @@
 "use client";
 
-import { Alert, Button, Input, Link, Select, TableScroll } from "@/components/ui";
+import {
+  Alert,
+  Button,
+  Input,
+  Link,
+  Select,
+  SortableHeader,
+  type SortableHeaderState,
+  TableScroll,
+} from "@/components/ui";
 import { useMe } from "@/features/auth/hooks";
 import { useCustomer } from "@/features/customers/hooks";
 import { useOrders } from "@/features/orders/hooks";
-import { parseOrderListParams } from "@/features/orders/params";
+import {
+  flipOrderSortDirection,
+  isDefaultOrderSort,
+  orderSortDefaultDirection,
+  orderSortLabel,
+  parseOrderListParams,
+  resolveOrderSort,
+  type OrderSort,
+  type OrderSortField,
+} from "@/features/orders/params";
 import { canEditOrders } from "@/features/orders/permissions";
 import { orderStatusLabel } from "@/features/orders/types";
 import { ApiRequestError, INTERNAL_ERROR_DETAIL } from "@/lib/api";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { formatDate, formatMoney } from "@/lib/format";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 
 /**
  * The list URL of the screen: page (always) plus the values that have
- * one. This is what every navigation writes, so links can be shared; the
- * customer filter stays in the URL while it is set.
+ * one, and the sort when it is not the plain-list one. This is what
+ * every navigation writes, so links can be shared; the customer filter
+ * stays in the URL while it is set.
  */
 function listUrl(
   page: number,
   q: string | null,
   status: string | null,
   customerId: number | null,
+  sort: OrderSort,
 ): string {
   const search = new URLSearchParams();
   search.set("page", String(page));
@@ -34,6 +54,10 @@ function listUrl(
   }
   if (customerId) {
     search.set("customer_id", String(customerId));
+  }
+  if (!isDefaultOrderSort(sort)) {
+    search.set("sort", sort.sort);
+    search.set("direction", sort.direction);
   }
   return `/orders?${search.toString()}`;
 }
@@ -106,11 +130,27 @@ function OrdersListContent() {
   const me = useMe();
 
   const params = parseOrderListParams(searchParams);
+  // The resolved sort is stable while the URL values are: the correction
+  // effect below must not re-run for a new object of the same pair.
+  const sort = useMemo(
+    () =>
+      resolveOrderSort({
+        sort: params.sort,
+        direction: params.direction,
+      }),
+    [params.sort, params.direction],
+  );
+  // The default order travels without parameters: both the URL and the
+  // list request stay the ones of the plain list.
+  const sortRequest = isDefaultOrderSort(sort)
+    ? {}
+    : { sort: sort.sort, direction: sort.direction };
   const list = useOrders({
     page: params.page,
     q: params.q ?? undefined,
     status: params.status ?? undefined,
     customerId: params.customerId ?? undefined,
+    ...sortRequest,
   });
 
   // The fields of the search form are local; submitting them writes the
@@ -147,20 +187,47 @@ function OrdersListContent() {
     if (params.page <= last) {
       return;
     }
-    router.replace(listUrl(last, params.q, params.status, params.customerId));
-  }, [data, params.page, params.q, params.status, params.customerId, router]);
+    router.replace(listUrl(last, params.q, params.status, params.customerId, sort));
+  }, [data, params.page, params.q, params.status, params.customerId, sort, router]);
 
   function handleSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     // Submitting goes back to page 1 with the trimmed values, keeping
-    // the customer filter of the URL.
+    // the customer filter and the sort of the URL.
     router.push(
-      listUrl(1, qInput.trim() || null, statusInput || null, params.customerId),
+      listUrl(1, qInput.trim() || null, statusInput || null, params.customerId, sort),
     );
   }
 
   function goToPage(page: number) {
-    router.push(listUrl(page, params.q, params.status, params.customerId));
+    router.push(
+      listUrl(page, params.q, params.status, params.customerId, sort),
+    );
+  }
+
+  /**
+   * Sorting from a header: a new column sorts with the default direction
+   * of its field (`created_at` descending), the sorted one flips; either
+   * way the page goes back to 1 and the filters stay.
+   */
+  function toggleSort(field: OrderSortField) {
+    const next: OrderSort = field === sort.sort
+      ? {
+        sort: field,
+        direction: flipOrderSortDirection(sort.direction),
+      }
+      : { sort: field, direction: orderSortDefaultDirection(field) };
+    router.push(
+      listUrl(1, params.q, params.status, params.customerId, next),
+    );
+  }
+
+  /** The header state of one sortable column, the `aria-sort` value. */
+  function headerState(field: OrderSortField): SortableHeaderState {
+    if (sort.sort !== field) {
+      return "none";
+    }
+    return sort.direction === "asc" ? "ascending" : "descending";
   }
 
   function problemDetail(): string {
@@ -189,10 +256,24 @@ function OrdersListContent() {
         <CustomerFilterLine
           customerId={params.customerId}
           clearHref={
-            listUrl(params.page, params.q, params.status, null)
+            listUrl(params.page, params.q, params.status, null, sort)
           }
         />
       ) : null}
+
+      {/*
+       * The live announcement of the order of the table (the same one the
+       * other lists have), hidden from the visual layout.
+       */}
+      <p
+        role="status"
+        data-testid="orders-list-sort-text"
+        className="sr-only"
+      >
+        {`Ordenado por ${orderSortLabel(sort.sort)}, ${
+          sort.direction === "asc" ? "ascendente" : "descendente"
+        }`}
+      </p>
 
       <form
         data-testid="orders-list-search-form"
@@ -275,12 +356,30 @@ function OrdersListContent() {
             >
               <thead>
                 <tr>
-                  <th scope="col" className={TABLE_HEAD_CLASSES}>Número</th>
-                  <th scope="col" className={TABLE_HEAD_CLASSES}>Cliente</th>
+                  <SortableHeader
+                    label="Número"
+                    testId="orders-list-sort-number-button"
+                    state={headerState("number")}
+                    className={TABLE_HEAD_CLASSES}
+                    onClick={() => toggleSort("number")}
+                  />
+                  <SortableHeader
+                    label="Cliente"
+                    testId="orders-list-sort-customer-button"
+                    state={headerState("customer")}
+                    className={TABLE_HEAD_CLASSES}
+                    onClick={() => toggleSort("customer")}
+                  />
                   <th scope="col" className={TABLE_HEAD_CLASSES}>Estado</th>
                   <th scope="col" className={TABLE_HEAD_CLASSES}>Líneas</th>
                   <th scope="col" className={TABLE_HEAD_CLASSES}>Total</th>
-                  <th scope="col" className={TABLE_HEAD_CLASSES}>Creado</th>
+                  <SortableHeader
+                    label="Creado"
+                    testId="orders-list-sort-created-button"
+                    state={headerState("created_at")}
+                    className={TABLE_HEAD_CLASSES}
+                    onClick={() => toggleSort("created_at")}
+                  />
                 </tr>
               </thead>
               <tbody>

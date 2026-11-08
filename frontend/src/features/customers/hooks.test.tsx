@@ -12,6 +12,7 @@ import {
   useCreateCustomer,
   useCustomer,
   useCustomers,
+  useImportCustomers,
   useSetCustomerStatus,
   useUpdateCustomer,
 } from "./hooks";
@@ -188,6 +189,48 @@ describe("useCreateCustomer", () => {
       address: null,
     });
     expect(queryClient.getQueryState(referenceKey)?.isInvalidated).toBe(true);
+  });
+});
+
+describe("useImportCustomers", () => {
+  it("posts the file as multipart and invalidates the list cache", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ created: 2, items: [{ id: 12 }, { id: 13 }] }, 201),
+    );
+    const { queryClient, wrapper } = createWrapper();
+    // A pre-existing list entry so the invalidation is observable.
+    const referenceKey = customersListQueryKey({ page: 1 });
+    queryClient.setQueryData(referenceKey, listPage);
+    const { result } = renderHook(() => useImportCustomers(), { wrapper });
+
+    await act(async () => {
+      const imported = await result.current.mutateAsync(
+        new File(["name,email\nAna,ana@labapp.test\n"], "clientes.csv", {
+          type: "text/csv",
+        }),
+      );
+      expect(imported.created).toBe(2);
+    });
+
+    expect(queryClient.getQueryState(referenceKey)?.isInvalidated).toBe(true);
+  });
+
+  it("does not seed a detail entry", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ created: 1, items: [{ id: 12 }] }, 201),
+    );
+    const { queryClient, wrapper } = createWrapper();
+    const { result } = renderHook(() => useImportCustomers(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync(
+        new File(["name,email\nAna,ana@labapp.test\n"], "clientes.csv", {
+          type: "text/csv",
+        }),
+      );
+    });
+
+    expect(queryClient.getQueryData(customerDetailKey(12))).toBeUndefined();
   });
 });
 

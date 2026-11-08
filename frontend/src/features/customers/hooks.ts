@@ -19,12 +19,14 @@ import {
   createCustomer,
   fetchCustomer,
   fetchCustomers,
+  importCustomers,
   setCustomerStatus,
   updateCustomer,
   type CustomerFormValues,
   type CustomerListRequest,
   type CustomerStatusAction,
   type CustomerUpdateBody,
+  type CustomersImportResult,
 } from "./api";
 import type { Customer, CustomerList } from "./types";
 
@@ -129,6 +131,32 @@ export function useCreateCustomer(): UseMutationResult<
     retry: false,
     onSuccess: (customer) => {
       queryClient.setQueryData(customerDetailKey(customer.id), customer);
+      void queryClient.invalidateQueries({ queryKey: CUSTOMERS_LIST_KEY });
+    },
+    onError: (error) => {
+      note401(error, queryClient);
+    },
+  });
+}
+
+/**
+ * POST /api/customers/import with the chosen file. A successful import
+ * invalidates the customer lists (as the create form does), so the screen
+ * that the user visits afterwards shows the imported customers. There is
+ * no detail to seed: the answer carries the new ids but nothing the data
+ * of one cached customer depends on.
+ */
+export function useImportCustomers(): UseMutationResult<
+  CustomersImportResult,
+  ApiRequestError,
+  File
+> {
+  const queryClient = useQueryClient();
+
+  return useMutation<CustomersImportResult, ApiRequestError, File>({
+    mutationFn: (file) => importCustomers(file),
+    retry: false,
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: CUSTOMERS_LIST_KEY });
     },
     onError: (error) => {

@@ -9,6 +9,7 @@ from typing import Any
 
 import pytest
 
+from app.domain.sorting import SortSpec
 from app.modules.customers.models import Customer, CustomerStatus, NewCustomer
 from app.modules.customers.ports import CustomerNotFound, EmailTaken, VersionConflict
 
@@ -264,6 +265,154 @@ class CustomerRepositoryContract:
         repository.replace_all([])
         first = repository.add(new_customer(email="first@example.test"), NOW)
         assert first.id == 1
+
+    def test_sorts_every_field_in_both_directions(self, repository: Any) -> None:
+        repository.replace_all(
+            [
+                customer(1, name="Beta", email="beta@example.test", created_at=NOW),
+                customer(
+                    2,
+                    name="Álvaro",
+                    email="alfa@example.test",
+                    created_at=NOW + timedelta(seconds=1),
+                ),
+                customer(
+                    3,
+                    name="alpha",
+                    email="Zeta@example.test",
+                    created_at=NOW + timedelta(seconds=2),
+                ),
+            ]
+        )
+
+        expected = {
+            "created_at": ([1, 2, 3], [3, 2, 1]),
+            "name": ([3, 2, 1], [1, 2, 3]),
+            "email": ([2, 1, 3], [3, 1, 2]),
+        }
+        for field, (ascending, descending) in expected.items():
+            asc, _ = repository.list(
+                query=None,
+                status=None,
+                page=1,
+                page_size=20,
+                sort=SortSpec(field, False),
+            )
+            desc, _ = repository.list(
+                query=None,
+                status=None,
+                page=1,
+                page_size=20,
+                sort=SortSpec(field, True),
+            )
+
+            assert [item.id for item in asc] == ascending
+            assert [item.id for item in desc] == descending
+
+    def test_name_ties_are_broken_by_id_in_the_same_direction(self, repository: Any) -> None:
+        repository.replace_all(
+            [
+                customer(1, name="Álvaro", email="one@example.test"),
+                customer(2, name="alvaro", email="two@example.test"),
+                customer(3, name="Beatriz", email="three@example.test"),
+            ]
+        )
+
+        asc, _ = repository.list(
+            query=None,
+            status=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("name", False),
+        )
+        desc, _ = repository.list(
+            query=None,
+            status=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("name", True),
+        )
+
+        assert [item.id for item in asc] == [1, 2, 3]
+        assert [item.id for item in desc] == [3, 2, 1]
+
+    def test_an_accented_name_sorts_with_its_plain_letter(self, repository: Any) -> None:
+        repository.replace_all(
+            [
+                customer(1, name="Ana", email="ana@example.test"),
+                customer(2, name="Álvaro", email="alvaro@example.test"),
+                customer(3, name="Alba", email="alba@example.test"),
+                customer(4, name="Beto", email="beto@example.test"),
+            ]
+        )
+
+        items, _ = repository.list(
+            query=None,
+            status=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("name", False),
+        )
+
+        assert [item.name for item in items] == ["Alba", "Álvaro", "Ana", "Beto"]
+
+    def test_sorting_combines_with_the_filters(self, repository: Any) -> None:
+        repository.replace_all(
+            [
+                customer(1, name="Zeta", email="uno@example.test"),
+                customer(2, name="Alba", email="dos@example.test"),
+                customer(
+                    3,
+                    name="Álvaro",
+                    email="tres@example.test",
+                    status=CustomerStatus.INACTIVE,
+                ),
+                customer(4, name="Alba", email="cuatro@example.test"),
+            ]
+        )
+
+        items, total = repository.list(
+            query="example",
+            status=CustomerStatus.ACTIVE,
+            page=1,
+            page_size=20,
+            sort=SortSpec("email", True),
+        )
+
+        assert total == 3
+        assert [item.id for item in items] == [1, 2, 4]
+
+    def test_page_two_continues_page_one_under_a_sort(self, repository: Any) -> None:
+        repository.replace_all(
+            [
+                customer(
+                    identifier,
+                    name=f"Customer {identifier:02d}",
+                    email=f"c{identifier:02d}@example.test",
+                    created_at=NOW + timedelta(seconds=identifier),
+                )
+                for identifier in range(1, 46)
+            ]
+        )
+
+        first, total = repository.list(
+            query=None,
+            status=None,
+            page=1,
+            page_size=20,
+            sort=SortSpec("name", False),
+        )
+        second, _ = repository.list(
+            query=None,
+            status=None,
+            page=2,
+            page_size=20,
+            sort=SortSpec("name", False),
+        )
+
+        assert total == 45
+        assert [item.id for item in first] == list(range(1, 21))
+        assert [item.id for item in second] == list(range(21, 41))
 
     def test_concurrent_updates_with_the_same_version_leaves_one_winner(
         self,

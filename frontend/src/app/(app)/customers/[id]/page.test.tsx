@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { installDialogStub } from "@/test/dialog";
 import CustomerDetailPage from "./page";
 import type { Customer } from "@/features/customers/types";
 
@@ -83,6 +84,7 @@ function renderAt(id: string) {
 }
 
 beforeEach(() => {
+  installDialogStub();
   vi.stubGlobal("fetch", fetchMock);
   fetchMock.mockReset();
   customerQueue.length = 0;
@@ -231,7 +233,25 @@ describe("the customer detail actions", () => {
       expect(screen.getByTestId("customers-detail-deactivate-button")).toBeInTheDocument();
     });
 
+    // The click opens the confirmation instead of sending the request.
     await userEvent.setup().click(screen.getByTestId("customers-detail-deactivate-button"));
+
+    const dialog = screen.getByTestId("customers-deactivate-confirm-dialog");
+    expect(dialog).toHaveAttribute("open");
+    expect(screen.getByTestId("customers-deactivate-title-heading"))
+      .toHaveTextContent("¿Desactivar a Distribuidora Delta?");
+    expect(screen.getByTestId("customers-deactivate-message-text"))
+      .toHaveTextContent(
+        "No podrá recibir pedidos nuevos. Sus pedidos y facturas existentes no cambian.",
+      );
+    expect(screen.getByTestId("customers-deactivate-confirm-button"))
+      .toHaveTextContent("Sí, desactivar");
+    expect(customersCalls().filter((call) => call.url.endsWith("/deactivate")))
+      .toHaveLength(0);
+
+    await userEvent
+      .setup()
+      .click(screen.getByTestId("customers-deactivate-confirm-button"));
 
     await waitFor(() => {
       expect(screen.getByTestId("customers-detail-reactivate-button"))
@@ -251,7 +271,10 @@ describe("the customer detail actions", () => {
         }),
       },
     ]);
-    // No reloading: the shell router was never called.
+    // The dialog closed with the end of the request; no reload either.
+    await waitFor(() => {
+      expect(dialog).not.toHaveAttribute("open");
+    });
     expect(state.router.replace).not.toHaveBeenCalled();
     expect(state.router.push).not.toHaveBeenCalled();
   });
@@ -283,12 +306,22 @@ describe("the customer detail actions", () => {
 
     const user = userEvent.setup();
     await user.click(screen.getByTestId("customers-detail-deactivate-button"));
-    const button = screen.getByTestId("customers-detail-deactivate-button");
-    expect(button).toHaveAttribute("data-state", "loading");
-    expect(button).toBeDisabled();
 
-    // A dispatch straight to the detached control is also ignored.
-    button.dispatchEvent(new Event("click", { bubbles: true }));
+    // The request runs only after the confirmation of the dialog.
+    await user.click(screen.getByTestId("customers-deactivate-confirm-button"));
+
+    const button = screen.getByTestId("customers-detail-deactivate-button");
+    const confirm = screen.getByTestId("customers-deactivate-confirm-button");
+    expect(confirm).toHaveAttribute("data-state", "loading");
+    expect(confirm).toHaveAttribute("aria-busy", "true");
+    expect(confirm).toBeDisabled();
+    expect(
+      screen.getByTestId("customers-deactivate-back-button"),
+    ).toBeDisabled();
+
+    // A dispatch straight to the disabled button is also ignored.
+    confirm.dispatchEvent(new Event("click", { bubbles: true }));
+    void button;
     respond(jsonResponse({ ...activeCustomer, status: "inactive", version: 3 }));
     await waitFor(() => {
       expect(screen.getByTestId("customers-detail-reactivate-button")).toBeInTheDocument();
@@ -315,6 +348,7 @@ describe("the customer detail actions", () => {
 
     const user = userEvent.setup();
     await user.click(screen.getByTestId("customers-detail-deactivate-button"));
+    await user.click(screen.getByTestId("customers-deactivate-confirm-button"));
 
     await waitFor(() => {
       expect(screen.getByTestId("customers-detail-alert")).toHaveTextContent(
@@ -357,6 +391,9 @@ describe("the customer detail actions", () => {
     });
 
     await userEvent.setup().click(screen.getByTestId("customers-detail-deactivate-button"));
+    await userEvent
+      .setup()
+      .click(screen.getByTestId("customers-deactivate-confirm-button"));
 
     await waitFor(() => {
       expect(screen.getByTestId("customers-detail-alert")).toHaveTextContent(

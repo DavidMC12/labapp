@@ -83,10 +83,17 @@ class Settings(BaseSettings):
         return value
 
     @model_validator(mode="after")
-    def _refuse_test_mode_on_vercel(self) -> Settings:
+    def _refuse_test_mode_online(self) -> Settings:
         """Keep TEST_MODE off in every public deployment."""
-        if self.test_mode and environ.get("VERCEL_ENV") in ("production", "preview"):
-            raise ValueError("TEST_MODE must be off on a Vercel deployment")
+        if not self.test_mode:
+            return self
+        for variable in ("VERCEL_ENV", "AWS_LAMBDA_FUNCTION_NAME", "VERCEL"):
+            value = environ.get(variable)
+            if not value:
+                continue
+            if variable == "VERCEL_ENV" and value not in ("production", "preview"):
+                continue
+            raise ValueError(f"TEST_MODE must be off when {variable} is set")
         return self
 
     @property

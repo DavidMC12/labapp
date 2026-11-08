@@ -15,7 +15,19 @@ def test_test_mode_is_refused_on_vercel(
 ) -> None:
     monkeypatch.setenv("VERCEL_ENV", deployment)
 
-    with pytest.raises(ValidationError, match="TEST_MODE must be off"):
+    with pytest.raises(ValidationError, match="VERCEL_ENV"):
+        Settings(session_secret="test-secret", test_mode=True)
+
+
+@pytest.mark.parametrize("variable", ["AWS_LAMBDA_FUNCTION_NAME", "VERCEL"])
+def test_test_mode_is_refused_on_the_platform(
+    monkeypatch: pytest.MonkeyPatch,
+    variable: str,
+) -> None:
+    monkeypatch.delenv("VERCEL_ENV", raising=False)
+    monkeypatch.setenv(variable, "1")
+
+    with pytest.raises(ValidationError, match=variable):
         Settings(session_secret="test-secret", test_mode=True)
 
 

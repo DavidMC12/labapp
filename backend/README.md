@@ -28,6 +28,10 @@ The app refuses to start when `SESSION_SECRET` is empty or still `change-me`, un
 `backend/.env` wins over the repository-root `.env`, and real environment variables always
 win over both files.
 
+`TEST_MODE=1` is refused when the process runs on Vercel: `VERCEL_ENV` set to
+`production` or `preview`, or `AWS_LAMBDA_FUNCTION_NAME` or `VERCEL` set (Vercel
+functions run on AWS Lambda). The error names the variable that refused it.
+
 Check the API:
 
 ```bash

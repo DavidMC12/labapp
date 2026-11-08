@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parseOrderIdParam, parseOrderListParams } from "./params";
+import {
+  parseCustomerIdParam,
+  parseOrderIdParam,
+  parseOrderListParams,
+} from "./params";
 import type { OrderListParams } from "./params";
 
 describe("parseOrderIdParam", () => {
@@ -18,6 +22,36 @@ describe("parseOrderIdParam", () => {
 
   it("rejects an id above the 32-bit range", () => {
     expect(parseOrderIdParam("2147483648")).toBeNull();
+  });
+});
+
+describe("parseCustomerIdParam", () => {
+  it("accepts a positive integer id up to 2147483647", () => {
+    expect(parseCustomerIdParam("7")).toBe(7);
+    expect(parseCustomerIdParam("2147483647")).toBe(2147483647);
+  });
+
+  it("rejects zero, a negative, a decimal, letters and other syntaxes", () => {
+    for (const value of [
+      "0",
+      "007",
+      "1e3",
+      "-7",
+      "+7",
+      "7.5",
+      " 7",
+      "",
+      "siete",
+    ]) {
+      expect(parseCustomerIdParam(value), JSON.stringify(value)).toBeNull();
+    }
+    expect(parseCustomerIdParam(7)).toBeNull();
+    expect(parseCustomerIdParam(null)).toBeNull();
+    expect(parseCustomerIdParam(undefined)).toBeNull();
+  });
+
+  it("rejects an id above the 32-bit range", () => {
+    expect(parseCustomerIdParam("2147483648")).toBeNull();
   });
 });
 

@@ -360,7 +360,7 @@ describe("app shell logout", () => {
 });
 
 describe("the shell navigation row", () => {
-  it("wraps the phone row instead of scrolling it sideways", async () => {
+  it("scrolls the phone row in one line instead of wrapping it", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(userPayload("admin", "admin@labapp.test"), 200,
         "application/json"),
@@ -374,15 +374,22 @@ describe("the shell navigation row", () => {
 
     const nav = screen.getByRole("navigation", { name: "Principal" });
 
-    // The four links wrap onto a second row on a phone (and the desktop
-    // rail keeps its column).
-    expect(nav.className).toContain("flex-wrap");
-    expect(nav.className).not.toContain("overflow-x-auto");
+    // One horizontal line on a phone inside its own scroll container,
+    // with the right-edge fade as the affordance; the rail keeps its
+    // column from md up (task 038).
+    expect(nav.className).not.toContain("flex-wrap");
+    expect(nav.className).toContain("overflow-x-auto");
     expect(nav.className).toContain("md:flex-col");
+    expect(nav.className).toContain("md:overflow-x-visible");
+    // The fade is the div after the nav, over its right edge.
+    const fade = nav.parentElement?.querySelector('div[aria-hidden="true"]');
+    expect(fade?.className).toContain("bg-linear-to-r");
+    expect(fade?.className).toContain("md:hidden");
   });
 });
 
-describe("app shell theme", () => {  it("offers the Tema control in the rail user block", async () => {
+describe("app shell theme", () => {
+  it("offers the Tema control in the rail user block", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(userPayload("admin", "admin@labapp.test"), 200,
         "application/json"),
@@ -419,6 +426,119 @@ describe("app shell theme", () => {  it("offers the Tema control in the rail use
       ).toBe("dark");
     });
     expect(document.documentElement.getAttribute("data-theme")).toBe(null);
+  });
+});
+
+describe("the phone shell layout", () => {
+  beforeEach(async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(userPayload("admin", "admin@labapp.test"), 200,
+        "application/json"),
+    );
+  });
+
+  it("keeps the focusable order of the shell unchanged", async () => {
+    renderShell();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("app-user-name-text")).toBeInTheDocument();
+    });
+
+    // The wrappers of the phone layout (task 038) add no focusable
+    // element: the tab order keeps the DOM order of the shell.
+    const focusables = [
+      ...(document.querySelectorAll("a[href], button, select") as NodeListOf<
+        Element
+      >),
+    ];
+    expect(
+      focusables.map((element) => element.getAttribute("data-testid")),
+    ).toEqual([
+      "app-skip-link",
+      "app-nav-home-link",
+      "app-nav-customers-link",
+      "app-nav-orders-link",
+      "app-nav-products-link",
+      "app-nav-invoices-link",
+      "app-nav-settings-link",
+      "app-theme-select",
+      "app-logout-button",
+    ]);
+  });
+
+  it("keeps the label of the theme select accessible on the phone", async () => {
+    renderShell();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("app-theme-select")).toBeInTheDocument();
+    });
+
+    // Hidden visually on the phone, in the DOM as sr-only; from md up
+    // the visible label of the rail comes back with its color.
+    const label = screen.getByText("Tema");
+    expect(label).toHaveClass("sr-only", "md:not-sr-only", "text-rail-ink");
+    expect(
+      screen.getByRole("combobox", { name: "Tema" }),
+    ).toBeInTheDocument();
+  });
+
+  it("sizes the theme select to its content on the phone", async () => {
+    renderShell();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("app-theme-select")).toBeInTheDocument();
+    });
+
+    const select = screen.getByTestId("app-theme-select");
+    expect(select).toHaveClass("w-auto", "md:w-full");
+    expect(select).not.toHaveClass("w-full");
+  });
+
+  it("keeps the desktop rail classes with the phone as the base", async () => {
+    renderShell();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("app-user-name-text")).toBeInTheDocument();
+    });
+
+    // The rail: grid at md, sticky full-height aside.
+    const rail = document.querySelector("aside");
+    expect(rail?.className).toContain("md:sticky");
+    expect(rail?.className).toContain("md:h-screen");
+    expect(rail?.parentElement?.className).toContain(
+      "md:grid-cols-[212px_minmax(0,1fr)]",
+    );
+
+    // The rows of the rail, top to bottom: brand (phone py-2, desktop
+    // pt-4 pb-3), navigation column, user block, logout full width.
+    expect(rail?.firstElementChild?.className).toContain("py-2");
+    expect(rail?.firstElementChild?.className).toContain("md:pt-4");
+    expect(rail?.firstElementChild?.className).toContain("md:pb-3");
+
+    // The wrapper of the user name and the role reads as its children
+    // again in the desktop column.
+    const knownUserBlock = screen.getByTestId(
+      "app-user-role-text",
+    ).parentElement;
+    expect(knownUserBlock).toHaveClass("md:contents");
+    const userBlock = knownUserBlock?.parentElement;
+    expect(userBlock?.className).toContain("md:mt-auto");
+    expect(userBlock?.className).toContain("md:flex-col");
+    expect(userBlock?.className).toContain("md:items-stretch");
+    expect(userBlock?.className).toContain("md:border-t");
+
+    // The theme select of the rail keeps filling its column from md up;
+    // the label block is plain there (md:w-auto undoes no phone class).
+    const themeWrapper = screen
+      .getByTestId("app-theme-select")
+      .closest('[class*="md:w-auto"]');
+    expect(themeWrapper).not.toBeNull();
+    expect(themeWrapper?.className).toContain("md:w-auto");
+
+    expect(screen.getByTestId("app-logout-button")).toHaveClass(
+      "md:ml-0",
+      "md:w-full",
+    );
   });
 });
 

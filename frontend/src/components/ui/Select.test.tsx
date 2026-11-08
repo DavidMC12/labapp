@@ -156,4 +156,34 @@ describe("Select", () => {
     expect(label).toHaveClass("sr-only");
     expect(screen.getByRole("combobox", { name: "Tema" })).toBeInTheDocument();
   });
+
+  it("sizes to its content on the phone and fills the column from md up when compact", () => {
+    render(
+      <Select
+        id="rail-theme"
+        testId="app-theme-select"
+        label="Tema"
+        compact
+      >
+        <option value="system">Sistema</option>
+      </Select>,
+    );
+
+    const select = screen.getByTestId("app-theme-select");
+
+    expect(select).toHaveClass("w-auto", "md:w-full");
+    expect(select).not.toHaveClass("w-full");
+  });
+
+  it("fills its field when compact is not set", () => {
+    render(
+      <Select id="list-status" testId="orders-list-status-select" label="Estado">
+        <option value="">Todos</option>
+      </Select>,
+    );
+
+    expect(screen.getByTestId("orders-list-status-select")).toHaveClass(
+      "w-full",
+    );
+  });
 });

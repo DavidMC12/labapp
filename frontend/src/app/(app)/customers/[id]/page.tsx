@@ -9,6 +9,7 @@ import {
 import { parseCustomerIdParam } from "@/features/customers/params";
 import { canManageCustomers } from "@/features/customers/permissions";
 import { statusLabel } from "@/features/customers/types";
+import { canEditOrders } from "@/features/orders/permissions";
 import { ApiRequestError, INTERNAL_ERROR_DETAIL } from "@/lib/api";
 import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { useParams } from "next/navigation";
@@ -123,6 +124,14 @@ function CustomerDetail({ id }: { id: number }) {
   const data = customer.data;
   const user = me.data;
   const canManage = user ? canManageCustomers(user.role) : false;
+  // The permission of the "Nuevo pedido" shortcut: the same one the
+  // create-order screen checks (docs/SPEC.md section 5), and only for a
+  // customer that can still receive one (docs/SPEC.md section 4). It is
+  // independent of the customer-management permission: the roles only
+  // happen to coincide today.
+  const canCreateOrder = user
+    ? canEditOrders(user.role) && data.status === "active"
+    : false;
 
   async function handleStatusChange(
     action: "deactivate" | "reactivate",
@@ -235,33 +244,52 @@ function CustomerDetail({ id }: { id: number }) {
         </div>
       </section>
 
-      {canManage ? (
+      {canManage || canCreateOrder ? (
         <div className="mt-6 flex flex-wrap items-center gap-3">
-          <Link
-            href={`/customers/${data.id}/edit`}
-            testId="customers-detail-edit-link"
-            variant="secondary"
-          >
-            Editar
-          </Link>
-          {data.status === "active" ? (
-            <Button
-              testId="customers-detail-deactivate-button"
+          {canCreateOrder ? (
+            /*
+             * The shortcut of task 039: the new-order form with this
+             * customer already chosen (`/orders/new` reads
+             * `customer_id`). Only for an active customer and a user who
+             * can edit draft orders; the server stays the authority.
+             */
+            <Link
+              href={`/orders/new?customer_id=${data.id}`}
+              testId="customers-detail-neworder-link"
               variant="secondary"
-              onClick={() => setDeactivateDialogOpen(true)}
             >
-              Desactivar
-            </Button>
-          ) : (
-            <Button
-              testId="customers-detail-reactivate-button"
-              variant="secondary"
-              loading={busy}
-              onClick={() => void handleStatusChange("reactivate")}
-            >
-              Reactivar
-            </Button>
-          )}
+              Nuevo pedido
+            </Link>
+          ) : null}
+          {canManage ? (
+            <>
+              <Link
+                href={`/customers/${data.id}/edit`}
+                testId="customers-detail-edit-link"
+                variant="secondary"
+              >
+                Editar
+              </Link>
+              {data.status === "active" ? (
+                <Button
+                  testId="customers-detail-deactivate-button"
+                  variant="secondary"
+                  onClick={() => setDeactivateDialogOpen(true)}
+                >
+                  Desactivar
+                </Button>
+              ) : (
+                <Button
+                  testId="customers-detail-reactivate-button"
+                  variant="secondary"
+                  loading={busy}
+                  onClick={() => void handleStatusChange("reactivate")}
+                >
+                  Reactivar
+                </Button>
+              )}
+            </>
+          ) : null}
         </div>
       ) : null}
 

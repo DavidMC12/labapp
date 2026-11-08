@@ -49,6 +49,8 @@ const REQUIRED_IDS: readonly TestId[] = [
   "customers-detail-heading",
   "customers-detail-orders-heading",
   "customers-detail-orders-link",
+  // Task 039: the shortcut to the create form with the customer chosen
+  "customers-detail-neworder-link",
   "customers-detail-name-text",
   "customers-detail-email-text",
   "customers-detail-phone-text",

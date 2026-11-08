@@ -77,6 +77,11 @@ export default function AppLayout({
   const logout = useLogout();
   const loggingOutRef = useRef(false);
 
+  // The current section link of the phone navigation row (task 038): the
+  // row scrolls horizontally, so the section the user navigated to is
+  // scrolled into view.
+  const currentLinkRef = useRef<HTMLAnchorElement | null>(null);
+
   const pathname = usePathname();
 
   // No session: the redirect says why. A 401 SESSION_EXPIRED left the flag
@@ -90,6 +95,21 @@ export default function AppLayout({
       router.replace(expired ? "/login?expired=1" : "/login");
     }
   }, [me.isSuccess, me.data, queryClient, router]);
+
+  // Keep the current navigation link visible on the phone (task 038):
+  // the single scrollable row moves to the section that just came into
+  // view — on a pathname change and again after the session load makes
+  // the nav exist at all, so a deep link to a section scrolls too. A
+  // no-op on the home (no current link) and on the desktop rail (the
+  // column never overflows).
+  useEffect(() => {
+    // Optional call: environments without the method (old engines) keep
+    // the page working; a real browser has it.
+    currentLinkRef.current?.scrollIntoView?.({
+      inline: "nearest",
+      block: "nearest",
+    });
+  }, [pathname, me.data]);
 
   async function handleLogout() {
     // The guard lives in the handler: state updates arrive too late for a
@@ -222,7 +242,9 @@ export default function AppLayout({
       </a>
       <div className="min-h-screen md:grid md:grid-cols-[212px_minmax(0,1fr)]">
         <aside className="flex flex-col bg-rail text-rail-ink md:sticky md:top-0 md:h-screen">
-          <div className="px-4 py-3 md:px-3 md:pt-4">
+          {/* On the phone the brand row loses the vertical padding of the
+            * rail (task 038): py-2 and the desktop padding restored at md. */}
+          <div className="px-4 py-2 md:px-3 md:pt-4 md:pb-3">
             <Link
               href="/"
               testId="app-nav-home-link"
@@ -234,56 +256,85 @@ export default function AppLayout({
             </Link>
           </div>
 
-          <nav
-            aria-label="Principal"
-            className="flex flex-wrap gap-1 p-1.5 md:mt-4 md:flex-col md:px-3"
-          >
-            {navItems.map((item) => {
-              const current = isCurrentSection(pathname, item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  testId={item.testId}
-                  variant="rail"
-                  aria-current={current ? "page" : undefined}
-                  className={[
-                    "whitespace-nowrap",
-                    current
-                      ? "bg-rail-active font-semibold text-rail-active-ink"
-                      : "text-rail-muted",
-                  ].join(" ")}
-                >
-                  {item.icon}
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
+          {/*
+           * Below 768px the navigation is one row that scrolls
+           * horizontally in its own container (task 038): no wrap, the
+           * current link held by `scrollIntoView`, and a fade over the
+           * right edge (the rail token) as the visible affordance, over
+           * the partially cut last link. From md up the rail keeps its
+           * wrapped column; the fade disappears.
+           */}
+          <div className="relative">
+            <nav
+              aria-label="Principal"
+              className="flex gap-1 overflow-x-auto px-1 py-1.5 md:mt-4 md:flex-col md:overflow-x-visible md:px-3"
+            >
+              {navItems.map((item) => {
+                const current = isCurrentSection(pathname, item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    testId={item.testId}
+                    variant="rail"
+                    ref={current ? currentLinkRef : undefined}
+                    aria-current={current ? "page" : undefined}
+                    className={[
+                      "shrink-0 whitespace-nowrap",
+                      current
+                        ? "bg-rail-active font-semibold text-rail-active-ink"
+                        : "text-rail-muted",
+                    ].join(" ")}
+                  >
+                    {item.icon}
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </nav>
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-linear-to-r from-transparent to-rail md:hidden"
+            />
+          </div>
 
+          {/*
+           * The user block on the phone (task 038): one row that only
+           * wraps when the name is long — the name and the role stacked
+           * in a small block on the left, the theme select sized to its
+           * content with its label hidden (`sr-only`, the accessible name
+           * stays "Tema") and "Salir" at the right. The wrapper of the
+           * name and the role reads as its `md:contents` children again
+           * in the rail column, so the desktop keeps its layout. From md
+           * up the visible label comes back.
+           */}
           <div className="flex flex-wrap items-center gap-3 px-4 pb-2 md:mt-auto md:flex-col md:items-stretch md:border-t md:border-rail-muted/40 md:px-3 md:py-3">
-            <p
-              data-testid="app-user-name-text"
-              className="text-[15px] font-medium"
-            >
-              {user.name}
-            </p>
-            <p
-              data-testid="app-user-role-text"
-              className="text-[13px] text-rail-muted"
-            >
-              {roleLabel(user.role)}
-            </p>
+            <div className="flex flex-col leading-tight md:contents">
+              <p
+                data-testid="app-user-name-text"
+                className="text-[15px] font-medium"
+              >
+                {user.name}
+              </p>
+              <p
+                data-testid="app-user-role-text"
+                className="text-[13px] text-rail-muted"
+              >
+                {roleLabel(user.role)}
+              </p>
+            </div>
             {/*
              * The theme selector lives in the user block: at the bottom of
              * the rail on desktop, in the same block under the links on the
-             * phone layout. On the phone it takes a row of its own.
+             * phone layout. It shares the row now instead of taking a row
+             * of its own, so the label is visually hidden on the phone.
              */}
-            <div className="w-full basis-full md:w-auto md:basis-auto">
+            <div className="md:w-auto md:basis-auto">
               <ThemeSelect
                 testId="app-theme-select"
                 id="app-theme"
-                labelClassName="text-rail-ink"
+                labelClassName="text-rail-ink sr-only md:not-sr-only"
+                compact
               />
             </div>
             <Button

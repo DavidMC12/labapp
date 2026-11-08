@@ -295,6 +295,7 @@ Present in every logged-in state.
 | `customers-detail-email-text` | `dd` |
 | `customers-detail-heading` | `h1` |
 | `customers-detail-name-text` | `dd` |
+| `customers-detail-neworder-link` | `a` |
 | `customers-detail-orders-heading` | `h2` |
 | `customers-detail-orders-link` | `a` |
 | `customers-detail-phone-text` | `dd` |
@@ -343,6 +344,7 @@ Present in every logged-in state.
 | `customers-detail-email-text` | `dd` |
 | `customers-detail-heading` | `h1` |
 | `customers-detail-name-text` | `dd` |
+| `customers-detail-neworder-link` | `a` |
 | `customers-detail-orders-heading` | `h2` |
 | `customers-detail-orders-link` | `a` |
 | `customers-detail-phone-text` | `dd` |

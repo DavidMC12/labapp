@@ -22,12 +22,15 @@ class InMemoryClockOffsetStore:
 
     def __init__(self, clock: OffsetClock) -> None:
         self._clock = clock
+        self._lock = RLock()
 
     def get(self, *, connection: Connection | None = None) -> float:
-        return self._clock.offset.total_seconds()
+        with self._lock:
+            return self._clock.offset.total_seconds()
 
     def set(self, seconds: float, *, connection: Connection | None = None) -> None:
-        self._clock.set_offset(timedelta(seconds=seconds))
+        with self._lock:
+            self._clock.set_offset(timedelta(seconds=seconds))
 
     def advance(
         self,
@@ -36,12 +39,13 @@ class InMemoryClockOffsetStore:
         limit: float = MAX_CLOCK_OFFSET_SECONDS,
         connection: Connection | None = None,
     ) -> float | None:
-        current = self.get()
-        updated = current + seconds
-        if abs(updated) > limit:
-            return None
-        self._clock.set_offset(timedelta(seconds=updated))
-        return updated
+        with self._lock:
+            current = self._clock.offset.total_seconds()
+            updated = current + seconds
+            if abs(updated) > limit:
+                return None
+            self._clock.set_offset(timedelta(seconds=updated))
+            return updated
 
 
 class InMemoryFaultStore:

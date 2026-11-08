@@ -1,8 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import NotFound from "./not-found";
+import NotFound, { metadata } from "./not-found";
 
 describe("the not-found page", () => {
+  it("declares its title through the metadata export (server component)", () => {
+    // The root template turns it into "Página no encontrada · LabApp".
+    expect(metadata.title).toBe("Página no encontrada");
+  });
+
   it("renders the heading, the sentence and the home link with their ids", () => {
     render(<NotFound />);
 

@@ -106,6 +106,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  document.title = "LabApp";
   vi.unstubAllGlobals();
 });
 
@@ -118,6 +119,8 @@ describe("the edit page load states", () => {
       expect(screen.getByRole("heading", { name: "Editar cliente" }))
         .toHaveAttribute("data-testid", "customers-form-heading");
     });
+    // The tab says the screen, not the record (useDocumentTitle).
+    expect(document.title).toBe("Editar cliente · LabApp");
 
     expect(screen.getByTestId("customers-form-name-input"))
       .toHaveValue("Hotel Horizonte");

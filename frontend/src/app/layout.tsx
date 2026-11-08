@@ -40,7 +40,13 @@ const plexSerif = IBM_Plex_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "LabApp",
+  title: {
+    // The server render answers the plain "LabApp"; every screen sets
+    // "{page} · LabApp" (the hook of src/lib/useDocumentTitle.ts on the
+    // client pages, the template below on the ones that export metadata).
+    default: "LabApp",
+    template: "%s · LabApp",
+  },
   description: "LabApp web",
 };
 

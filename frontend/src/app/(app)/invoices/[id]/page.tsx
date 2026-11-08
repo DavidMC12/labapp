@@ -8,6 +8,7 @@ import { parseInvoiceIdParam } from "@/features/invoices/params";
 import { canManageInvoices } from "@/features/invoices/permissions";
 import type { ApiFieldError } from "@/lib/api";
 import { ApiRequestError, INTERNAL_ERROR_DETAIL } from "@/lib/api";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import type { PaymentBody } from "@/features/invoices/api";
 import { formatDateTime, formatMoney } from "@/lib/format";
 import type { Invoice, InvoiceLine, Payment } from "@/features/invoices/types";
@@ -477,6 +478,12 @@ function Detail({ id }: { id: number }) {
   const me = useMe();
   const invoiceQuery = useInvoice(id);
 
+  // The tab: the section while the record is in the air (and while a
+  // failed request is on screen), the invoice number after it arrives.
+  useDocumentTitle(
+    invoiceQuery.isSuccess ? `Factura ${invoiceQuery.data.number}` : "Facturas",
+  );
+
   // The success message of the payment lives in the detail: once the
   // invoice is paid the form unmounts in the same render that shows it.
   const [paymentApproved, setPaymentApproved] = useState(false);
@@ -762,6 +769,9 @@ function Detail({ id }: { id: number }) {
 }
 
 export default function InvoiceDetailPage() {
+  // The section title covers the invalid-id screen too; the content
+  // component replaces it with the invoice number once it arrives.
+  useDocumentTitle("Facturas");
   const id = parseInvoiceIdParam(useParams().id);
 
   if (id === null) {

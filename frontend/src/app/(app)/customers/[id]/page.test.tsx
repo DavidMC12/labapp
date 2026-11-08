@@ -108,10 +108,27 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  document.title = "LabApp";
   vi.unstubAllGlobals();
 });
 
 describe("the customer detail values", () => {
+  it("names the customer in the tab once the record arrives", async () => {
+    customerQueue.push(() => jsonResponse(activeCustomer));
+    renderAt("4");
+
+    // The section title is the first thing the tab answers, both for a
+    // loading request...
+    expect(document.title).toBe("Clientes · LabApp");
+
+    // ...and the customer's name replaces it when the answer is in.
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-detail-heading"))
+        .toHaveTextContent("Distribuidora Delta");
+    });
+    expect(document.title).toBe("Cliente Distribuidora Delta · LabApp");
+  });
+
   it("shows the heading and every labeled value", async () => {
     customerQueue.push(() => jsonResponse(activeCustomer));
     renderAt("4");

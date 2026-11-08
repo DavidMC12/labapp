@@ -64,4 +64,10 @@ describe("the error boundary page", () => {
 
     expect(errorSpy).not.toHaveBeenCalled();
   });
+
+  it("sets the document title through the hook", () => {
+    render(<AppError error={new Error("boom")} reset={() => {}} />);
+
+    expect(document.title).toBe("Algo salió mal · LabApp");
+  });
 });

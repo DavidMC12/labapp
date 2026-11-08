@@ -452,6 +452,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  document.title = "LabApp";
   vi.unstubAllGlobals();
   holdMutation = null;
   mutateAnswer = null;
@@ -520,6 +521,32 @@ describe("the order detail states", () => {
     expect(
       fetchMock.mock.calls.filter((call) => String(call[0]).includes("/api/order")),
     ).toHaveLength(0);
+  });
+
+  it("titles the tab with the section while loading and with the number loaded", async () => {
+    // The order request stays in the air first: the tab answers the
+    // section title while nothing else is on screen.
+    let respond!: (response: Response) => void;
+    const heldOrder = new Promise<Response>((resolve) => {
+      respond = resolve;
+    });
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      if (String(input) === "/api/orders/8") {
+        return heldOrder;
+      }
+      return jsonResponse(meUser);
+    });
+    renderDetail();
+    expect(document.title).toBe("Pedidos · LabApp");
+
+    // The waiting request answers and the number replaces the section.
+    respond(jsonResponse(orderBody));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("orders-detail-heading"))
+        .toHaveTextContent(orderBody.number);
+    });
+    expect(document.title).toBe(`Pedido ${orderBody.number} · LabApp`);
   });
 
   it("shows the facts of the S5 order", async () => {

@@ -147,10 +147,19 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  document.title = "LabApp";
   vi.unstubAllGlobals();
 });
 
 describe("the customers list structure", () => {
+  it("answers the section title in the tab from the first paint", () => {
+    renderAt("");
+
+    // The hook lives in the wrapper, so the tab answers even inside the
+    // Suspense fallback, before the list request resolves.
+    expect(document.title).toBe("Clientes · LabApp");
+  });
+
   it("renders heading, search form, table and pagination from seed data", async () => {
     respondList(
       listPageOf(

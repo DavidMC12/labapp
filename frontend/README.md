@@ -110,10 +110,13 @@ src/
               interactive elements take a required testId; fields also
               share Field
     LedgerMark.tsx  the brand mark of the theme
-  features/   customers + auth (hooks, api, screens helpers)
+  features/   auth (session + login/logout hooks), summary, customers,
+              orders, invoices, settings and products (hooks, api,
+              screens helpers)
   lib/        testid.ts — the test id grammar: pattern, type and helpers
               theme.ts — the storage key, the setting and the no-flash
               script of the theme (see Design above)
+              format.ts — money and UTC date/time formatting (SPEC 8)
   test/       Vitest setup
 ```
 
@@ -323,6 +326,73 @@ src/
   input and a `role="status"` region announces it.
 - The navigation link "Configuración" (`app-nav-settings-link`) is
   visible to every role; the current-section highlight covers it.
+
+## Titles, skip link and landmarks
+
+- **The document title names the page** (`src/lib/useDocumentTitle.ts`):
+  every screen calls `useDocumentTitle(title)` and the tab reads
+  `{page} · LabApp`; an empty or missing title reads the plain
+  "LabApp". The hook restores nothing on unmount — the next page sets
+  its own — and the root layout keeps `LabApp` as the server-rendered
+  default with the metadata template `%s · LabApp` (which is what the
+  server components use: the not found page exports its
+  "Página no encontrada").
+- **Titles per screen:** login "Iniciar sesión"; home "Resumen";
+  customers list "Clientes", new "Nuevo cliente", detail
+  "Cliente {name}" (the section title while the record is in the air),
+  edit "Editar cliente"; orders list "Pedidos", new "Nuevo pedido",
+  detail "Pedido {number}"; invoices list "Facturas", detail
+  "Factura {number}"; settings "Configuración"; products "Productos";
+  error "Algo salió mal". Screens without a record title themselves at
+  the first paint (the hook sits in the page's wrapper, so the Suspense
+  fallback already carries the right title); the details keep the
+  section title until the record arrives.
+- **Skip link (WCAG 2.4.1):** the first focusable element of the shell
+  (`app-skip-link`) and of the login (`auth-login-skip-link`) is the
+  "Saltar al contenido" link to `#main-content`, hidden by the
+  `sr-only focus:not-sr-only` pattern with a solid chip over the paper
+  background, readable in both themes. The `main` landmark of both
+  carries `id="main-content"` and `tabIndex={-1}`, so the jump moves the
+  focus there (keeps working with the global `:focus-visible` outline).
+- **Landmarks:** the login page content lives in a `main` element now
+  (it had none); the shell keeps its `nav` (`aria-label="Principal"`)
+  and its `main`. Nothing else is restructured.
+
+## Products
+
+- Page `/products` ("Productos"), the read-only catalog of flow 2; screen
+  under `src/app/(app)/products/`, data layer in
+  `src/features/products/`. Every role sees it (the link
+  "Productos" `app-nav-products-link` sits in the rail between "Pedidos"
+  and "Facturas", with the same current-section highlight).
+- The data layer is a thin re-export of the orders module's
+  `useProducts` / `fetchProducts` / `Product` / `PRODUCTS_KEY`
+  (`["products"]`), so a catalog visit and an open draft editor share one
+  request and one cache entry; nothing is duplicated.
+- Columns: SKU, Producto, Precio (`formatMoney`, right aligned) and
+  Stock (an integer, right aligned), in the order the API returns
+  (`GET /api/products`, by id, no paging — one request per visit).
+- The search filters **on the client**, on the rows already loaded
+  (`src/features/products/search.ts`): case- and accent-insensitive
+  "contains" on the SKU or the name (Unicode NFKD, combining marks
+  removed, lowercased on both sides — `mouse óptico` matches
+  "Mouse óptico" and "mouse optico" alike). No request is made to apply it.
+- URL state: only `?q=` (trimmed by `parseProductListParams`, like the
+  other lists), written by the form (button or Enter) through the
+  router. Without a value the url is plain `/products`.
+- **The stock cue** (`src/features/products/stock.ts`): a stock of 0 shows
+  the badge "Agotado" and a stock of 1–5 shows "Poco stock" next to the
+  number in the Stock cell (`products-list-stockstate-status-{id}`,
+  `bg-danger-bg text-danger` for "Agotado", `bg-off-bg text-muted` for
+  "Poco stock" — text is always the cue, never color alone). Above 5 only
+  the number. The thresholds (`OUT_OF_STOCK_MAX = 0`,
+  `LOW_STOCK_MAX = 5`) are constants in that one file and are tested.
+- The ledger footer (`products-list-footer-item`) counts the **filtered**
+  rows ("1 producto" / "N productos"), exactly what a test can assert
+  after searching. Stock is live: after a confirm or cancel elsewhere,
+  this screen shows it again on its next fetch. Empty (no match,
+  `products-list-empty-status` "No hay productos que coincidan"), loading
+  and error states follow the pattern of the other list screens.
 
 ## Customers
 

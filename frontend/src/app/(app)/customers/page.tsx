@@ -7,6 +7,7 @@ import { parseCustomerListParams } from "@/features/customers/params";
 import { canManageCustomers } from "@/features/customers/permissions";
 import { statusLabel } from "@/features/customers/types";
 import { ApiRequestError, INTERNAL_ERROR_DETAIL } from "@/lib/api";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
@@ -312,6 +313,8 @@ function lastPage(total: number, pageSize: number): number {
 }
 
 export default function CustomersPage() {
+  useDocumentTitle("Clientes");
+
   return (
     <Suspense
       fallback={

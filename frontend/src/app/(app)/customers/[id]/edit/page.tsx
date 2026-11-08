@@ -7,10 +7,12 @@ import { useCustomer } from "@/features/customers/hooks";
 import { parseCustomerIdParam } from "@/features/customers/params";
 import { canManageCustomers } from "@/features/customers/permissions";
 import { ApiRequestError, INTERNAL_ERROR_DETAIL } from "@/lib/api";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 
 export default function CustomerEditPage() {
+  useDocumentTitle("Editar cliente");
   const id = parseCustomerIdParam(useParams().id);
 
   if (id === null) {

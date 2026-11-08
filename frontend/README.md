@@ -461,6 +461,26 @@ like an invalid `status` does. Each list also announces its order in a
 visually hidden `role="status"` element `<module>-list-sort-text`
 (text "Ordenado por Nombre, ascendente", updated on every change).
 
+## CSV export
+
+The three lists (customers, orders, invoices) carry an "Exportar CSV"
+download link next to their filter controls
+(`customers-list-export-link`, `orders-list-export-link`,
+`invoices-list-export-link`). It is a plain `<a download>` to
+`/api/<resource>/export` — the client router of `next/link` is not
+involved: the API serves the file — with the classes of the `text`
+variant of the `Link` component (`TEXT_LINK_CLASSES`, defined once in
+`src/components/ui/Link.tsx`). The `href` is built by the
+`customersExportUrl`, `ordersExportUrl` and `invoicesExportUrl`
+functions (each in its feature's `params.ts`) from the applied URL
+state: `q`, `status` and, when the sort is not the plain-list one,
+`sort` with `direction`; the orders list adds `customer_id`. Every
+parameter only travels when it has a non-default value, matching what
+the list request would carry, and `page` never travels: the export
+answers every row the filters select, not one page. The link renders in
+every state of the request (loading, empty, error, loaded), because the
+export of an empty filter is a file with the header only.
+
 ## Confirmation dialogs
 
 - **`ConfirmDialog`** (`src/components/ui/ConfirmDialog.tsx`) is the one

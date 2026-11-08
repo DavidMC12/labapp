@@ -41,8 +41,10 @@ Roles: Admin, Sales, Finance and Read-only. The screen language is Spanish. Busi
 | Design: "Libro mayor" theme in a light and a dark voice, selector remembered per browser | Done |
 | Request guards: origin check, malformed JSON, body size, rate limits, lock timeouts | Done |
 | Testability audits in CI: static test-id audit, browser audit (test ids and axe) in both themes, PostgreSQL integration tests | Done |
-| Invoices and payments: screens | Done; backend in progress |
-| Test-only controls (reset, seed, clock, fault injection) with state in PostgreSQL | In progress |
+| Invoices and payments: API, screens, PostgreSQL store with idempotent payments and a fake gateway | Done |
+| Test-only controls (reset, seed, clock, fault injection) with state in PostgreSQL, guarded by a token | Done |
+| API contract: `docs/openapi.json`, checked against the code in CI | Done |
+| Automation guide for the web UI, generated test id catalog | Done; the guide for the controls and the API follows |
 | First online deployment (Vercel and Neon) and the nightly data reset | Configured, not deployed yet |
 
 ## Roadmap

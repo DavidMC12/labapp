@@ -95,6 +95,7 @@ def _build(
     test_mode: bool = True,
     test_token: str = "",
     controls: object | None = None,
+    root_path: str = "",
 ) -> tuple[
     TestClient,
     SpyControls,
@@ -119,7 +120,7 @@ def _build(
         controls=controls if controls is not None else spy,  # type: ignore[arg-type]
         sleep=sleeper,
     )
-    return TestClient(middleware), spy, clock_store, fault_store, sleeper, hits
+    return TestClient(middleware, root_path=root_path), spy, clock_store, fault_store, sleeper, hits
 
 
 def test_without_controls_it_does_no_work() -> None:
@@ -243,3 +244,15 @@ def test_a_plain_driver_error_is_also_contained(
     assert "OperationalError" in caplog.text
     assert "unknown" in caplog.text
     assert "connection secret" not in caplog.text
+
+
+def test_the_controls_path_ignores_the_root_path() -> None:
+    client, spy, _, fault_store, _, hits = _build(root_path="/prefix")
+    fault_store.add(NewRule(target="route", method="GET", path="/api/echo", status=500))
+
+    response = client.get("/prefix/api/echo")
+
+    assert response.status_code == 500
+    assert response.json()["code"] == "INJECTED_FAULT"
+    assert spy.calls == 1
+    assert hits == []

@@ -8,6 +8,7 @@ from collections.abc import Awaitable, Callable
 
 import psycopg
 from sqlalchemy.exc import DBAPIError
+from starlette._utils import get_route_path
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 from starlette.types import ASGIApp, Receive, Scope, Send
@@ -67,7 +68,7 @@ class RequestControlsMiddleware:
             return
 
         method = scope.get("method", "")
-        path = scope.get("path", "")
+        path = get_route_path(scope)
         if _is_test_path(path) or (method == "GET" and path == "/api/health"):
             await self.app(scope, receive, send)
             return

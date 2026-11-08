@@ -2,15 +2,29 @@
 
 from __future__ import annotations
 
+import json
+
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from starlette.testclient import WebSocketDenialResponse
+from starlette.types import Receive, Scope, Send
 
 from app.config import Settings
 from app.errors import register_error_handlers
+from app.guards.controls import ControlsGuardMiddleware
 from app.main import create_app
 from app.modules.testcontrols.routes import router as controls_router
 
 TOKEN = "secret"
+
+
+async def _accepting_app(scope: Scope, receive: Receive, send: Send) -> None:
+    if scope["type"] == "websocket":
+        await send({"type": "websocket.accept"})
+        return
+    await send({"type": "http.response.start", "status": 200, "headers": []})
+    await send({"type": "http.response.body", "body": b"ok"})
 
 
 def _client(*, test_mode: bool, test_token: str) -> TestClient:
@@ -83,3 +97,83 @@ def test_the_router_repeats_the_guard_without_the_middleware() -> None:
     assert denied.status_code == 404
     assert denied.json()["code"] == "NOT_FOUND"
     assert allowed.status_code == 200
+
+
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [
+        ("GET", "/__test__/reset"),
+        ("POST", "/__test__/reset"),
+        ("HEAD", "/__test__/reset"),
+        ("OPTIONS", "/__test__/reset"),
+        ("POST", "/__test__/reset/"),
+        ("POST", "//__test__/reset"),
+        ("POST", "/__TEST__/reset"),
+        ("POST", "/%5F%5Ftest%5F%5F/reset"),
+    ],
+)
+def test_the_guard_answers_not_found_for_every_variant(
+    method: str,
+    path: str,
+) -> None:
+    client = _client(test_mode=False, test_token=TOKEN)
+
+    response = client.request(method, path)
+
+    assert response.status_code == 404
+    if method != "HEAD":
+        assert response.json()["code"] == "NOT_FOUND"
+
+
+def test_the_guard_uses_the_path_without_the_root_path() -> None:
+    client = TestClient(
+        create_app(
+            Settings(
+                session_secret="test-secret",
+                test_mode=False,
+                test_token=TOKEN,
+            )
+        ),
+        root_path="/prefix",
+    )
+
+    denied = client.post("/prefix/__test__/reset")
+    allowed = client.post(
+        "/prefix/__test__/reset",
+        headers={"X-Test-Token": TOKEN},
+    )
+
+    assert denied.status_code == 404
+    assert allowed.status_code == 200
+
+
+def test_the_guard_denies_a_websocket_under_the_controls() -> None:
+    middleware = ControlsGuardMiddleware(
+        _accepting_app,
+        Settings(session_secret="test-secret", test_mode=False, test_token=TOKEN),
+    )
+    client = TestClient(middleware)
+
+    with pytest.raises(WebSocketDenialResponse) as info:
+        with client.websocket_connect("/__test__/reset"):
+            pass
+
+    assert info.value.status_code == 404
+    assert json.loads(info.value.content)["code"] == "NOT_FOUND"
+
+    with client.websocket_connect(
+        "/__test__/reset",
+        headers={"X-Test-Token": TOKEN},
+    ):
+        pass
+
+
+def test_a_websocket_outside_the_controls_is_not_denied() -> None:
+    middleware = ControlsGuardMiddleware(
+        _accepting_app,
+        Settings(session_secret="test-secret", test_mode=False, test_token=TOKEN),
+    )
+    client = TestClient(middleware)
+
+    with client.websocket_connect("/api/stream"):
+        pass

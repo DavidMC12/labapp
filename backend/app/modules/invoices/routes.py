@@ -9,6 +9,7 @@ from fastapi import APIRouter, Body, Depends, Header, Response
 from fastapi import status as http_status
 from fastapi.responses import JSONResponse
 
+from app.domain.csv_export import CSV_CONTENT_TYPE, csv_response
 from app.domain.permissions import Action
 from app.domain.sorting import SortDirection
 from app.errors import PROBLEM_MEDIA_TYPE, ApiError
@@ -32,6 +33,10 @@ _LIST_RESPONSES = documented_responses(
     method="GET",
     extra={422: "The query parameters are invalid. Code: `VALIDATION_ERROR` (with `errors[]`)."},
 )
+_EXPORT_RESPONSES = {
+    200: csv_response("The invoices of the list filters as a CSV file."),
+    **_LIST_RESPONSES,
+}
 _READ_RESPONSES = documented_responses(
     method="GET",
     extra={
@@ -149,6 +154,28 @@ def list_invoices(
         page=page,
         page_size=PAGE_SIZE,
         total=total,
+    )
+
+
+@router.get("/invoices/export", response_class=Response, responses=_EXPORT_RESPONSES)
+def export_invoices(
+    user: Annotated[User, Depends(get_current_user)],
+    service: Annotated[InvoiceService, Depends(get_service)],
+    q: str | None = None,
+    status: InvoiceStatus | None = None,
+    order_id: int | None = None,
+    sort: SortField | None = None,
+    direction: SortDirection | None = None,
+) -> Response:
+    """Export every invoice of the list filters as a CSV file."""
+    document = service.export_invoices(q, status, order_id, sort, direction)
+    return Response(
+        content=document.text,
+        media_type=CSV_CONTENT_TYPE,
+        headers={
+            "Content-Disposition": f'attachment; filename="{document.filename}"',
+            "Cache-Control": "no-store",
+        },
     )
 
 

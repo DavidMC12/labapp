@@ -360,6 +360,9 @@ class InvoiceService:
             errors.append(_invalid_format("reference"))
             return None
         trimmed = reference.strip()
+        if has_control_character(trimmed):
+            errors.append(_invalid_format("reference"))
+            return None
         try:
             validate_transfer_reference(trimmed)
         except ApiError as error:

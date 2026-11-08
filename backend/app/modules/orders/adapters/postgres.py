@@ -600,7 +600,9 @@ class PostgresOrderStore:
                             .where(products.c.id == line.product_id)
                             .values(stock=product.stock + line.quantity)
                         )
-                tax_rate = self._current_tax_rate(connection)
+                else:
+                    # A confirmed order keeps the rate frozen at confirmation.
+                    tax_rate = self._current_tax_rate(connection)
 
             return self._write_order(
                 connection,

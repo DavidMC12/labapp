@@ -367,6 +367,13 @@ def test_invalid_transfer_references(service, reference: str, code: str) -> None
     assert ("reference", code) in _field_codes(error)
 
 
+@pytest.mark.parametrize("reference", ["ab\u0000cd", "ab\tcd", "ab\ncd", "\u0000abcd"])
+def test_transfer_references_with_control_characters_are_rejected(service, reference: str) -> None:
+    error = _error(service, transfer_body(reference=reference))
+
+    assert ("reference", "INVALID_FORMAT") in _field_codes(error)
+
+
 @pytest.mark.parametrize("reference", ["ABCD", "A" * 40])
 def test_valid_transfer_references(service, reference: str) -> None:
     outcome = service.pay(1, "key-1", transfer_body(reference=reference), None)

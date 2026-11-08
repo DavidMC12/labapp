@@ -432,14 +432,15 @@ class OrderStoreContract:
         assert store.get_product(1) is not None
         assert store.get_product(1).stock == 118
 
-    def test_cancel_confirmed_returns_stock_and_stores_the_current_rate(self, store: Any) -> None:
-        store.transition(1, OrderAction.CONFIRM, None, NOW)
+    def test_cancel_confirmed_returns_stock_and_keeps_the_frozen_rate(self, store: Any) -> None:
+        confirmed = store.transition(1, OrderAction.CONFIRM, None, NOW)
         store.set_tax_rate(Decimal("7"))
 
         changed = store.transition(1, OrderAction.CANCEL, None, NOW)
 
         assert store.get_product(1).stock == 120
-        assert changed.tax_rate == Decimal("7.00")
+        assert changed.tax_rate == confirmed.tax_rate
+        assert changed.tax_rate != Decimal("7.00")
         assert changed.status == OrderStatus.CANCELLED
 
     def test_cancel_draft_changes_no_stock_and_stores_the_current_rate(self, store: Any) -> None:

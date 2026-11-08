@@ -269,7 +269,9 @@ class InMemoryOrderStore:
                         )
                     if self.invoices is not None:
                         self.invoices.void_for_order(order.id, now)
-                tax_rate = self._tax_rate
+                else:
+                    # A confirmed order keeps the rate frozen at confirmation.
+                    tax_rate = self._tax_rate
 
             return self._update_order(order, now, status=new_status, tax_rate=tax_rate)
 

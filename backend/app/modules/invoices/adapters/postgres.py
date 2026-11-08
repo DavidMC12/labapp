@@ -13,12 +13,14 @@ insert takes on the invoice, and two payments that claimed their keys before loc
 would deadlock. ``PostgresOrderStore.transition`` uses the same mode when it voids an
 invoice.
 
-``register_payment`` claims the idempotency key before any lock: it deletes an expired
-row of the same ``(invoice_id, key)`` and then inserts the placeholder row
+``register_payment`` claims the idempotency key before any lock: it deletes every
+expired key of that invoice and then inserts the placeholder row
 (``status_code = 0``, ``response = '{}'``) with ``ON CONFLICT DO NOTHING``. The unique
 row serializes two requests with the same key; the second either replays the committed
-row or raises ``IDEMPOTENCY_KEY_REUSED``. A rejected request rolls the whole
-transaction back, claim included, so it does not consume the key. ``respond`` is
+row or raises ``IDEMPOTENCY_KEY_REUSED``. If the conflicting row disappears between the
+conflict and the read, the claim retries up to three times; the third failure answers
+the same 503 ``LOCK_TIMEOUT`` as an unavailable resource. A rejected request rolls the
+whole transaction back, claim included, so it does not consume the key. ``respond`` is
 rendered and stored in that row inside the same transaction, so every committed key
 holds a final response.
 """
@@ -54,6 +56,7 @@ from app.domain.money import MIN_TAX_RATE
 from app.domain.numbering import format_number
 from app.domain.orders import OrderStatus
 from app.domain.sorting import SortSpec
+from app.errors import ERROR_MESSAGES, LOCK_TIMEOUT, ApiError
 from app.infra.db import (
     as_utc,
     qualified_sequence_name,
@@ -89,6 +92,7 @@ from app.modules.orders.tables import order_lines, orders
 
 KEY_LIFETIME = timedelta(hours=24)
 _DEFAULT_SORT = SortSpec("created_at", True)
+_CLAIM_ATTEMPTS = 3
 
 _INVOICE_ORDER_CONSTRAINT = "invoices_order_key"
 _KEY_INVOICE_CONSTRAINT = "fk_idempotency_keys_invoice_id_invoices"
@@ -465,6 +469,9 @@ class PostgresInvoiceStore:
                 rules.ensure_payable(invoice.status)
                 rules.ensure_amount(attempt.amount, invoice.total)
 
+                # A real gateway that raised or timed out would need its own handling:
+                # record a failed payment outside this transaction. Today only the fake
+                # gateway exists and the fault gateway raises nothing.
                 decision = self._gateway.charge(
                     attempt.method,
                     attempt.amount,
@@ -530,7 +537,6 @@ class PostgresInvoiceStore:
         connection.execute(
             delete(idempotency_keys).where(
                 idempotency_keys.c.invoice_id == invoice_id,
-                idempotency_keys.c.key == key,
                 idempotency_keys.c.created_at <= cutoff,
             )
         )
@@ -548,31 +554,37 @@ class PostgresInvoiceStore:
                 index_elements=[idempotency_keys.c.invoice_id, idempotency_keys.c.key]
             )
         )
-        # RETURNING tells a claim that inserted from one that hit the conflict: with this driver
-        # ``rowcount`` of the statement is -1, which is truthy.
-        if connection.execute(claim.returning(idempotency_keys.c.key)).first() is not None:
-            return None
+        for _ in range(_CLAIM_ATTEMPTS):
+            # RETURNING tells a claim that inserted from one that hit the conflict: with
+            # this driver ``rowcount`` of the statement is -1, which is truthy.
+            if connection.execute(claim.returning(idempotency_keys.c.key)).first() is not None:
+                return None
 
-        stored = (
-            connection.execute(
-                select(
-                    idempotency_keys.c.fingerprint,
-                    idempotency_keys.c.status_code,
-                    idempotency_keys.c.response,
-                ).where(
-                    idempotency_keys.c.invoice_id == invoice_id,
-                    idempotency_keys.c.key == key,
+            stored = (
+                connection.execute(
+                    select(
+                        idempotency_keys.c.fingerprint,
+                        idempotency_keys.c.status_code,
+                        idempotency_keys.c.response,
+                    ).where(
+                        idempotency_keys.c.invoice_id == invoice_id,
+                        idempotency_keys.c.key == key,
+                    )
                 )
+                .mappings()
+                .first()
             )
-            .mappings()
-            .one()
-        )
-        if stored["fingerprint"] != fingerprint:
-            raise rules.key_reused()
-        return PaymentOutcome(
-            StoredResponse(stored["status_code"], stored["response"]),
-            True,
-        )
+            if stored is None:
+                # The conflicting row was deleted between the conflict and this read
+                # (an expired key purged by another request): claim it again.
+                continue
+            if stored["fingerprint"] != fingerprint:
+                raise rules.key_reused()
+            return PaymentOutcome(
+                StoredResponse(stored["status_code"], stored["response"]),
+                True,
+            )
+        raise ApiError(503, LOCK_TIMEOUT, ERROR_MESSAGES[LOCK_TIMEOUT])
 
     def void_for_order(self, order_id: int, now: datetime) -> None:
         with self._engine.begin() as connection:

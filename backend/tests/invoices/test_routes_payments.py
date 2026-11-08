@@ -270,6 +270,8 @@ def test_a_failed_attempt_is_stored_and_can_be_replayed(
         (transfer_body(reference="ABC"), [("reference", "TOO_SHORT")]),
         (transfer_body(reference="  ab  "), [("reference", "TOO_SHORT")]),
         (transfer_body(reference="A" * 41), [("reference", "TOO_LONG")]),
+        (transfer_body(reference="ab\u0000cd"), [("reference", "INVALID_FORMAT")]),
+        (transfer_body(reference="ab\tcd"), [("reference", "INVALID_FORMAT")]),
         ({"method": "cash", "amount": "327.80", "extra": 1}, [("extra", "INVALID_FORMAT")]),
         ({"method": "card", "amount": "327.80"}, [("card", "REQUIRED")]),
         ({"method": "card", "amount": "327.80", "card": None}, [("card", "REQUIRED")]),

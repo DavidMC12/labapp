@@ -629,7 +629,7 @@ The declined and unavailable outcomes do not change the invoice or the order. `4
 
 ### The lists: paging, search and filters
 
-All four list endpoints share one shape ([SPEC section 8](SPEC.md#8-formats-and-conventions)): `{"items": [...], "page", "page_size": 20, "total"}`. The page size is fixed at 20 — the client cannot change it — `total` counts every match and not only the current page, the order is `created_at` descending then `id` descending, and asking for a page beyond the last one answers 200 with an empty `items` array. `page` is an integer from 1 to 1000000: a non-integer is 422 `INVALID_FORMAT` on `page`, any other value 422 `OUT_OF_RANGE`.
+All four list endpoints share one shape ([SPEC section 8](SPEC.md#8-formats-and-conventions)): `{"items": [...], "page", "page_size": 20, "total"}`. The page size is fixed at 20 — the client cannot change it — `total` counts every match and not only the current page, the **default** order is `created_at` descending then `id` descending (every list can sort, next subsection), and asking for a page beyond the last one answers 200 with an empty `items` array. `page` is an integer from 1 to 1000000: a non-integer is 422 `INVALID_FORMAT` on `page`, any other value 422 `OUT_OF_RANGE`.
 
 The search parameter `q` is the same on the three modules: trimmed, ignored when empty, at most 100 characters, no control characters, and **literal** — `%`, `_` and `\` mean themselves, there is no pattern syntax. The match is a "contains" that ignores case and accents (verified: `?q=ferreteria` finds the invoice of `Ferretería Fénix`):
 
@@ -639,7 +639,41 @@ The search parameter `q` is the same on the three modules: trimmed, ignored when
 | `GET /api/orders` | the order number or the customer's name | `status=` one of `draft, confirmed, paid, shipped, cancelled`; `customer_id=` an integer id |
 | `GET /api/invoices` | the invoice number or the snapshot customer name | `status=` one of `issued, paid, void`; `order_id=` an integer id |
 
-A wrongly shaped filter value is a 422 too: `status` outside its list is `INVALID_FORMAT` on `status`; a non-integer `customer_id`/`order_id` is `INVALID_FORMAT`, and one outside 1–2147483647 is `OUT_OF_RANGE`. An id that simply does not exist is not an error: it matches nothing. Finally, `GET /api/products` is the whole read-only catalog in one answer (`{"items": [...]}`, ordered by `id`, no paging) and `GET /api/settings` answers `{"tax_rate": "10.00"}`.
+A wrongly shaped filter value is a 422 too: `status` outside its list is `INVALID_FORMAT` on `status`; a non-integer `customer_id`/`order_id` is `INVALID_FORMAT`, and one outside 1–2147483647 is `OUT_OF_RANGE`. An id that simply does not exist is not an error: it matches nothing. Finally, `GET /api/products` is the whole read-only catalog in one answer (`{"items": [...]}`, ordered by `id` unless `sort` says otherwise, no paging) and `GET /api/settings` answers `{"tax_rate": "10.00"}`.
+
+### Sorting the lists: `sort` and `direction`
+
+Every list takes `sort` and `direction` on top of its filters, each optional:
+
+| Endpoint | Allowed `sort` | Note |
+|---|---|---|
+| `GET /api/customers` | `created_at` (the default), `name`, `email` | `name` and `email` compare the normalized text below |
+| `GET /api/orders` | `created_at` (the default), `number`, `customer` | `number` is the numeric part of the order number, compared as an integer; `customer` is the normalized customer's name |
+| `GET /api/invoices` | `created_at` (the default), `number`, `customer`, `total` | `total` is the frozen total, compared as a number |
+| `GET /api/products` | `id` (the default), `sku`, `name`, `price`, `stock` | `price` and `stock` compare as numbers |
+
+The rules are one shape ([SPEC section 4](SPEC.md#4-customers-flow-1), and the same sentences for [orders](SPEC.md#5-orders-flow-2), [invoices](SPEC.md#6-invoices-and-payments-flow-3) and [products](SPEC.md#5-orders-flow-2)):
+
+- `direction` is `asc` or `desc`; it defaults to `desc` for `created_at` and to `asc` for every other field (and it applies to `created_at` when `sort` is absent). Any other value of either parameter is 422 `VALIDATION_ERROR` with `INVALID_FORMAT` naming the field (`sort` or `direction`) — like every other bad query parameter.
+- Ties break by `id`, in the same direction as the sort.
+- Text fields compare the **normalized** text the same way `q` does (Unicode NFKD, combining marks removed, case-folded), so `Álvaro` sorts with `A` and upper case does not matter.
+- The sort is applied after the filters and before the paging, so page 2 of a sorted list continues page 1, and the export routes validate these parameters the exact same way (the downloads give the files already sorted).
+
+The first three values you get on the seed (verified against a local run of the API):
+
+```bash
+BASE=http://127.0.0.1:8000; J=/tmp/labapp-cookies
+curl -s -b $J "$BASE/api/customers?sort=name&direction=asc"
+# Acme Industrial S.A., Beta Comercial Ltda., Cafetería La Esquina
+curl -s -b $J "$BASE/api/orders?sort=customer&direction=asc"
+# PED-0001 (Acme Industrial S.A.), PED-0002 (Beta Comercial Ltda.), PED-0007 (Cafetería La Esquina)
+curl -s -b $J "$BASE/api/invoices?sort=total&direction=asc"
+# FAC-0002 (197.97), FAC-0001 (327.80), FAC-0003 (768.90)
+curl -s -b $J "$BASE/api/products?sort=price&direction=asc"
+# Cable HDMI 2 m (CB-010, 6.25), Mouse óptico (MS-200, 9.50), Tarjeta SD 128 GB (SD-128, 14.99)
+curl -s -b $J "$BASE/api/customers?sort=surname"
+# 422 {"code":"VALIDATION_ERROR", "errors":[{"field":"sort","code":"INVALID_FORMAT", ...}]}
+```
 
 ## 13. Isolating tests
 

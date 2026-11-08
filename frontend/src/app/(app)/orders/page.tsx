@@ -1,6 +1,6 @@
 "use client";
 
-import { Alert, Button, Input, Link, Select } from "@/components/ui";
+import { Alert, Button, Input, Link, Select, TableScroll } from "@/components/ui";
 import { useMe } from "@/features/auth/hooks";
 import { useCustomer } from "@/features/customers/hooks";
 import { useOrders } from "@/features/orders/hooks";
@@ -268,7 +268,7 @@ function OrdersListContent() {
            * the padding keeps the 3px focus ring visible around the
            * scrollbar edges.
            */}
-          <div className="mt-6 overflow-x-auto p-1.5">
+          <TableScroll testId="orders-list-scroll-region" label="Tabla de pedidos" className="mt-6">
             <table
               data-testid="orders-list-table"
               className="min-w-[44rem] w-full"
@@ -338,7 +338,7 @@ function OrdersListContent() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
 
           {/*
            * The ledger footer, matching the customers list: a 4px double

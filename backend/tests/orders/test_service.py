@@ -136,3 +136,52 @@ def test_a_confirmed_view_keeps_the_frozen_rate(app: FastAPI) -> None:
 
     assert view.tax_rate == Decimal("10.00")
     assert view.total == Decimal("121.00")
+
+
+def test_list_orders_rejects_an_invalid_customer_id_type(app: FastAPI) -> None:
+    with pytest.raises(ApiError) as error:
+        _service(app).list_orders(1, None, None, "1")  # type: ignore[arg-type]
+
+    assert error.value.errors == [
+        {
+            "field": "customer_id",
+            "code": "INVALID_FORMAT",
+            "message": "El formato no es válido.",
+        }
+    ]
+
+
+def test_set_tax_rate_rejects_a_non_string(app: FastAPI) -> None:
+    with pytest.raises(ApiError) as error:
+        _service(app).set_tax_rate(10)  # type: ignore[arg-type]
+
+    assert error.value.errors is not None
+    assert error.value.errors[0]["field"] == "tax_rate"
+    assert error.value.errors[0]["code"] == "INVALID_FORMAT"
+
+
+@pytest.mark.parametrize("transition", ["remove_line", "confirm", "cancel", "ship"])
+def test_a_non_integer_version_is_rejected_before_the_store(app: FastAPI, transition: str) -> None:
+    service = _service(app)
+
+    with pytest.raises(ApiError) as error:
+        if transition == "remove_line":
+            service.remove_line(1, 1, "1")  # type: ignore[arg-type]
+        else:
+            getattr(service, transition)(1, "1")
+
+    assert error.value.errors == [
+        {
+            "field": "version",
+            "code": "INVALID_FORMAT",
+            "message": "El formato no es válido.",
+        }
+    ]
+
+
+def test_removing_a_line_that_does_not_exist_is_not_found(app: FastAPI) -> None:
+    with pytest.raises(ApiError) as error:
+        _service(app).remove_line(1, 999, 1)
+
+    assert error.value.status == 404
+    assert error.value.code == "NOT_FOUND"

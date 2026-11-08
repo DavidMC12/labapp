@@ -309,171 +309,51 @@
             }
           },
           "401": {
-            "description": "Authentication failed.",
+            "description": "There is no session or it expired. Codes: `UNAUTHENTICATED`, `SESSION_EXPIRED`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
-          "403": {
-            "description": "Permission denied.",
+          "429": {
+            "description": "Too many requests. Code: `RATE_LIMITED`; the answer carries `Retry-After`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
-          "404": {
-            "description": "Customer not found.",
+          "500": {
+            "description": "Unexpected server error. Code: `INTERNAL_ERROR`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
-          "409": {
-            "description": "Version or email conflict.",
+          "503": {
+            "description": "The service or a database lock is busy. Code: `LOCK_TIMEOUT`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "422": {
-            "description": "Validation error.",
+            "description": "The query parameters are invalid. Code: `VALIDATION_ERROR` (with `errors[]`).",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -513,172 +393,92 @@
               }
             }
           },
-          "401": {
-            "description": "Authentication failed.",
+          "400": {
+            "description": "The request body is not valid JSON. Code: `MALFORMED_JSON`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The request body exceeds 100 KB. Code: `PAYLOAD_TOO_LARGE`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "There is no session or it expired. Codes: `UNAUTHENTICATED`, `SESSION_EXPIRED`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "403": {
-            "description": "Permission denied.",
+            "description": "The Origin is not allowed or the role lacks the permission. Codes: `CSRF_ORIGIN_MISMATCH`, `FORBIDDEN`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
-          "404": {
-            "description": "Customer not found.",
+          "429": {
+            "description": "Too many requests. Code: `RATE_LIMITED`; the answer carries `Retry-After`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error. Code: `INTERNAL_ERROR`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service or a database lock is busy. Code: `LOCK_TIMEOUT`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "409": {
-            "description": "Version or email conflict.",
+            "description": "The email already belongs to another customer. Code: `CUSTOMER_EMAIL_TAKEN`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "422": {
-            "description": "Validation error.",
+            "description": "The body is invalid. Code: `VALIDATION_ERROR` (with `errors[]`).",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -722,171 +522,61 @@
             }
           },
           "401": {
-            "description": "Authentication failed.",
+            "description": "There is no session or it expired. Codes: `UNAUTHENTICATED`, `SESSION_EXPIRED`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
-          "403": {
-            "description": "Permission denied.",
+          "429": {
+            "description": "Too many requests. Code: `RATE_LIMITED`; the answer carries `Retry-After`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error. Code: `INTERNAL_ERROR`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service or a database lock is busy. Code: `LOCK_TIMEOUT`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "404": {
-            "description": "Customer not found.",
+            "description": "The customer does not exist. Code: `NOT_FOUND`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Version or email conflict.",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "422": {
-            "description": "Validation error.",
+            "description": "The id is not an integer. Code: `VALIDATION_ERROR` (with `errors[]`).",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -937,172 +627,102 @@
               }
             }
           },
-          "401": {
-            "description": "Authentication failed.",
+          "400": {
+            "description": "The request body is not valid JSON. Code: `MALFORMED_JSON`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The request body exceeds 100 KB. Code: `PAYLOAD_TOO_LARGE`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "There is no session or it expired. Codes: `UNAUTHENTICATED`, `SESSION_EXPIRED`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "403": {
-            "description": "Permission denied.",
+            "description": "The Origin is not allowed or the role lacks the permission. Codes: `CSRF_ORIGIN_MISMATCH`, `FORBIDDEN`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests. Code: `RATE_LIMITED`; the answer carries `Retry-After`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error. Code: `INTERNAL_ERROR`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service or a database lock is busy. Code: `LOCK_TIMEOUT`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "404": {
-            "description": "Customer not found.",
+            "description": "The customer does not exist. Code: `NOT_FOUND`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "409": {
-            "description": "Version or email conflict.",
+            "description": "The version is stale or the email is taken. Codes: `VERSION_CONFLICT`, `CUSTOMER_EMAIL_TAKEN`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "422": {
-            "description": "Validation error.",
+            "description": "The id or the body is invalid. Code: `VALIDATION_ERROR` (with `errors[]`).",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -1162,171 +782,81 @@
             }
           },
           "401": {
-            "description": "Authentication failed.",
+            "description": "There is no session or it expired. Codes: `UNAUTHENTICATED`, `SESSION_EXPIRED`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "403": {
-            "description": "Permission denied.",
+            "description": "The Origin is not allowed or the role lacks the permission. Codes: `CSRF_ORIGIN_MISMATCH`, `FORBIDDEN`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests. Code: `RATE_LIMITED`; the answer carries `Retry-After`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error. Code: `INTERNAL_ERROR`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service or a database lock is busy. Code: `LOCK_TIMEOUT`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "404": {
-            "description": "Customer not found.",
+            "description": "The customer does not exist. Code: `NOT_FOUND`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "409": {
-            "description": "Version or email conflict.",
+            "description": "The version is stale. Code: `VERSION_CONFLICT`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "422": {
-            "description": "Validation error.",
+            "description": "The id or the If-Match header is invalid. Code: `VALIDATION_ERROR` (with `errors[]`).",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
@@ -1386,171 +916,81 @@
             }
           },
           "401": {
-            "description": "Authentication failed.",
+            "description": "There is no session or it expired. Codes: `UNAUTHENTICATED`, `SESSION_EXPIRED`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "403": {
-            "description": "Permission denied.",
+            "description": "The Origin is not allowed or the role lacks the permission. Codes: `CSRF_ORIGIN_MISMATCH`, `FORBIDDEN`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests. Code: `RATE_LIMITED`; the answer carries `Retry-After`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error. Code: `INTERNAL_ERROR`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The service or a database lock is busy. Code: `LOCK_TIMEOUT`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "404": {
-            "description": "Customer not found.",
+            "description": "The customer does not exist. Code: `NOT_FOUND`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "409": {
-            "description": "Version or email conflict.",
+            "description": "The version is stale. Code: `VERSION_CONFLICT`.",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }
           },
           "422": {
-            "description": "Validation error.",
+            "description": "The id or the If-Match header is invalid. Code: `VALIDATION_ERROR` (with `errors[]`).",
             "content": {
               "application/problem+json": {
                 "schema": {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "title",
-                    "status",
-                    "code",
-                    "detail"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "title": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "integer"
-                    },
-                    "code": {
-                      "type": "string"
-                    },
-                    "detail": {
-                      "type": "string"
-                    }
-                  }
+                  "$ref": "#/components/schemas/Problem"
                 }
               }
             }

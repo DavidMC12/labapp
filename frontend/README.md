@@ -435,7 +435,9 @@ Every table that can be wider than the window (the lists and the line and paymen
 `TableScroll` (`src/components/ui/TableScroll.tsx`): a focusable `region` with an accessible name, so that the
 keyboard can reach and scroll it (WCAG 2.1.1; axe reports `scrollable-region-focusable` as serious otherwise).
 The global focus style rings it. Its test id uses the `region` kind (`orders-list-scroll-region`). The browser audit
-checks the phone and tablet widths for exactly this, and fails on any page that scrolls sideways.
+checks the phone, tablet and 320 px narrow widths for exactly this, and fails on any page that scrolls sideways:
+every audited page also fits 320 CSS pixels without sideways scrolling (WCAG 2.1 criterion 1.4.10, Reflow), and only
+its data tables scroll, inside their own `TableScroll`.
 
 ## Confirmation dialogs
 

@@ -147,9 +147,11 @@ export function CustomersImportForm() {
     setFormState("loading");
     try {
       const result = await importMutation.mutateAsync(file);
-      // The file was imported: the form returns to idle, the input is
-      // cleared and the data lists are already invalidated by the hook.
-      setFormState("idle");
+      // The file was imported: the success must be an observable state a
+      // test can wait for, so the form stays in `success`; the input is
+      // cleared, the form returns to `idle` when another file is chosen,
+      // and the data lists are already invalidated by the hook.
+      setFormState("success");
       setResultText(
         result.created === 1
           ? "Se importó 1 cliente."
@@ -316,9 +318,12 @@ export function CustomersImportForm() {
             )}
             aria-describedby="customers-import-help-text"
             data-testid="customers-import-file-input"
-            onChange={(event) =>
-              setFile(event.target.files?.[0] ?? null)
-            }
+            onChange={(event) => {
+              // A new file chosen returns the form to idle: the success
+              // and error of the previous attempt are no longer current.
+              setFormState("idle");
+              setFile(event.target.files?.[0] ?? null);
+            }}
             className={FILE_INPUT_CLASSES}
           />
         </Field>

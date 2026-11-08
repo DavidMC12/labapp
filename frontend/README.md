@@ -625,9 +625,11 @@ Spanish.
   `multipart/form-data` (part `file`; the browser sets the multipart
   `Content-Type`) to `POST /api/customers/import` through
   `useImportCustomers()`, which invalidates the list cache on success.
-  The server is the only judge of the file: on 201 the form returns to
-  `data-state="idle"` and `customers-import-result-text` reads
-  "Se importó 1 cliente." / "Se importaron N clientes."; on 422 the alert
+  The server is the only judge of the file: on 201 the form goes to
+  `data-state="success"` and `customers-import-result-text` reads
+  "Se importó 1 cliente." / "Se importaron N clientes." (the form returns
+  to `data-state="idle"` when another file is chosen, goes `loading`
+  while sending and stays `error` after a failure); on 422 the alert
   `customers-import-error-alert` ("El archivo tiene errores. No se
   importó nada.") precedes `customers-import-errors-table` with one row
   per entry of `errors[]` (`customers-import-error-row-N`, the cells

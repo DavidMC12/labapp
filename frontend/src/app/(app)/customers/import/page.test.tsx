@@ -196,11 +196,11 @@ describe("the customers import page", () => {
     expect(status).toHaveAttribute("role", "status");
     expect(screen.getByTestId("customers-import-list-link"))
       .toHaveAttribute("href", "/customers");
-    // The form goes back to idle, the input is cleared and the button is
-    // disabled again.
+    // The form goes to the observable success state, the input is cleared
+    // and the button is disabled again.
     expect(screen.getByTestId("customers-import-form")).toHaveAttribute(
       "data-state",
-      "idle",
+      "success",
     );
     expect(screen.getByTestId("customers-import-file-input")).toHaveValue("");
     expect(screen.getByTestId("customers-import-submit-button")).toBeDisabled();
@@ -252,9 +252,13 @@ describe("the customers import page", () => {
 
     release(jsonResponse({ created: 1, items: [{ id: 12 }] }, 201));
     await waitFor(() => {
-      expect(form).toHaveAttribute("data-state", "idle");
+      expect(form).toHaveAttribute("data-state", "success");
     });
     expect(form).not.toHaveAttribute("aria-busy");
+
+    // Choosing another file returns the form to idle.
+    await chooseFile(csvFile("name,email\nBeto,beto@labapp.test\n"));
+    expect(form).toHaveAttribute("data-state", "idle");
   });
 
   it("shows the error table of a rejected file with whole-file, whole-row and column errors", async () => {
@@ -275,8 +279,13 @@ describe("the customers import page", () => {
     expect(alert).toHaveTextContent(
       "El archivo tiene errores. No se importó nada.",
     );
-    // The focus of a failed submit moves to the alert.
+    // The focus of a failed submit moves to the alert, and the form stays
+    // in the error state.
     expect(alert).toHaveFocus();
+    expect(screen.getByTestId("customers-import-form")).toHaveAttribute(
+      "data-state",
+      "error",
+    );
 
     expect(screen.getByTestId("customers-import-errors-table")).toBeInTheDocument();
     expect(screen.getByTestId("customers-import-errors-table"))

@@ -489,4 +489,55 @@ expect(me.status()).toBe(401);
 expect((await me.json()).code).toBe("SESSION_EXPIRED");
 ```
 
+## 12. Orders and invoices through the API
+
+The standard path of a test run: log in, create the customer, build and confirm the order, issue the invoice, pay. After a reset the ids are deterministic — the first new customer is 11, the first new order `PED-0008`, the first new invoice `FAC-0004`, the first new payment id 5 — so a suite can assert on them.
+
+```bash
+BASE=http://127.0.0.1:8000
+J=/tmp/labapp-cookies
+
+# 1. Log in as Sales (Admin works too): create customers and orders.
+curl -s -c $J -H 'Content-Type: application/json' \
+  -d '{"email":"sales@labapp.test","password":"Demo-LabApp-2026!"}' "$BASE/api/auth/login"
+
+# 2. Create the customer. 201, Location: /api/customers/11, ETag: "1".
+curl -s -i -b $J -H 'Content-Type: application/json' \
+  -d '{"name":"Cliente de Prueba","email":"prueba-api@example.test","tax_id":"PRUE-123"}' \
+  "$BASE/api/customers"
+
+# 3. Create a draft order for it. 201, Location: /api/orders/8, ETag: "1",
+#    number "PED-0008", empty lines, totals "0.00", tax_rate preview "10.00".
+curl -s -i -b $J -H 'Content-Type: application/json' -d '{"customer_id": 11}' "$BASE/api/orders"
+
+# 4. Add two units of product 1 (KB-100). 201, ETag: "2", total "43.78" (10% tax).
+curl -s -i -b $J -H 'Content-Type: application/json' \
+  -d '{"product_id": 1, "quantity": 2, "version": 1}' "$BASE/api/orders/8/lines"
+
+# 5. Confirm. 200, ETag: "3", status "confirmed"; the stock of KB-100 drops by 2
+#    and the totals and the tax rate freeze.
+curl -s -i -b $J -X POST -H 'If-Match: "2"' "$BASE/api/orders/8/confirm"
+
+# 6. Log in as Finance (Admin works too): issue invoices and pay.
+curl -s -c $J -H 'Content-Type: application/json' \
+  -d '{"email":"finance@labapp.test","password":"Demo-LabApp-2026!"}' "$BASE/api/auth/login"
+
+# 7. Issue the invoice. 201, Location: /api/invoices/4, ETag: "1", number "FAC-0004";
+#    the order is linked (its invoice_id set and its version bumped to 4), the issue
+#    email ("Factura FAC-0004 emitida") is only written to the log.
+curl -s -i -b $J -X POST "$BASE/api/orders/8/invoice"
+
+# 8. Pay with the always-approved card. 201 with a PaymentResult:
+#    {"payment": {"id": 5, "method": "card", "status": "approved", "amount": "43.78",
+#                 "reference": null, "card_last4": "4242", "reason": null, ...},
+#     "invoice": {"status": "paid", "version": 2, ...}}
+#    ETag: "2" (the invoice's new version); the order is "paid" as well.
+curl -s -i -b $J -H 'Content-Type: application/json' -H 'Idempotency-Key: pay-0001' \
+  -d '{"method":"card","amount":"43.78",
+       "card":{"number":"4242 4242 4242 4242","expiry":"12/30","cvc":"123"}}' \
+  "$BASE/api/invoices/4/payments"
+```
+
+The guards a test meets on the way ([SPEC sections 4–6](SPEC.md)): every route needs a session; creating customers, orders and lines, editing them, and confirming/cancelling/shipping are for Admin and Sales (`403 FORBIDDEN` otherwise); issuing an invoice and registering a payment are for Admin and Finance. Money is always a JSON string with exactly two decimals (`"43.78"`), never a number; the tax rate is `"10.00"` too.
+
 - Stable codes pointer… (placeholder)

@@ -581,6 +581,28 @@ describe("the customer form optional fields and reload guard", () => {
     );
   });
 
+  it("focuses the ID fiscal field when only it fails on the server", async () => {
+    fetchMock.mockResolvedValue(problem({
+      ...VALIDATION_PROBLEM,
+      errors: [
+        { field: "tax_id", code: "INVALID_FORMAT", message: "El formato no es válido." },
+      ],
+    }));
+    renderForm({ mode: "edit", customer, resetSignal: 0, onReload: vi.fn() });
+    const user = userEvent.setup();
+
+    await user.click(screen.getByTestId("customers-form-submit-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("customers-form-taxid-error"))
+        .toHaveTextContent("El formato no es válido.");
+    });
+    expect(document.activeElement).toHaveAttribute(
+      "data-testid",
+      "customers-form-taxid-input",
+    );
+  });
+
   it("focuses the address field when only it fails on the server", async () => {
     fetchMock.mockResolvedValue(problem({
       ...VALIDATION_PROBLEM,

@@ -41,8 +41,10 @@ Roles: Admin, Ventas, Finanzas y Solo lectura. La pantalla está en español. La
 | Diseño: tema "Libro mayor" en versión clara y oscura, selector que se recuerda por navegador | Hecho |
 | Protecciones de petición: origen, JSON mal formado, tamaño, límites, tiempos de espera de bloqueos | Hecho |
 | Auditorías de testabilidad en CI: auditoría estática de testid, auditoría en navegador (testid y axe) en los dos temas, pruebas de integración con PostgreSQL | Hecho |
-| Facturas y pagos: pantallas | Hecho; backend en curso |
-| Controles solo para pruebas (reset, seed, reloj, inyección de fallas) con estado en PostgreSQL | En curso |
+| Facturas y pagos: API, pantallas, almacén en PostgreSQL con pagos idempotentes y pasarela falsa | Hecho |
+| Controles solo para pruebas (reset, seed, reloj, inyección de fallas) con estado en PostgreSQL, protegidos por token | Hecho |
+| Contrato de la API: `docs/openapi.json`, comprobado contra el código en CI | Hecho |
+| Guía de automatización de la interfaz web, catálogo generado de test ids | Hecho; la guía de los controles y la API sigue |
 | Primer despliegue en línea (Vercel y Neon) y reinicio nocturno de datos | Configurado, aún sin desplegar |
 
 ## Hoja de ruta

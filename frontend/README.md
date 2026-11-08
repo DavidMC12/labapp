@@ -96,7 +96,37 @@ pnpm typecheck
 
 # unit tests (Vitest + Testing Library, jsdom)
 pnpm test
+
+# unit tests with the coverage run (`text-summary` on the console, the
+# full report in `coverage/lcov.info`, git-ignored)
+pnpm test:coverage
 ```
+
+## Coverage
+
+- `pnpm test:coverage` runs the same suite on the V8 provider
+  (`@vitest/coverage-v8`): it prints the summary on the console and
+  writes the detailed report to `coverage/` (`coverage/lcov.info`),
+  which git ignores.
+- **The floor.** The configuration carries global thresholds —
+  `lines 95`, `statements 95`, `functions 97`, `branches 90` — set at the
+  percentages achieved in task 034 rounded down by two points. The run
+  fails when any of them falls below the floor, and the `frontend` job
+  of the CI runs `pnpm test:coverage`, so the floor cannot silently
+  drop.
+- **The rule**: a change to the app must not lower coverage. The floor
+  only moves through a commit that adds tests (or removes dead code) to
+  the point where the run reaches a new percentage, and it must be
+  raised in the same change (again rounded down by two points from the
+  new run). The goal is covering behavior that matters — branches of the
+  data layer and the error and edge paths of the screens — not 100
+  percent: do not chase the uncovered defensive lines that the data
+  layer cannot reach (every failure through `src/lib/api.ts` is an
+  `ApiRequestError`) and the not-yet-executed guard lines that the
+  event system makes impossible.
+- What is excluded: the tests themselves, `src/test/`, the type-only
+  modules (`**/*.d.ts` and the `types.ts` of the features) and the
+  generated Next.js files.
 
 ## Layout
 
@@ -326,6 +356,14 @@ src/
   input and a `role="status"` region announces it.
 - The navigation link "Configuración" (`app-nav-settings-link`) is
   visible to every role; the current-section highlight covers it.
+
+## Scrollable tables
+
+Every table that can be wider than the window (the lists and the line and payment tables of the details) sits in
+`TableScroll` (`src/components/ui/TableScroll.tsx`): a focusable `region` with an accessible name, so that the
+keyboard can reach and scroll it (WCAG 2.1.1; axe reports `scrollable-region-focusable` as serious otherwise).
+The global focus style rings it. Its test id uses the `region` kind (`orders-list-scroll-region`). The browser audit
+checks the phone and tablet widths for exactly this, and fails on any page that scrolls sideways.
 
 ## Confirmation dialogs
 

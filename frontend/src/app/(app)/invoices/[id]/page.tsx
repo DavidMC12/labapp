@@ -1,6 +1,6 @@
 "use client";
 
-import { Alert, Button, Input, Link, Select } from "@/components/ui";
+import { Alert, Button, Input, Link, Select, TableScroll } from "@/components/ui";
 import { useMe } from "@/features/auth/hooks";
 import { newIdempotencyKey } from "@/features/invoices/idempotency";
 import { useInvoice, useRegisterPayment } from "@/features/invoices/hooks";
@@ -624,7 +624,7 @@ function Detail({ id }: { id: number }) {
         >
           Líneas
         </h2>
-        <div className="mt-3 overflow-x-auto p-1.5">
+        <TableScroll testId="invoices-detail-lines-scroll-region" label="Líneas de la factura" className="mt-3">
           <table
             data-testid="invoices-detail-lines-table"
             className="min-w-[36rem] w-full"
@@ -672,7 +672,7 @@ function Detail({ id }: { id: number }) {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableScroll>
 
         {/*
          * The totals of the invoice: the ledger with the double rule
@@ -724,7 +724,7 @@ function Detail({ id }: { id: number }) {
             Aún no hay pagos.
           </p>
         ) : (
-          <div className="mt-3 overflow-x-auto p-1.5">
+          <TableScroll testId="invoices-detail-payments-scroll-region" label="Pagos de la factura" className="mt-3">
             <table
               data-testid="invoices-detail-payments-table"
               className="min-w-[40rem] w-full"
@@ -744,7 +744,7 @@ function Detail({ id }: { id: number }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
         )}
       </div>
 

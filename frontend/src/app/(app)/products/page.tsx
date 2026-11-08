@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Input } from "@/components/ui";
+import { Button, Input, TableScroll } from "@/components/ui";
 import { Alert } from "@/components/ui";
 import { useProducts } from "@/features/products/hooks";
 import { parseProductListParams } from "@/features/products/params";
@@ -170,7 +170,7 @@ function ProductsListContent() {
            * the padding keeps the 3px focus ring visible around the
            * scrollbar edges.
            */}
-          <div className="mt-6 overflow-x-auto p-1.5">
+          <TableScroll testId="products-list-scroll-region" label="Tabla de productos" className="mt-6">
             <table
               data-testid="products-list-table"
               className="min-w-[32rem]"
@@ -235,7 +235,7 @@ function ProductsListContent() {
                 })}
               </tbody>
             </table>
-          </div>
+          </TableScroll>
 
           {/*
            * The ledger footer: a 4px double rule of ink above it and the

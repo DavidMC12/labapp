@@ -28,6 +28,18 @@
     { "name": "invoices-detail-paid", "path": "/invoices/2", "user": "finance@labapp.test", "waitFor": "invoices-detail-closed-text", "title": "Factura FAC-0002 · LabApp" },
     { "name": "invoices-detail-readonly", "path": "/invoices/1", "user": "readonly@labapp.test", "waitFor": "invoices-detail-heading", "title": "Factura FAC-0001 · LabApp" },
     { "name": "settings-admin", "path": "/settings", "user": "admin@labapp.test", "waitFor": "settings-taxrate-form", "title": "Configuración · LabApp" },
-    { "name": "settings-readonly", "path": "/settings", "user": "sales@labapp.test", "waitFor": "settings-taxrate-readonly-text", "title": "Configuración · LabApp" }
+    { "name": "settings-readonly", "path": "/settings", "user": "sales@labapp.test", "waitFor": "settings-taxrate-readonly-text", "title": "Configuración · LabApp" },
+    { "name": "home-phone", "path": "/", "user": "sales@labapp.test", "waitFor": "home-customers-active-count-text", "viewport": { "width": 390, "height": 844 }, "catalog": false, "title": "Resumen · LabApp" },
+    { "name": "customers-list-phone", "path": "/customers", "user": "sales@labapp.test", "waitFor": "customers-list-table", "viewport": { "width": 390, "height": 844 }, "catalog": false, "title": "Clientes · LabApp" },
+    { "name": "customers-detail-phone", "path": "/customers/2", "user": "sales@labapp.test", "waitFor": "customers-detail-heading", "viewport": { "width": 390, "height": 844 }, "catalog": false, "title": "Cliente Beta Comercial Ltda. · LabApp" },
+    { "name": "orders-list-phone", "path": "/orders", "user": "sales@labapp.test", "waitFor": "orders-list-table", "viewport": { "width": 390, "height": 844 }, "catalog": false, "title": "Pedidos · LabApp" },
+    { "name": "orders-new-phone", "path": "/orders/new", "user": "sales@labapp.test", "waitFor": "orders-customer-form", "viewport": { "width": 390, "height": 844 }, "catalog": false, "title": "Nuevo pedido · LabApp" },
+    { "name": "orders-detail-confirmed-phone", "path": "/orders/3", "user": "sales@labapp.test", "waitFor": "orders-detail-heading", "viewport": { "width": 390, "height": 844 }, "catalog": false, "title": "Pedido PED-0003 · LabApp" },
+    { "name": "invoices-detail-issued-phone", "path": "/invoices/1", "user": "finance@labapp.test", "waitFor": "payments-register-form", "viewport": { "width": 390, "height": 844 }, "catalog": false, "title": "Factura FAC-0001 · LabApp" },
+    { "name": "products-list-phone", "path": "/products", "user": "readonly@labapp.test", "waitFor": "products-list-table", "viewport": { "width": 390, "height": 844 }, "catalog": false, "title": "Productos · LabApp" },
+    { "name": "settings-admin-phone", "path": "/settings", "user": "admin@labapp.test", "waitFor": "settings-taxrate-form", "viewport": { "width": 390, "height": 844 }, "catalog": false, "title": "Configuración · LabApp" },
+    { "name": "home-tablet", "path": "/", "user": "sales@labapp.test", "waitFor": "home-customers-active-count-text", "viewport": { "width": 768, "height": 1024 }, "catalog": false, "title": "Resumen · LabApp" },
+    { "name": "orders-detail-confirmed-tablet", "path": "/orders/3", "user": "sales@labapp.test", "waitFor": "orders-detail-heading", "viewport": { "width": 768, "height": 1024 }, "catalog": false, "title": "Pedido PED-0003 · LabApp" },
+    { "name": "invoices-detail-issued-tablet", "path": "/invoices/1", "user": "finance@labapp.test", "waitFor": "payments-register-form", "viewport": { "width": 768, "height": 1024 }, "catalog": false, "title": "Factura FAC-0001 · LabApp" }
   ]
 }

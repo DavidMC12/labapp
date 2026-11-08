@@ -5,5 +5,6 @@ export { Field, fieldControlProps } from "./Field";
 export { Input } from "./Input";
 export { Link } from "./Link";
 export { Select } from "./Select";
+export { TableScroll } from "./TableScroll";
 export { Textarea } from "./Textarea";
 export { ThemeSelect } from "./ThemeSelect";

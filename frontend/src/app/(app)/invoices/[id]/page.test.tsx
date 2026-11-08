@@ -1370,3 +1370,233 @@ describe("the amount mismatch and the idempotency key rule", () => {
     });
   });
 });
+
+describe("the focus and the server fields of a strict 422", () => {
+  it("focuses the method select and marks the reference from a 422", async () => {
+    mutateAnswer = () =>
+      jsonResponse(
+        {
+          type: "about:blank",
+          title: "Unprocessable Content",
+          status: 422,
+          code: "VALIDATION_ERROR",
+          detail: "Revisa los datos ingresados.",
+          errors: [
+            {
+              field: "reference",
+              code: "LENGTH_TOO_LONG",
+              message: "La referencia es demasiado larga.",
+            },
+            {
+              field: "method",
+              code: "METHOD_UNAVAILABLE",
+              message: "Ese medio de pago no está disponible.",
+            },
+          ],
+        },
+        422,
+      );
+    await renderIssuedDetail();
+
+    const user = userEvent.setup();
+    await user.selectOptions(
+      screen.getByTestId("payments-register-method-select"),
+      "transfer",
+    );
+    await user.type(
+      screen.getByTestId("payments-register-reference-input"),
+      "TRF-2026-0001",
+    );
+    await user.click(screen.getByTestId("payments-register-submit-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("payments-register-method-error"))
+        .toHaveTextContent("Ese medio de pago no está disponible.");
+    });
+    expect(screen.getByTestId("payments-register-reference-error"))
+      .toHaveTextContent("La referencia es demasiado larga.");
+    // The focus follows the order of the fields: method before reference.
+    expect(document.activeElement).toHaveAttribute(
+      "data-testid",
+      "payments-register-method-select",
+    );
+  });
+
+  it("focuses the amount field when only it fails on the server", async () => {
+    mutateAnswer = () =>
+      jsonResponse(
+        {
+          type: "about:blank",
+          title: "Unprocessable Content",
+          status: 422,
+          code: "VALIDATION_ERROR",
+          detail: "Revisa los datos ingresados.",
+          errors: [
+            {
+              field: "amount",
+              code: "OUT_OF_RANGE",
+              message: "El monto no cubre el total pendiente.",
+            },
+          ],
+        },
+        422,
+      );
+    await renderIssuedDetail();
+
+    const user = userEvent.setup();
+    await user.type(
+      screen.getByTestId("payments-register-cardnumber-input"),
+      "4242424242424242",
+    );
+    await user.type(
+      screen.getByTestId("payments-register-cardexpiry-input"),
+      "31/12/2027",
+    );
+    await user.type(screen.getByTestId("payments-register-cardcvc-input"), "123");
+    await user.click(screen.getByTestId("payments-register-submit-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("payments-register-amount-error"))
+        .toHaveTextContent("El monto no cubre el total pendiente.");
+    });
+    expect(document.activeElement).toHaveAttribute(
+      "data-testid",
+      "payments-register-amount-input",
+    );
+  });
+
+  it("focuses the card expiry when only it fails on the server", async () => {
+    mutateAnswer = () =>
+      jsonResponse(
+        {
+          type: "about:blank",
+          title: "Unprocessable Content",
+          status: 422,
+          code: "VALIDATION_ERROR",
+          detail: "Revisa los datos ingresados.",
+          errors: [
+            {
+              field: "card.expiry",
+              code: "INVALID_FORMAT",
+              message: "El formato no es válido.",
+            },
+          ],
+        },
+        422,
+      );
+    await renderIssuedDetail();
+
+    const user = userEvent.setup();
+    await user.type(
+      screen.getByTestId("payments-register-cardnumber-input"),
+      "4242424242424242",
+    );
+    await user.type(
+      screen.getByTestId("payments-register-cardexpiry-input"),
+      "not-a-date",
+    );
+    await user.type(screen.getByTestId("payments-register-cardcvc-input"), "12");
+    await user.click(screen.getByTestId("payments-register-submit-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("payments-register-cardexpiry-error"))
+        .toHaveTextContent("El formato no es válido.");
+    });
+    expect(
+      screen.queryByTestId("payments-register-cardnumber-error"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("payments-register-cardcvc-error"),
+    ).not.toBeInTheDocument();
+    expect(document.activeElement).toHaveAttribute(
+      "data-testid",
+      "payments-register-cardexpiry-input",
+    );
+  });
+
+  it("focuses the card cvc when only it fails on the server", async () => {
+    mutateAnswer = () =>
+      jsonResponse(
+        {
+          type: "about:blank",
+          title: "Unprocessable Content",
+          status: 422,
+          code: "VALIDATION_ERROR",
+          detail: "Revisa los datos ingresados.",
+          errors: [
+            {
+              field: "card.cvc",
+              code: "CARD_CVC_INVALID",
+              message: "El código de seguridad no es válido.",
+            },
+          ],
+        },
+        422,
+      );
+    await renderIssuedDetail();
+
+    const user = userEvent.setup();
+    await user.type(
+      screen.getByTestId("payments-register-cardnumber-input"),
+      "4242424242424242",
+    );
+    await user.type(
+      screen.getByTestId("payments-register-cardexpiry-input"),
+      "31/12/2027",
+    );
+    await user.type(screen.getByTestId("payments-register-cardcvc-input"), "1");
+    await user.click(screen.getByTestId("payments-register-submit-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("payments-register-cardcvc-error"))
+        .toHaveTextContent("El código de seguridad no es válido.");
+    });
+    expect(document.activeElement).toHaveAttribute(
+      "data-testid",
+      "payments-register-cardcvc-input",
+    );
+  });
+});
+
+describe("the retry of the invoice detail", () => {
+  it("recovers from a load failure with the retry button", async () => {
+    fetchMock.mockReset();
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/auth/me") {
+        return jsonResponse(meUser);
+      }
+      if (url === "/api/invoices/1") {
+        return invoiceStatus === 200
+          ? jsonResponse(invoiceBody, 200)
+          : problemWith(
+              500,
+              "INTERNAL_ERROR",
+              "Ocurrió un error inesperado. Inténtalo de nuevo.",
+            );
+      }
+      return problemWith(404, "NOT_FOUND", "No se encontró el recurso.");
+    });
+    invoiceStatus = 500;
+    renderDetail();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("invoices-detail-error-alert")).toHaveTextContent(
+        "Ocurrió un error inesperado.",
+      );
+    });
+
+    // The retry reloads the same key; the healthy answer arrives now.
+    invoiceStatus = 200;
+    await userEvent
+      .setup()
+      .click(screen.getByTestId("invoices-detail-retry-button"));
+    await waitFor(() => {
+      expect(screen.getByTestId("invoices-detail-heading")).toHaveTextContent(
+        "FAC-0001",
+      );
+    });
+    expect(screen.queryByTestId("invoices-detail-error-alert"))
+      .not.toBeInTheDocument();
+  });
+});

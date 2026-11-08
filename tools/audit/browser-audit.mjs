@@ -10,7 +10,8 @@
 // It prints the states it covered: the 100% goal is measured over those states. Exit code 1 when anything fails.
 //
 // Needs a running application (API and web) at "baseUrl" and the frontend dependencies installed.
-// A state may have "steps": [{ "click": "<test id>", "waitFor": "<test id that must become visible>" }] to reach a state
+// A state may have "viewport": { "width": 390, "height": 844 } (a phone or a tablet), "catalog": false (left out of the catalog,
+// for a state that repeats the ids of another one), and "steps": [{ "click": "<test id>", "waitFor": "<test id that must become visible>" }] to reach a state
 // that needs an interaction (a dialog).
 // Usage: node tools/audit/browser-audit.mjs [--base http://localhost:3000] [--only name,name] [--theme light|dark] [--catalog file.md] [--json]
 //   --catalog writes the test ids found in every state as a Markdown catalog (docs/TESTIDS.md); CI compares it with the committed copy.
@@ -127,6 +128,7 @@ function naturalCompare(a, b) {
 // The catalog: the test ids of every state and the element that carries each. Ids present in every logged-in state
 // (the app shell) are listed once. Sorted, so that two runs on the same data produce the same file.
 function renderCatalog(report) {
+  report = report.filter((entry) => config.states.find((state) => state.name === entry.name)?.catalog !== false);
   const loggedIn = report.filter((entry) => config.states.find((state) => state.name === entry.name)?.user);
   const shell = loggedIn.length > 1
     ? new Set(loggedIn[0].elements.map((row) => row.id).filter((id) => loggedIn.every((entry) => entry.elements.some((row) => row.id === id))))
@@ -200,6 +202,9 @@ async function main() {
     for (const state of config.states) {
       if (only && !only.includes(state.name)) continue;
       await send("Network.clearBrowserCookies");
+      // The window of the state: a phone or a tablet for the states that name one, the desktop otherwise.
+      const viewport = state.viewport ?? { width: 1280, height: 900 };
+      await send("Emulation.setDeviceMetricsOverride", { width: viewport.width, height: viewport.height, deviceScaleFactor: 1, mobile: viewport.width < 600 });
       if (state.user) {
         if (!cookies.has(state.user)) cookies.set(state.user, await login(state.user));
         await send("Network.setCookie", { name: "labapp_session", value: cookies.get(state.user), url: base, httpOnly: true });
@@ -251,6 +256,9 @@ async function main() {
         const applied = await evaluate(`document.documentElement.getAttribute("data-theme")`);
         if (applied !== theme) entry.failures.push(`the ${theme} theme was not applied (data-theme is ${applied === null ? "absent" : `"${applied}"`})`);
       }
+      // No page may scroll sideways: the content has to fit the window it is shown in.
+      const overflow = await evaluate(`({ scrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth })`);
+      if (overflow.scrollWidth > overflow.innerWidth + 1) entry.failures.push(`the page scrolls horizontally (${overflow.scrollWidth}px of content in a ${overflow.innerWidth}px window)`);
       entry.title = await evaluate("document.title");
       if (state.title !== undefined && entry.title !== state.title) entry.failures.push(`the page title is "${entry.title}", expected "${state.title}"`);
       const check = await evaluate(PAGE_CHECK);

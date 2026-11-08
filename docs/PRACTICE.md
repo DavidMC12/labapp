@@ -261,8 +261,10 @@ A suggested order, from coffee-break easy to hard. Each entry links to the secti
 12. Move the clock to expire a session — [E-4](#e-session-and-security)
 13. Two writers at once: versions and replay under contention — [F-4](#f-concurrency-and-resilience) and [F-10](#f-concurrency-and-resilience)
 14. Arrange the world: reset, seed, faults — [H-1](#h-test-data-and-isolation) and [H-6](#h-test-data-and-isolation)
+15. Sort a list in both directions and combine the sort with a filter — [I-1](#i-lists-sorting-csv-export-and-response-headers) and [I-12](#i-lists-sorting-csv-export-and-response-headers)
+16. Export the lists and prove the cache rule of every answer — [I-15](#i-lists-sorting-csv-export-and-response-headers) and [I-27](#i-lists-sorting-csv-export-and-response-headers)
 
-Steps 1–4 (easy): a login, a list, a create and a first conflict, each in a dozen lines of Playwright or `curl`. Steps 5–9 (medium): the order machine and the payment gateway, with the seed as the expected-answer calculator. Steps 10–14 (hard): concurrency, role matrices and the test controls — the scenarios that separate a suite that just clicks from one that proves the contract.
+Steps 1–4 (easy): a login, a list, a create and a first conflict, each in a dozen lines of Playwright or `curl`. Steps 5–9 (medium): the order machine and the payment gateway, with the seed as the expected-answer calculator. Steps 10–14 (hard): concurrency, role matrices and the test controls — the scenarios that separate a suite that just clicks from one that proves the contract. Steps 15–16 (medium): sorting, CSV export and response headers, the features a data-driven suite leans on.
 
 
 ## What is deliberately not here

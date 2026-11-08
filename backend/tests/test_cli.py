@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -208,3 +211,198 @@ def test_openapi_writes_the_document_to_a_file(tmp_path: Path) -> None:
     written = target.read_text(encoding="utf-8")
     assert written.endswith("\n")
     assert "/api/invoices/{id}/payments" in json.loads(written)["paths"]
+
+
+def test_migrate_upgrades_the_database(monkeypatch: pytest.MonkeyPatch) -> None:
+    upgrades: list[str] = []
+    monkeypatch.setattr(
+        cli_module.command, "upgrade", lambda config, revision: upgrades.append(revision)
+    )
+
+    assert main(["migrate"]) == 0
+    assert upgrades == ["head"]
+
+
+def test_seed_runs_the_database_seed(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[object] = []
+    monkeypatch.setattr(cli_module, "seed_database", calls.append)
+
+    assert main(["seed"]) == 0
+    assert len(calls) == 1
+
+
+def test_deploy_migrates_and_seeds(monkeypatch: pytest.MonkeyPatch) -> None:
+    steps: list[str] = []
+    monkeypatch.delenv("VERCEL_ENV", raising=False)
+    monkeypatch.setattr(
+        cli_module.command, "upgrade", lambda config, revision: steps.append("upgrade")
+    )
+    monkeypatch.setattr(cli_module, "seed_database", lambda settings: steps.append("seed"))
+
+    assert main(["deploy"]) == 0
+    assert steps == ["upgrade", "seed"]
+
+
+def test_deploy_skips_a_preview_without_touching_the_database(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    steps: list[str] = []
+    monkeypatch.setenv("VERCEL_ENV", "preview")
+    monkeypatch.setattr(
+        cli_module.command, "upgrade", lambda config, revision: steps.append("upgrade")
+    )
+    monkeypatch.setattr(cli_module, "seed_database", lambda settings: steps.append("seed"))
+
+    assert main(["deploy", "--production-only"]) == 0
+    assert steps == []
+    assert "preview" in capsys.readouterr().out
+
+
+def test_reset_without_a_database_url_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("TEST_MODE", "1")
+    monkeypatch.setenv("DATABASE_SCHEMA", "labapp")
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+
+    assert main(["reset", "--yes"]) == 2
+    assert "DATABASE_URL is not set" in capsys.readouterr().out
+
+
+def test_openapi_restores_a_previous_session_secret(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("SESSION_SECRET", "previous-secret")
+
+    assert main(["openapi"]) == 0
+    capsys.readouterr()
+
+    assert os.environ["SESSION_SECRET"] == "previous-secret"
+
+
+def test_openapi_removes_the_playground_secret_when_there_was_none(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.delenv("SESSION_SECRET", raising=False)
+
+    assert main(["openapi"]) == 0
+    capsys.readouterr()
+
+    assert "SESSION_SECRET" not in os.environ
+
+
+class FakeResult:
+    def __init__(self, value: int) -> None:
+        self.value = value
+
+    def scalar_one(self) -> int:
+        return self.value
+
+
+class FakeConnection:
+    def __init__(self, value: int) -> None:
+        self.value = value
+        self.statements = 0
+
+    def execute(self, statement: object) -> FakeResult:
+        self.statements += 1
+        return FakeResult(self.value)
+
+
+class FakeEngine:
+    def __init__(self, value: int = 0) -> None:
+        self.connection = FakeConnection(value)
+        self.disposed = False
+
+    @contextmanager
+    def begin(self) -> Iterator[FakeConnection]:
+        yield self.connection
+
+    def dispose(self) -> None:
+        self.disposed = True
+
+
+class FakeRepository:
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        self.calls: list[tuple[object, ...]] = []
+
+    def replace_all(self, *args: object, **kwargs: object) -> None:
+        self.calls.append(args)
+
+
+def test_reset_database_builds_the_resetter_and_disposes_the_engine(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = FakeEngine()
+    resetters: list[object] = []
+    monkeypatch.setattr(cli_module, "create_db_engine", lambda settings: engine)
+    monkeypatch.setattr(cli_module, "PostgresCustomerRepository", lambda engine: object())
+    monkeypatch.setattr(cli_module, "PostgresOrderStore", lambda engine: object())
+    monkeypatch.setattr(cli_module, "PostgresInvoiceStore", lambda engine, gateway: object())
+
+    class RecordingResetter:
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            self.reset_calls = 0
+            resetters.append(self)
+
+        def reset(self) -> None:
+            self.reset_calls += 1
+
+    monkeypatch.setattr(cli_module, "PostgresResetter", RecordingResetter)
+
+    cli_module.reset_database(cli_module.Settings(session_secret="x"))
+
+    assert len(resetters) == 1
+    assert resetters[0].reset_calls == 1  # type: ignore[attr-defined]
+    assert engine.disposed is True
+
+
+def test_seed_database_fills_empty_tables_and_disposes_the_engine(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = FakeEngine(0)
+    repositories: list[FakeRepository] = []
+
+    def factory(*args: object, **kwargs: object) -> FakeRepository:
+        repository = FakeRepository(*args, **kwargs)
+        repositories.append(repository)
+        return repository
+
+    monkeypatch.setattr(cli_module, "create_db_engine", lambda settings: engine)
+    monkeypatch.setattr(cli_module, "PostgresUserRepository", factory)
+    monkeypatch.setattr(cli_module, "PostgresCustomerRepository", factory)
+    monkeypatch.setattr(cli_module, "PostgresOrderStore", factory)
+    monkeypatch.setattr(cli_module, "PostgresInvoiceStore", factory)
+
+    cli_module.seed_database(cli_module.Settings(session_secret="x"))
+
+    assert engine.connection.statements == 5
+    assert [len(repository.calls) for repository in repositories] == [1, 1, 1, 1]
+    assert engine.disposed is True
+
+
+def test_seed_database_leaves_existing_tables_alone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = FakeEngine(1)
+    repositories: list[FakeRepository] = []
+
+    def factory(*args: object, **kwargs: object) -> FakeRepository:
+        repository = FakeRepository(*args, **kwargs)
+        repositories.append(repository)
+        return repository
+
+    monkeypatch.setattr(cli_module, "create_db_engine", lambda settings: engine)
+    monkeypatch.setattr(cli_module, "PostgresUserRepository", factory)
+    monkeypatch.setattr(cli_module, "PostgresCustomerRepository", factory)
+    monkeypatch.setattr(cli_module, "PostgresOrderStore", factory)
+    monkeypatch.setattr(cli_module, "PostgresInvoiceStore", factory)
+
+    cli_module.seed_database(cli_module.Settings(session_secret="x"))
+
+    assert repositories == []
+    assert engine.disposed is True

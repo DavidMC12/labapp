@@ -52,6 +52,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  document.title = "LabApp";
   vi.unstubAllGlobals();
 });
 
@@ -67,6 +68,8 @@ describe("the create customer page", () => {
       expect(screen.getByRole("heading", { name: "Nuevo cliente" }))
         .toHaveAttribute("data-testid", "customers-form-heading");
     });
+    // The tab answers from the first paint (useDocumentTitle in the page).
+    expect(document.title).toBe("Nuevo cliente · LabApp");
     expect(screen.getByTestId("customers-form-name-input")).toBeInTheDocument();
     expect(screen.getByTestId("customers-form-cancel-link")).toHaveAttribute(
       "href",

@@ -4,6 +4,7 @@ import { Alert } from "@/components/ui";
 import { useMe } from "@/features/auth/hooks";
 import { CustomerForm } from "@/features/customers/CustomerForm";
 import { canManageCustomers } from "@/features/customers/permissions";
+import { useDocumentTitle } from "@/lib/useDocumentTitle";
 
 /**
  * The create customer page. Reading the session from the shell cache; the
@@ -11,6 +12,7 @@ import { canManageCustomers } from "@/features/customers/permissions";
  * the server remains the authority.
  */
 export default function CustomerNewPage() {
+  useDocumentTitle("Nuevo cliente");
   const me = useMe();
 
   if (me.isPending) {

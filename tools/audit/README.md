@@ -39,3 +39,20 @@ node tools/audit/browser-audit.mjs --theme dark   # the same states with the dar
 `--theme light|dark` stores the explicit choice of the theme selector in `localStorage` before every page loads, so the axe contrast check runs against each voice of the design. CI runs the audit twice, once per theme. A color that is only wrong in one theme fails only that run.
 
 It needs a running application (the states use the demo users and the fixed seed data, so run the API in memory mode: with `DATABASE_URL` empty, or against a freshly seeded database) and Chrome or Chromium (`CHROME_BIN` or the usual paths). CI builds the web app, starts both processes and runs it, once per theme, in the `browser-audit` job.
+
+## Documentation lint
+
+`docs-lint.mjs` reads every `*.md` under the repository root (except `docs/reviews/` and `docs/tasks/`, the historical records and briefs, and the ignored trees) and fails when a document contains a mistake that can be found mechanically:
+
+- a relative Markdown link whose file or directory does not exist, whose path escapes the repository, or whose `#anchor` does not match a heading of the linked file (with GitHub's slug rule: lower case, punctuation removed, spaces to hyphens). Absolute URLs and `mailto:` links are not fetched;
+- an inline code span that matches the test id grammar (the pattern is read from `frontend/src/lib/testid.ts`, one definition) but is neither in `docs/TESTIDS.md`, nor a literal id of the frontend source, nor a documented template (it contains `{` and `}`, or ends with `-N`, as `customers-list-row-42` does for a record id);
+- a code fence that is never closed;
+- a table row with more or fewer cells than its header (escaped pipes aside).
+
+It reads files only: no application, no browser, no dependencies beyond Node's standard library.
+
+```bash
+node tools/audit/docs-lint.mjs                          # lint the documents
+node tools/audit/docs-lint.mjs --json                   # the list of problems as JSON
+node --test tools/audit/docs-lint.test.mjs              # test the linter itself
+```

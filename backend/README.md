@@ -327,7 +327,7 @@ What is stored where:
   number sequences (the next order is `PED-0008`, the next invoice `FAC-0004`, the next
   payment id 5, the next customer id 11), the tax rate, the clock and the faults, and it
   clears the rate-limit counters of the instance that serves it. Those counters are
-  per-instance and in memory; moving them to the database is a later task.
+  per-instance and in memory; moving them to the database is not planned (the limits are best effort).
 - `seed {"dataset": "default"}` loads the same rows without touching the clock, the faults
   or the rate-limit counters. `seed {"dataset": "empty"}` leaves the four users and the
   settings, empties every other table, restarts the sequences, restores the tax rate,

@@ -41,8 +41,10 @@ Roles: Admin, Sales, Finance and Read-only. The screen language is Spanish. Busi
 | Design: "Libro mayor" theme in a light and a dark voice, selector remembered per browser | Done |
 | Request guards: origin check, malformed JSON, body size, rate limits, lock timeouts | Done |
 | Testability audits in CI: static test-id audit, browser audit (test ids and axe) in both themes, PostgreSQL integration tests | Done |
-| Invoices and payments: screens | Done; backend in progress |
-| Test-only controls (reset, seed, clock, fault injection) with state in PostgreSQL | In progress |
+| Invoices and payments: API, screens, PostgreSQL store with idempotent payments and a fake gateway | Done |
+| Test-only controls (reset, seed, clock, fault injection) with state in PostgreSQL, guarded by a token | Done |
+| API contract: `docs/openapi.json`, checked against the code in CI | Done |
+| Automation guide for the web UI, generated test id catalog | Done; the guide for the controls and the API follows |
 | First online deployment (Vercel and Neon) and the nightly data reset | Configured, not deployed yet |
 
 ## Roadmap
@@ -76,7 +78,7 @@ mise install    # once: Node, pnpm and uv at the pinned versions
 mise run dev    # API on 127.0.0.1:8000, web on localhost:3000, data in memory
 ```
 
-Open <http://localhost:3000> and log in with one of the demo users. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the database option and the other commands, and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the online deployment.
+Open <http://localhost:3000> and log in with one of the demo users. New to driving this app? [docs/AUTOMATION_GUIDE.md](docs/AUTOMATION_GUIDE.md) is a practical guide for test automation against the web UI. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the database option and the other commands, and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the online deployment.
 
 ## License
 

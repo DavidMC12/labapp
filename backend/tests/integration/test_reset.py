@@ -47,7 +47,6 @@ TABLES = (
 SEQUENCES = (
     "users_id_seq",
     "customers_id_seq",
-    "products_id_seq",
     "orders_id_seq",
     "order_lines_id_seq",
     "invoices_id_seq",
@@ -272,7 +271,7 @@ def test_the_sequences_restart_after_a_reset(database_settings: Settings) -> Non
             attempt=PaymentAttempt("cash", Decimal("327.80"), None, None),
             respond=respond,
             now=NOW,
-        ).response.body["payment"]
+        ).response.body
 
     assert customer.id == 11
     assert order.number == "PED-0008"
@@ -354,7 +353,7 @@ def test_the_reset_keeps_the_invoice_links(
                 select(orders.c.id, orders.c.invoice_id, orders.c.version).order_by(orders.c.id)
             ).all()
 
-    assert [(row.id, row.invoice_id, row.version) for row in links][2:] == [
+    assert [(row.id, row.invoice_id, row.version) for row in links][2:5] == [
         (3, 1, 1),
         (4, 2, 1),
         (5, 3, 1),

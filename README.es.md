@@ -41,8 +41,10 @@ Roles: Admin, Ventas, Finanzas y Solo lectura. La pantalla está en español. La
 | Diseño: tema "Libro mayor" en versión clara y oscura, selector que se recuerda por navegador | Hecho |
 | Protecciones de petición: origen, JSON mal formado, tamaño, límites, tiempos de espera de bloqueos | Hecho |
 | Auditorías de testabilidad en CI: auditoría estática de testid, auditoría en navegador (testid y axe) en los dos temas, pruebas de integración con PostgreSQL | Hecho |
-| Facturas y pagos: pantallas | Hecho; backend en curso |
-| Controles solo para pruebas (reset, seed, reloj, inyección de fallas) con estado en PostgreSQL | En curso |
+| Facturas y pagos: API, pantallas, almacén en PostgreSQL con pagos idempotentes y pasarela falsa | Hecho |
+| Controles solo para pruebas (reset, seed, reloj, inyección de fallas) con estado en PostgreSQL, protegidos por token | Hecho |
+| Contrato de la API: `docs/openapi.json`, comprobado contra el código en CI | Hecho |
+| Guía de automatización de la interfaz web, catálogo generado de test ids | Hecho; la guía de los controles y la API sigue |
 | Primer despliegue en línea (Vercel y Neon) y reinicio nocturno de datos | Configurado, aún sin desplegar |
 
 ## Hoja de ruta
@@ -76,7 +78,7 @@ mise install    # una vez: Node, pnpm y uv en las versiones fijadas
 mise run dev    # API en 127.0.0.1:8000, web en localhost:3000, datos en memoria
 ```
 
-Abre <http://localhost:3000> e ingresa con uno de los usuarios de la demo. Mira [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) (en inglés) para la opción con base de datos y los demás comandos, y [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) para el despliegue en línea.
+Abre <http://localhost:3000> e ingresa con uno de los usuarios de la demo. ¿Empiezas a automatizar aquí? [docs/AUTOMATION_GUIDE.md](docs/AUTOMATION_GUIDE.md) (en inglés) es una guía práctica para conducción de pruebas sobre la interfaz web. Mira [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) (en inglés) para la opción con base de datos y los demás comandos, y [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) para el despliegue en línea.
 
 ## Licencia
 

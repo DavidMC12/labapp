@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from app.domain.sorting import parse_sort
 from app.errors import ERROR_MESSAGES, NOT_FOUND, ApiError
 from app.infra.clock import Clock
 from app.modules.customers.models import Changes, Customer, CustomerStatus
@@ -24,6 +25,7 @@ PAGE_SIZE = 20
 MAX_PAGE = 1_000_000
 MAX_ID = 2_147_483_647
 MAX_QUERY_LENGTH = 100
+SORT_FIELDS = ("created_at", "name", "email")
 
 VERSION_CONFLICT_MESSAGE = "El registro cambió mientras lo editabas. Recarga e inténtalo de nuevo."
 EMAIL_TAKEN_MESSAGE = "Ya existe un cliente con ese email."
@@ -61,6 +63,8 @@ class CustomerService:
         page: int,
         query: str | None,
         status: CustomerStatus | None,
+        sort: str | None = None,
+        direction: str | None = None,
     ) -> tuple[list[Customer], int]:
         """Validate the list parameters and return one page plus its total."""
         errors: list[dict[str, str]] = []
@@ -94,11 +98,18 @@ class CustomerService:
         if errors:
             _raise_validation(errors)
 
+        sort_spec = parse_sort(
+            sort,
+            direction,
+            allowed=SORT_FIELDS,
+            default="created_at",
+        )
         return self._repository.list(
             query=normalized_query,
             status=status,
             page=page,
             page_size=PAGE_SIZE,
+            sort=sort_spec,
         )
 
     def get(self, id: int) -> Customer:

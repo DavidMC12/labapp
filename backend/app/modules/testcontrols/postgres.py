@@ -82,9 +82,10 @@ class PostgresClockOffsetStore:
 
         inserted = connection.execute(
             text(
-                f"INSERT INTO {table} (key, value) "
+                f"INSERT INTO {table} AS stored (key, value) "
                 f"VALUES ('{CLOCK_OFFSET_KEY}', CAST(:delta AS float8)::text) "
-                "ON CONFLICT (key) DO UPDATE SET value = (value::float8 + :delta)::text "
+                "ON CONFLICT (key) DO UPDATE "
+                "SET value = (stored.value::float8 + :delta)::text "
                 "RETURNING value"
             ),
             {"delta": delta},

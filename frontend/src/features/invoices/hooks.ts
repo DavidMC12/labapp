@@ -29,17 +29,26 @@ import type { Invoice, InvoiceList, PaymentResult } from "./types";
 export const INVOICES_LIST_KEY = ["invoices", "list"] as const;
 
 /**
- * Key of one list query: `["invoices", "list", { page, q, status }]`. An
- * empty `q` never has one of these keys, so `{ page: 1, q: "" }` and
- * `{ page: 1 }` do not split the cache in two.
+ * Key of one list query: `["invoices", "list", { page, q, status, sort,
+ * direction }]`. An empty `q` never has one of these keys, so
+ * `{ page: 1, q: "" }` and `{ page: 1 }` do not split the cache in two;
+ * the absent sort values of the default order hash the same way.
  */
 export function invoicesListQueryKey(
   params: InvoiceListRequest,
-): readonly [string, string, { page: number; q?: string; status?: string }] {
+): readonly [string, string, {
+  page: number;
+  q?: string;
+  status?: string;
+  sort?: string;
+  direction?: string;
+}] {
   return [INVOICES_LIST_KEY[0], INVOICES_LIST_KEY[1], {
     page: params.page,
     q: params.q || undefined,
     status: params.status || undefined,
+    sort: params.sort,
+    direction: params.direction,
   }];
 }
 

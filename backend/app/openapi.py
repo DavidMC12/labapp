@@ -262,6 +262,7 @@ def install_openapi(app: FastAPI) -> None:
         _add_components(document)
         _apply_security(document)
         _use_component_request_bodies(document)
+        _use_binary_file_parts(document)
         _apply_examples(document)
         app.openapi_schema = document
         return document
@@ -311,6 +312,31 @@ def _use_component_request_bodies(document: dict[str, Any]) -> None:
                 schema = media.get("schema")
                 if isinstance(schema, dict) and "$ref" in schema:
                     media["schema"] = {"$ref": schema["$ref"]}
+
+
+def _use_binary_file_parts(document: dict[str, Any]) -> None:
+    """Describe an uploaded file part as ``format: binary``.
+
+    FastAPI (through Pydantic) writes ``contentMediaType: application/octet-stream``
+    for an ``UploadFile``. The contract of this API describes the part as binary so
+    that a client knows it must send a file, not a string field.
+    """
+    schemas = document.get("components", {}).get("schemas", {})
+    for operations in document.get("paths", {}).values():
+        for operation in operations.values():
+            body = operation.get("requestBody") or {}
+            media = body.get("content", {}).get("multipart/form-data")
+            if media is None:
+                continue
+            schema = media.get("schema")
+            if isinstance(schema, dict) and "$ref" in schema:
+                schema = schemas.get(schema["$ref"].rsplit("/", 1)[-1])
+            if not isinstance(schema, dict):
+                continue
+            for field in schema.get("properties", {}).values():
+                if field.get("contentMediaType") == "application/octet-stream":
+                    field.pop("contentMediaType")
+                    field["format"] = "binary"
 
 
 def _apply_examples(document: dict[str, Any]) -> None:

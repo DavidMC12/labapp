@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Header, Response, status
+from fastapi import APIRouter, Depends, File, Header, Response, UploadFile, status
 
 from app.domain.csv_export import CSV_CONTENT_TYPE, csv_response
 from app.domain.permissions import Action
@@ -17,6 +17,7 @@ from app.modules.customers.dependencies import get_customer, get_service
 from app.modules.customers.models import Customer, CustomerStatus
 from app.modules.customers.schemas import (
     CustomerCreate,
+    CustomerImportOut,
     CustomerListOut,
     CustomerOut,
     CustomerPatch,
@@ -27,6 +28,8 @@ from app.openapi_examples import (
     CUSTOMER_CREATE_EXAMPLES,
     CUSTOMER_CREATED_EXAMPLES,
     CUSTOMER_EMAIL_TAKEN_EXAMPLES,
+    CUSTOMER_IMPORT_CREATED_EXAMPLES,
+    CUSTOMER_IMPORT_VALIDATION_EXAMPLES,
     CUSTOMER_PATCH_EXAMPLES,
 )
 
@@ -54,6 +57,23 @@ _CREATE_RESPONSES = {
         problem_examples={409: CUSTOMER_EMAIL_TAKEN_EXAMPLES},
     ),
     201: response_examples(CUSTOMER_CREATED_EXAMPLES),
+}
+_IMPORT_RESPONSES = {
+    **documented_responses(
+        method="POST",
+        body=True,
+        permission=True,
+        extra={
+            409: "The email is already used by another customer. Code: `CUSTOMER_EMAIL_TAKEN`.",
+            422: "The file is missing or invalid. Codes: `VALIDATION_ERROR` (with "
+            "`errors[]`) and `CUSTOMER_EMAIL_TAKEN` for a row whose email is already used.",
+        },
+        problem_examples={
+            409: CUSTOMER_EMAIL_TAKEN_EXAMPLES,
+            422: CUSTOMER_IMPORT_VALIDATION_EXAMPLES,
+        },
+    ),
+    201: response_examples(CUSTOMER_IMPORT_CREATED_EXAMPLES),
 }
 _READ_RESPONSES = documented_responses(
     method="GET",
@@ -177,6 +197,44 @@ def export_customers(
             "Content-Disposition": f'attachment; filename="{document.filename}"',
             "Cache-Control": "no-store",
         },
+    )
+
+
+@router.post(
+    "/import",
+    status_code=status.HTTP_201_CREATED,
+    response_model=CustomerImportOut,
+    responses=_IMPORT_RESPONSES,
+)
+def import_customers(
+    user: Annotated[User, Depends(require_action(Action.MANAGE_CUSTOMERS))],
+    service: Annotated[CustomerService, Depends(get_service)],
+    file: Annotated[UploadFile, File(description="A UTF-8 CSV file named *.csv.")],
+) -> CustomerImportOut:
+    """Import the customers of a CSV file, all or nothing.
+
+    The body is `multipart/form-data` with one file part named `file`. The file
+    must be UTF-8 (an optional byte order mark is ignored), its name must end in
+    `.csv` in any case, and it must use a comma separator with RFC 4180 quoting
+    and CRLF or LF line ends. The first non-blank line is the header: its trimmed
+    cells are column names among `name`, `email`, `phone`, `tax_id` and `address`,
+    each at most once, and `name` and `email` are required. The following
+    non-blank lines are 1 to 200 data rows. A row with fewer or more cells than
+    the header is reported as `rows[N]`, where `N` is its physical line in the
+    file (the header is line 1). Each row follows the creation rules: `name` 2 to
+    120 characters, a valid `email` (stored trimmed and lowercased), an optional
+    `phone` of 7 to 20 digits, spaces, `+`, `-`, `(`, `)`; an optional `tax_id`
+    of 3 to 30 letters, digits or hyphens; and an optional `address` of up to 200
+    characters. An empty optional value is stored as `null`, and the leading
+    single quote of a neutralized formula is kept. Errors are listed in file
+    order, at most 100; when any row fails nothing is created.
+    """
+    # A plain ``def`` route runs in FastAPI's thread pool: the service opens a
+    # database transaction and may wait on locks, so it must not block the loop.
+    customers = service.import_customers(file.file.read(), file.filename)
+    return CustomerImportOut(
+        created=len(customers),
+        items=[_customer_out(customer) for customer in customers],
     )
 
 

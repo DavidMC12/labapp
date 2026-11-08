@@ -22,7 +22,7 @@ from app.config import Settings
 from app.infra.clock import OffsetClock
 from app.main import create_app
 from app.modules.auth.seed import DEMO_PASSWORD
-from app.modules.customers.schemas import CustomerOut
+from app.modules.customers.schemas import CustomerImportOut, CustomerOut
 from app.modules.invoices import schemas as invoice_schemas
 from app.modules.orders import schemas as order_schemas
 from app.openapi import Problem
@@ -78,6 +78,8 @@ RESPONSE_EXAMPLE_KEYS: dict[tuple[str, str, str], set[str]] = {
     ("post", "/api/invoices/{id}/payments", "201"): {"approved"},
     ("post", "/api/invoices/{id}/payments", "402"): {"declined"},
     ("post", "/api/customers", "409"): {"email-taken"},
+    ("post", "/api/customers/import", "201"): {"imported"},
+    ("post", "/api/customers/import", "422"): {"import-errors"},
 }
 
 COMMON_PROBLEM_EXAMPLES = {
@@ -93,12 +95,15 @@ PROBLEM_EXAMPLE_EXCEPTIONS = {
     ("post", "/api/auth/login", "403"): {"origin-mismatch"},
     ("post", "/api/auth/logout", "403"): {"origin-mismatch"},
     ("post", "/api/customers", "409"): {"email-taken"},
+    ("post", "/api/customers/import", "409"): {"email-taken"},
+    ("post", "/api/customers/import", "422"): {"import-errors"},
 }
 
 CODE_IN_DESCRIPTION = re.compile(r"`([A-Z][A-Z0-9_]*)`")
 
 MODELS = {
     "CustomerOut": CustomerOut,
+    "CustomerImportOut": CustomerImportOut,
     "Order": order_schemas.Order,
     "Invoice": invoice_schemas.Invoice,
     "PaymentResult": invoice_schemas.PaymentResult,

@@ -10,10 +10,11 @@ from app.domain.csv_export import (
     csv_export_filename,
     write_csv,
 )
+from app.domain.csv_import import parse_customer_csv
 from app.domain.sorting import SortSpec, parse_sort
 from app.errors import ERROR_MESSAGES, NOT_FOUND, ApiError
 from app.infra.clock import Clock
-from app.modules.customers.models import Changes, Customer, CustomerStatus
+from app.modules.customers.models import Changes, Customer, CustomerStatus, NewCustomer
 from app.modules.customers.ports import (
     CustomerNotFound,
     CustomerRepository,
@@ -25,12 +26,14 @@ from app.modules.customers.validation import (
     has_control_character,
     validate_changes,
     validate_new,
+    validate_new_fields,
 )
 
 PAGE_SIZE = 20
 MAX_PAGE = 1_000_000
 MAX_ID = 2_147_483_647
 MAX_QUERY_LENGTH = 100
+MAX_IMPORT_ERRORS = 100
 SORT_FIELDS = ("created_at", "name", "email")
 CUSTOMER_COLUMNS = (
     "id",
@@ -205,6 +208,79 @@ class CustomerService:
         new_customer = validate_new(data)
         try:
             return self._repository.add(new_customer, self._clock.now())
+        except EmailTaken as error:
+            raise ApiError(409, "CUSTOMER_EMAIL_TAKEN", EMAIL_TAKEN_MESSAGE) from error
+
+    def import_customers(self, content: bytes, filename: str | None) -> list[Customer]:
+        """Validate a whole CSV file and create every customer or nothing."""
+        parsed = parse_customer_csv(content, filename)
+        if parsed.errors:
+            _raise_validation([dict(error) for error in parsed.errors])
+
+        header = parsed.header
+        validated: list[tuple[int, dict[str, str | None], list[dict[str, str]], bool]] = []
+        emails: set[str] = set()
+        for row in parsed.rows:
+            if len(row.cells) != len(header):
+                validated.append((row.line, {}, [], True))
+                continue
+            values, row_errors = validate_new_fields(dict(zip(header, row.cells, strict=True)))
+            validated.append((row.line, values, row_errors, False))
+            email = values.get("email")
+            if email is not None and not any(error["field"] == "email" for error in row_errors):
+                emails.add(email)
+
+        existing = self._repository.existing_emails(emails)
+        errors: list[dict[str, str]] = []
+        ready: list[dict[str, str | None]] = []
+        seen: set[str] = set()
+        for line, values, row_errors, wrong_shape in validated:
+            if wrong_shape:
+                errors.append(
+                    _error(
+                        f"rows[{line}]",
+                        "INVALID_FORMAT",
+                        "El formato no es válido.",
+                    )
+                )
+                continue
+            errors.extend(
+                {
+                    **error,
+                    "field": f"rows[{line}].{error['field']}",
+                }
+                for error in row_errors
+            )
+            email = values.get("email")
+            if email is None or any(error["field"] == "email" for error in row_errors):
+                continue
+            if email in existing or email in seen:
+                errors.append(
+                    _error(
+                        f"rows[{line}].email",
+                        "CUSTOMER_EMAIL_TAKEN",
+                        EMAIL_TAKEN_MESSAGE,
+                    )
+                )
+            else:
+                ready.append(values)
+            seen.add(email)
+
+        if errors:
+            _raise_validation(errors[:MAX_IMPORT_ERRORS])
+
+        batch = [
+            NewCustomer(
+                name=values["name"] or "",
+                email=values["email"] or "",
+                phone=values["phone"],
+                tax_id=values["tax_id"],
+                address=values["address"],
+            )
+            for values in ready
+        ]
+        try:
+            return self._repository.add_many(batch, self._clock.now())
         except EmailTaken as error:
             raise ApiError(409, "CUSTOMER_EMAIL_TAKEN", EMAIL_TAKEN_MESSAGE) from error
 

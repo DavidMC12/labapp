@@ -1,9 +1,32 @@
 # Test id catalog
 
-Every `data-testid` found in each audited state, with the element that carries it. It is **generated**:
-`node tools/audit/browser-audit.mjs --catalog docs/TESTIDS.md` against a freshly seeded application, and CI fails
-when the committed copy is out of date. Ids that end in a number (`customers-list-row-3`) carry the id of a record
-of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
+Every `data-testid` found in each audited state, with the element that carries it (its tag, the type of an input and
+an explicit `role`, not the implicit one). It is **generated**: `node tools/audit/browser-audit.mjs --catalog docs/TESTIDS.md`
+against a freshly seeded application, and CI fails when the committed copy is out of date.
+
+- Elements that are not visible but carry an id are included.
+- A number at the end of an id is the id of a record of the seed data (`customers-list-row-3`), or a position in a list
+  (`auth-login-demo-item-2`).
+- Only the states of `tools/audit/states.json` are covered. An id that appears only after an interaction (a field error
+  after a failed submit, a confirmation message) is not here until a state reaches it; the grammar still applies to it
+  ([TESTABILITY.md](TESTABILITY.md)).
+- The ids of the app shell that every logged-in state has are listed once, under "App shell".
+
+## App shell
+
+Present in every logged-in state.
+
+| Test id | Element |
+|---|---|
+| `app-logout-button` | `button` |
+| `app-nav-customers-link` | `a` |
+| `app-nav-home-link` | `a` |
+| `app-nav-invoices-link` | `a` |
+| `app-nav-orders-link` | `a` |
+| `app-nav-settings-link` | `a` |
+| `app-theme-select` | `select` |
+| `app-user-name-text` | `p` |
+| `app-user-role-text` | `p` |
 
 ## login
 
@@ -35,15 +58,6 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 |---|---|
 | `app-home-greeting-text` | `p` |
 | `app-home-heading` | `h1` |
-| `app-logout-button` | `button` |
-| `app-nav-customers-link` | `a` |
-| `app-nav-home-link` | `a` |
-| `app-nav-invoices-link` | `a` |
-| `app-nav-orders-link` | `a` |
-| `app-nav-settings-link` | `a` |
-| `app-theme-select` | `select` |
-| `app-user-name-text` | `p` |
-| `app-user-role-text` | `p` |
 | `home-customers-active-count-text` | `span` |
 | `home-customers-active-link` | `a` |
 | `home-customers-heading` | `h2` |
@@ -74,17 +88,7 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 
 | Test id | Element |
 |---|---|
-| `app-logout-button` | `button` |
-| `app-nav-customers-link` | `a` |
-| `app-nav-home-link` | `a` |
-| `app-nav-invoices-link` | `a` |
-| `app-nav-orders-link` | `a` |
-| `app-nav-settings-link` | `a` |
-| `app-theme-select` | `select` |
-| `app-user-name-text` | `p` |
-| `app-user-role-text` | `p` |
 | `customers-list-email-cell-1` | `td` |
-| `customers-list-email-cell-10` | `td` |
 | `customers-list-email-cell-2` | `td` |
 | `customers-list-email-cell-3` | `td` |
 | `customers-list-email-cell-4` | `td` |
@@ -93,10 +97,10 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 | `customers-list-email-cell-7` | `td` |
 | `customers-list-email-cell-8` | `td` |
 | `customers-list-email-cell-9` | `td` |
+| `customers-list-email-cell-10` | `td` |
 | `customers-list-footer-item` | `div` |
 | `customers-list-heading` | `h1` |
 | `customers-list-name-cell-1` | `td` |
-| `customers-list-name-cell-10` | `td` |
 | `customers-list-name-cell-2` | `td` |
 | `customers-list-name-cell-3` | `td` |
 | `customers-list-name-cell-4` | `td` |
@@ -105,12 +109,12 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 | `customers-list-name-cell-7` | `td` |
 | `customers-list-name-cell-8` | `td` |
 | `customers-list-name-cell-9` | `td` |
+| `customers-list-name-cell-10` | `td` |
 | `customers-list-new-link` | `a` |
 | `customers-list-next-button` | `button` |
 | `customers-list-page-text` | `p` |
 | `customers-list-prev-button` | `button` |
 | `customers-list-row-1` | `tr` |
-| `customers-list-row-10` | `tr` |
 | `customers-list-row-2` | `tr` |
 | `customers-list-row-3` | `tr` |
 | `customers-list-row-4` | `tr` |
@@ -119,11 +123,11 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 | `customers-list-row-7` | `tr` |
 | `customers-list-row-8` | `tr` |
 | `customers-list-row-9` | `tr` |
+| `customers-list-row-10` | `tr` |
 | `customers-list-search-button` | `button` |
 | `customers-list-search-form` | `form` |
-| `customers-list-search-input` | `input` |
+| `customers-list-search-input` | `input[type=text]` |
 | `customers-list-state-cell-1` | `td` |
-| `customers-list-state-cell-10` | `td` |
 | `customers-list-state-cell-2` | `td` |
 | `customers-list-state-cell-3` | `td` |
 | `customers-list-state-cell-4` | `td` |
@@ -132,10 +136,10 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 | `customers-list-state-cell-7` | `td` |
 | `customers-list-state-cell-8` | `td` |
 | `customers-list-state-cell-9` | `td` |
+| `customers-list-state-cell-10` | `td` |
 | `customers-list-status-select` | `select` |
 | `customers-list-table` | `table` |
 | `customers-list-taxid-cell-1` | `td` |
-| `customers-list-taxid-cell-10` | `td` |
 | `customers-list-taxid-cell-2` | `td` |
 | `customers-list-taxid-cell-3` | `td` |
 | `customers-list-taxid-cell-4` | `td` |
@@ -144,9 +148,9 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 | `customers-list-taxid-cell-7` | `td` |
 | `customers-list-taxid-cell-8` | `td` |
 | `customers-list-taxid-cell-9` | `td` |
+| `customers-list-taxid-cell-10` | `td` |
 | `customers-list-total-text` | `p` |
 | `customers-list-view-link-1` | `a` |
-| `customers-list-view-link-10` | `a` |
 | `customers-list-view-link-2` | `a` |
 | `customers-list-view-link-3` | `a` |
 | `customers-list-view-link-4` | `a` |
@@ -155,6 +159,7 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 | `customers-list-view-link-7` | `a` |
 | `customers-list-view-link-8` | `a` |
 | `customers-list-view-link-9` | `a` |
+| `customers-list-view-link-10` | `a` |
 
 ## customers-list-readonly
 
@@ -162,17 +167,7 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 
 | Test id | Element |
 |---|---|
-| `app-logout-button` | `button` |
-| `app-nav-customers-link` | `a` |
-| `app-nav-home-link` | `a` |
-| `app-nav-invoices-link` | `a` |
-| `app-nav-orders-link` | `a` |
-| `app-nav-settings-link` | `a` |
-| `app-theme-select` | `select` |
-| `app-user-name-text` | `p` |
-| `app-user-role-text` | `p` |
 | `customers-list-email-cell-1` | `td` |
-| `customers-list-email-cell-10` | `td` |
 | `customers-list-email-cell-2` | `td` |
 | `customers-list-email-cell-3` | `td` |
 | `customers-list-email-cell-4` | `td` |
@@ -181,10 +176,10 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 | `customers-list-email-cell-7` | `td` |
 | `customers-list-email-cell-8` | `td` |
 | `customers-list-email-cell-9` | `td` |
+| `customers-list-email-cell-10` | `td` |
 | `customers-list-footer-item` | `div` |
 | `customers-list-heading` | `h1` |
 | `customers-list-name-cell-1` | `td` |
-| `customers-list-name-cell-10` | `td` |
 | `customers-list-name-cell-2` | `td` |
 | `customers-list-name-cell-3` | `td` |
 | `customers-list-name-cell-4` | `td` |
@@ -193,11 +188,11 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 | `customers-list-name-cell-7` | `td` |
 | `customers-list-name-cell-8` | `td` |
 | `customers-list-name-cell-9` | `td` |
+| `customers-list-name-cell-10` | `td` |
 | `customers-list-next-button` | `button` |
 | `customers-list-page-text` | `p` |
 | `customers-list-prev-button` | `button` |
 | `customers-list-row-1` | `tr` |
-| `customers-list-row-10` | `tr` |
 | `customers-list-row-2` | `tr` |
 | `customers-list-row-3` | `tr` |
 | `customers-list-row-4` | `tr` |
@@ -206,11 +201,11 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 | `customers-list-row-7` | `tr` |
 | `customers-list-row-8` | `tr` |
 | `customers-list-row-9` | `tr` |
+| `customers-list-row-10` | `tr` |
 | `customers-list-search-button` | `button` |
 | `customers-list-search-form` | `form` |
-| `customers-list-search-input` | `input` |
+| `customers-list-search-input` | `input[type=text]` |
 | `customers-list-state-cell-1` | `td` |
-| `customers-list-state-cell-10` | `td` |
 | `customers-list-state-cell-2` | `td` |
 | `customers-list-state-cell-3` | `td` |
 | `customers-list-state-cell-4` | `td` |
@@ -219,10 +214,10 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 | `customers-list-state-cell-7` | `td` |
 | `customers-list-state-cell-8` | `td` |
 | `customers-list-state-cell-9` | `td` |
+| `customers-list-state-cell-10` | `td` |
 | `customers-list-status-select` | `select` |
 | `customers-list-table` | `table` |
 | `customers-list-taxid-cell-1` | `td` |
-| `customers-list-taxid-cell-10` | `td` |
 | `customers-list-taxid-cell-2` | `td` |
 | `customers-list-taxid-cell-3` | `td` |
 | `customers-list-taxid-cell-4` | `td` |
@@ -231,9 +226,9 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 | `customers-list-taxid-cell-7` | `td` |
 | `customers-list-taxid-cell-8` | `td` |
 | `customers-list-taxid-cell-9` | `td` |
+| `customers-list-taxid-cell-10` | `td` |
 | `customers-list-total-text` | `p` |
 | `customers-list-view-link-1` | `a` |
-| `customers-list-view-link-10` | `a` |
 | `customers-list-view-link-2` | `a` |
 | `customers-list-view-link-3` | `a` |
 | `customers-list-view-link-4` | `a` |
@@ -242,6 +237,7 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 | `customers-list-view-link-7` | `a` |
 | `customers-list-view-link-8` | `a` |
 | `customers-list-view-link-9` | `a` |
+| `customers-list-view-link-10` | `a` |
 
 ## customers-detail
 
@@ -249,15 +245,6 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 
 | Test id | Element |
 |---|---|
-| `app-logout-button` | `button` |
-| `app-nav-customers-link` | `a` |
-| `app-nav-home-link` | `a` |
-| `app-nav-invoices-link` | `a` |
-| `app-nav-orders-link` | `a` |
-| `app-nav-settings-link` | `a` |
-| `app-theme-select` | `select` |
-| `app-user-name-text` | `p` |
-| `app-user-role-text` | `p` |
 | `customers-detail-address-text` | `dd` |
 | `customers-detail-back-link` | `a` |
 | `customers-detail-deactivate-button` | `button` |
@@ -277,15 +264,6 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 
 | Test id | Element |
 |---|---|
-| `app-logout-button` | `button` |
-| `app-nav-customers-link` | `a` |
-| `app-nav-home-link` | `a` |
-| `app-nav-invoices-link` | `a` |
-| `app-nav-orders-link` | `a` |
-| `app-nav-settings-link` | `a` |
-| `app-theme-select` | `select` |
-| `app-user-name-text` | `p` |
-| `app-user-role-text` | `p` |
 | `customers-detail-address-text` | `dd` |
 | `customers-detail-back-link` | `a` |
 | `customers-detail-edit-link` | `a` |
@@ -305,24 +283,15 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 
 | Test id | Element |
 |---|---|
-| `app-logout-button` | `button` |
-| `app-nav-customers-link` | `a` |
-| `app-nav-home-link` | `a` |
-| `app-nav-invoices-link` | `a` |
-| `app-nav-orders-link` | `a` |
-| `app-nav-settings-link` | `a` |
-| `app-theme-select` | `select` |
-| `app-user-name-text` | `p` |
-| `app-user-role-text` | `p` |
 | `customers-customer-form` | `form` |
 | `customers-form-address-textarea` | `textarea` |
 | `customers-form-cancel-link` | `a` |
 | `customers-form-email-input` | `input[type=email]` |
 | `customers-form-heading` | `h1` |
-| `customers-form-name-input` | `input` |
-| `customers-form-phone-input` | `input` |
+| `customers-form-name-input` | `input[type=text]` |
+| `customers-form-phone-input` | `input[type=text]` |
 | `customers-form-submit-button` | `button` |
-| `customers-form-taxid-input` | `input` |
+| `customers-form-taxid-input` | `input[type=text]` |
 
 ## customers-edit
 
@@ -330,24 +299,15 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 
 | Test id | Element |
 |---|---|
-| `app-logout-button` | `button` |
-| `app-nav-customers-link` | `a` |
-| `app-nav-home-link` | `a` |
-| `app-nav-invoices-link` | `a` |
-| `app-nav-orders-link` | `a` |
-| `app-nav-settings-link` | `a` |
-| `app-theme-select` | `select` |
-| `app-user-name-text` | `p` |
-| `app-user-role-text` | `p` |
 | `customers-customer-form` | `form` |
 | `customers-form-address-textarea` | `textarea` |
 | `customers-form-cancel-link` | `a` |
 | `customers-form-email-input` | `input[type=email]` |
 | `customers-form-heading` | `h1` |
-| `customers-form-name-input` | `input` |
-| `customers-form-phone-input` | `input` |
+| `customers-form-name-input` | `input[type=text]` |
+| `customers-form-phone-input` | `input[type=text]` |
 | `customers-form-submit-button` | `button` |
-| `customers-form-taxid-input` | `input` |
+| `customers-form-taxid-input` | `input[type=text]` |
 
 ## customers-not-found
 
@@ -355,15 +315,6 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 
 | Test id | Element |
 |---|---|
-| `app-logout-button` | `button` |
-| `app-nav-customers-link` | `a` |
-| `app-nav-home-link` | `a` |
-| `app-nav-invoices-link` | `a` |
-| `app-nav-orders-link` | `a` |
-| `app-nav-settings-link` | `a` |
-| `app-theme-select` | `select` |
-| `app-user-name-text` | `p` |
-| `app-user-role-text` | `p` |
 | `customers-detail-back-link` | `a` |
 | `customers-detail-error-alert` | `p[role=alert]` |
 
@@ -373,15 +324,6 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 
 | Test id | Element |
 |---|---|
-| `app-logout-button` | `button` |
-| `app-nav-customers-link` | `a` |
-| `app-nav-home-link` | `a` |
-| `app-nav-invoices-link` | `a` |
-| `app-nav-orders-link` | `a` |
-| `app-nav-settings-link` | `a` |
-| `app-theme-select` | `select` |
-| `app-user-name-text` | `p` |
-| `app-user-role-text` | `p` |
 | `orders-list-created-cell-1` | `td` |
 | `orders-list-created-cell-2` | `td` |
 | `orders-list-created-cell-3` | `td` |
@@ -425,7 +367,7 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 | `orders-list-row-7` | `tr` |
 | `orders-list-search-button` | `button` |
 | `orders-list-search-form` | `form` |
-| `orders-list-search-input` | `input` |
+| `orders-list-search-input` | `input[type=text]` |
 | `orders-list-state-cell-1` | `td` |
 | `orders-list-state-cell-2` | `td` |
 | `orders-list-state-cell-3` | `td` |
@@ -457,22 +399,13 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 
 | Test id | Element |
 |---|---|
-| `app-logout-button` | `button` |
-| `app-nav-customers-link` | `a` |
-| `app-nav-home-link` | `a` |
-| `app-nav-invoices-link` | `a` |
-| `app-nav-orders-link` | `a` |
-| `app-nav-settings-link` | `a` |
-| `app-theme-select` | `select` |
-| `app-user-name-text` | `p` |
-| `app-user-role-text` | `p` |
 | `orders-customer-form` | `form` |
 | `orders-form-cancel-link` | `a` |
 | `orders-form-customer-select` | `select` |
 | `orders-form-customer-text` | `p` |
 | `orders-form-customersearch-button` | `button` |
 | `orders-form-customersearch-form` | `form` |
-| `orders-form-customersearch-input` | `input` |
+| `orders-form-customersearch-input` | `input[type=text]` |
 | `orders-form-heading` | `h1` |
 | `orders-form-submit-button` | `button` |
 
@@ -482,15 +415,6 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 
 | Test id | Element |
 |---|---|
-| `app-logout-button` | `button` |
-| `app-nav-customers-link` | `a` |
-| `app-nav-home-link` | `a` |
-| `app-nav-invoices-link` | `a` |
-| `app-nav-orders-link` | `a` |
-| `app-nav-settings-link` | `a` |
-| `app-theme-select` | `select` |
-| `app-user-name-text` | `p` |
-| `app-user-role-text` | `p` |
 | `orders-detail-addline-form` | `form` |
 | `orders-detail-addline-heading` | `h2` |
 | `orders-detail-addline-product-select` | `select` |
@@ -502,7 +426,7 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 | `orders-detail-changecustomer-form` | `form` |
 | `orders-detail-changecustomer-search-button` | `button` |
 | `orders-detail-changecustomer-search-form` | `form` |
-| `orders-detail-changecustomer-search-input` | `input` |
+| `orders-detail-changecustomer-search-input` | `input[type=text]` |
 | `orders-detail-changecustomer-select` | `select` |
 | `orders-detail-changecustomer-submit-button` | `button` |
 | `orders-detail-confirm-button` | `button` |
@@ -534,15 +458,6 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 
 | Test id | Element |
 |---|---|
-| `app-logout-button` | `button` |
-| `app-nav-customers-link` | `a` |
-| `app-nav-home-link` | `a` |
-| `app-nav-invoices-link` | `a` |
-| `app-nav-orders-link` | `a` |
-| `app-nav-settings-link` | `a` |
-| `app-theme-select` | `select` |
-| `app-user-name-text` | `p` |
-| `app-user-role-text` | `p` |
 | `orders-detail-back-link` | `a` |
 | `orders-detail-cancel-button` | `button` |
 | `orders-detail-created-text` | `dd` |
@@ -569,15 +484,6 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 
 | Test id | Element |
 |---|---|
-| `app-logout-button` | `button` |
-| `app-nav-customers-link` | `a` |
-| `app-nav-home-link` | `a` |
-| `app-nav-invoices-link` | `a` |
-| `app-nav-orders-link` | `a` |
-| `app-nav-settings-link` | `a` |
-| `app-theme-select` | `select` |
-| `app-user-name-text` | `p` |
-| `app-user-role-text` | `p` |
 | `orders-detail-back-link` | `a` |
 | `orders-detail-created-text` | `dd` |
 | `orders-detail-customer-link` | `a` |
@@ -603,15 +509,6 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 
 | Test id | Element |
 |---|---|
-| `app-logout-button` | `button` |
-| `app-nav-customers-link` | `a` |
-| `app-nav-home-link` | `a` |
-| `app-nav-invoices-link` | `a` |
-| `app-nav-orders-link` | `a` |
-| `app-nav-settings-link` | `a` |
-| `app-theme-select` | `select` |
-| `app-user-name-text` | `p` |
-| `app-user-role-text` | `p` |
 | `orders-detail-back-link` | `a` |
 | `orders-detail-created-text` | `dd` |
 | `orders-detail-customer-link` | `a` |
@@ -636,15 +533,6 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 
 | Test id | Element |
 |---|---|
-| `app-logout-button` | `button` |
-| `app-nav-customers-link` | `a` |
-| `app-nav-home-link` | `a` |
-| `app-nav-invoices-link` | `a` |
-| `app-nav-orders-link` | `a` |
-| `app-nav-settings-link` | `a` |
-| `app-theme-select` | `select` |
-| `app-user-name-text` | `p` |
-| `app-user-role-text` | `p` |
 | `invoices-list-created-cell-1` | `td` |
 | `invoices-list-created-cell-2` | `td` |
 | `invoices-list-created-cell-3` | `td` |
@@ -670,7 +558,7 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 | `invoices-list-row-3` | `tr` |
 | `invoices-list-search-button` | `button` |
 | `invoices-list-search-form` | `form` |
-| `invoices-list-search-input` | `input` |
+| `invoices-list-search-input` | `input[type=text]` |
 | `invoices-list-state-cell-1` | `td` |
 | `invoices-list-state-cell-2` | `td` |
 | `invoices-list-state-cell-3` | `td` |
@@ -690,15 +578,6 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 
 | Test id | Element |
 |---|---|
-| `app-logout-button` | `button` |
-| `app-nav-customers-link` | `a` |
-| `app-nav-home-link` | `a` |
-| `app-nav-invoices-link` | `a` |
-| `app-nav-orders-link` | `a` |
-| `app-nav-settings-link` | `a` |
-| `app-theme-select` | `select` |
-| `app-user-name-text` | `p` |
-| `app-user-role-text` | `p` |
 | `invoices-detail-address-text` | `dd` |
 | `invoices-detail-back-link` | `a` |
 | `invoices-detail-created-text` | `dd` |
@@ -730,10 +609,10 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 | `invoices-detail-taxid-text` | `dd` |
 | `invoices-detail-taxrate-text` | `span` |
 | `invoices-detail-total-text` | `span` |
-| `payments-register-amount-input` | `input` |
-| `payments-register-cardcvc-input` | `input` |
-| `payments-register-cardexpiry-input` | `input` |
-| `payments-register-cardnumber-input` | `input` |
+| `payments-register-amount-input` | `input[type=text]` |
+| `payments-register-cardcvc-input` | `input[type=text]` |
+| `payments-register-cardexpiry-input` | `input[type=text]` |
+| `payments-register-cardnumber-input` | `input[type=text]` |
 | `payments-register-form` | `form` |
 | `payments-register-heading` | `h2` |
 | `payments-register-method-select` | `select` |
@@ -745,15 +624,6 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 
 | Test id | Element |
 |---|---|
-| `app-logout-button` | `button` |
-| `app-nav-customers-link` | `a` |
-| `app-nav-home-link` | `a` |
-| `app-nav-invoices-link` | `a` |
-| `app-nav-orders-link` | `a` |
-| `app-nav-settings-link` | `a` |
-| `app-theme-select` | `select` |
-| `app-user-name-text` | `p` |
-| `app-user-role-text` | `p` |
 | `invoices-detail-address-text` | `dd` |
 | `invoices-detail-back-link` | `a` |
 | `invoices-detail-closed-text` | `p` |
@@ -788,15 +658,6 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 
 | Test id | Element |
 |---|---|
-| `app-logout-button` | `button` |
-| `app-nav-customers-link` | `a` |
-| `app-nav-home-link` | `a` |
-| `app-nav-invoices-link` | `a` |
-| `app-nav-orders-link` | `a` |
-| `app-nav-settings-link` | `a` |
-| `app-theme-select` | `select` |
-| `app-user-name-text` | `p` |
-| `app-user-role-text` | `p` |
 | `invoices-detail-address-text` | `dd` |
 | `invoices-detail-back-link` | `a` |
 | `invoices-detail-created-text` | `dd` |
@@ -835,15 +696,6 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 
 | Test id | Element |
 |---|---|
-| `app-logout-button` | `button` |
-| `app-nav-customers-link` | `a` |
-| `app-nav-home-link` | `a` |
-| `app-nav-invoices-link` | `a` |
-| `app-nav-orders-link` | `a` |
-| `app-nav-settings-link` | `a` |
-| `app-theme-select` | `select` |
-| `app-user-name-text` | `p` |
-| `app-user-role-text` | `p` |
 | `settings-page-heading` | `h1` |
 | `settings-taxrate-current-text` | `p` |
 | `settings-taxrate-form` | `form` |
@@ -857,17 +709,7 @@ of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).
 
 | Test id | Element |
 |---|---|
-| `app-logout-button` | `button` |
-| `app-nav-customers-link` | `a` |
-| `app-nav-home-link` | `a` |
-| `app-nav-invoices-link` | `a` |
-| `app-nav-orders-link` | `a` |
-| `app-nav-settings-link` | `a` |
-| `app-theme-select` | `select` |
-| `app-user-name-text` | `p` |
-| `app-user-role-text` | `p` |
 | `settings-page-heading` | `h1` |
 | `settings-taxrate-current-text` | `p` |
 | `settings-taxrate-heading` | `h2` |
 | `settings-taxrate-readonly-text` | `p` |
-

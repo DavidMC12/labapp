@@ -319,3 +319,34 @@ The same error shape for both wrong email and wrong password is deliberate: acco
 ```
 
 Other problem bodies carry extra members at the top level: `shortages[]` on a 409 `INSUFFICIENT_STOCK`, `payment_id` and `reason` on a 402 `PAYMENT_DECLINED` or a 503 `PAYMENT_GATEWAY_UNAVAILABLE`, and `retry_after` on a 429 `RATE_LIMITED` (the same seconds the `Retry-After` header carries). The stable codes and their messages are catalogued in [SPEC section 7](SPEC.md#7-errors-and-validation-order); a test should assert the `code`, not the wording, which may change. Every response — success or error — carries an `X-Request-Id` header; send your own (1–64 characters of `[A-Za-z0-9._-]`) to have it echoed into logs.
+
+## 11. The test controls
+
+Seven endpoints under `/__test__` let a script arrange the world instead of assuming it: reset and seed own the data, the clock owns time, the faults own failure. They answer without a session, they are not in [openapi.json](openapi.json), and they are guarded by the test token.
+
+| Method | Path | Body | Answer |
+|---|---|---|---|
+| `POST` | `/__test__/reset` | none | 200 `{"status": "ok"}` |
+| `POST` | `/__test__/seed` | `{"dataset": "default" \| "empty"}` | 200 `{"dataset": "<value>"}` |
+| `GET` | `/__test__/clock` | none | 200 `{"now": "<ISO 8601 UTC>", "offset_seconds": <number>}` |
+| `POST` | `/__test__/clock` | exactly one of `{"offset_seconds": <number>}` or `{"advance_seconds": <number>}` | the same shape as `GET` |
+| `POST` | `/__test__/faults` | a fault rule (below) | 201, the stored rule with its `id` |
+| `GET` | `/__test__/faults` | none | 200, the list of non-exhausted rules |
+| `DELETE` | `/__test__/faults` | none | 204, no body |
+
+**The token.** Every answer depends on the guard:
+
+| `TEST_MODE` | `X-Test-Token` header | Result |
+|---|---|---|
+| `1` | any | Allowed. |
+| `0` | equals a non-empty `TEST_TOKEN` | Allowed. |
+| `0` | missing or different | 404 `NOT_FOUND`, as if the route did not exist. |
+| `0` with an empty `TEST_TOKEN` | any / missing | 404 `NOT_FOUND`. |
+
+The local start script sets `TEST_MODE=1`, so local runs need no header at all; a public deployment keeps `TEST_MODE=0` and reveals the controls only to a request that sends `X-Test-Token: <TEST_TOKEN>` ([docs/DEPLOYMENT.md](DEPLOYMENT.md) names the variable). The guard runs twice: as a middleware before routing and again inside the router, and the token is compared in constant time. The 404 answer is a problem document, `application/problem+json` with `code: "NOT_FOUND"` and `No se encontró el recurso solicitado.`, so an unguarded probe looks exactly like a mistyped path.
+
+**The token and the rate limits.** The request rate limits (120 requests per minute and 10 login attempts per minute per client IP) apply only when `TEST_MODE=0`, and a request with a valid `X-Test-Token` is exempt from them even then — so adding the token header to every request of an online suite removes the risk of 429 entirely (it does nothing locally, where the limits are always off). Exceeding a limit answers 429 `RATE_LIMITED` with a `Retry-After` header and a `retry_after` member with the same seconds.
+
+**Recipes.** Each recipe is a short sequence checked against the local server: `BASE=http://127.0.0.1:8000` for the direct API (with `TEST_MODE=1` from `mise run dev`); the same paths work through the web origin as well.
+
+- Stable codes pointer… (placeholder)

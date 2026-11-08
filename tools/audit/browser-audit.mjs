@@ -10,12 +10,13 @@
 // It prints the states it covered: the 100% goal is measured over those states. Exit code 1 when anything fails.
 //
 // Needs a running application (API and web) at "baseUrl" and the frontend dependencies installed.
-// Usage: node tools/audit/browser-audit.mjs [--base http://localhost:3000] [--only name,name] [--theme light|dark] [--json]
+// Usage: node tools/audit/browser-audit.mjs [--base http://localhost:3000] [--only name,name] [--theme light|dark] [--catalog file.md] [--json]
+//   --catalog writes the test ids found in every state as a Markdown catalog (docs/TESTIDS.md); CI compares it with the committed copy.
 //   --theme pins the explicit choice of the theme selector (the localStorage key of frontend/src/lib/theme.ts) before every
 //   page loads and checks that <html data-theme> took it, so the same states can be audited in both voices of the design;
 //   without it the page follows the browser default.
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,6 +30,7 @@ const option = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i 
 const base = (option("--base") ?? process.env.AUDIT_BASE_URL ?? config.baseUrl).replace(/\/+$/, "");
 const only = option("--only")?.split(",");
 const asJson = args.includes("--json");
+const catalogPath = option("--catalog");
 // --theme light|dark or --theme=light|dark; any other spelling or value stops the audit before it starts,
 // so a typo can never turn into a silently unpinned run.
 const themeArgs = args.filter((arg) => arg === "--theme" || arg.startsWith("--theme"));
@@ -82,14 +84,43 @@ const PAGE_CHECK = `(() => {
       if (tabindex !== null && Number(tabindex) >= 0) return true;
       return roles.has(el.getAttribute("role") ?? "");
     });
-  const all = [...document.querySelectorAll("[data-testid]")].map((el) => el.getAttribute("data-testid"));
+  const withId = [...document.querySelectorAll("[data-testid]")];
+  const all = withId.map((el) => el.getAttribute("data-testid"));
+  const elements = withId.map((el) => {
+    const tag = el.tagName.toLowerCase();
+    const type = tag === "input" ? el.getAttribute("type") : null;
+    const role = el.getAttribute("role");
+    return { id: el.getAttribute("data-testid"), element: tag + (type ? "[type=" + type + "]" : "") + (role ? "[role=" + role + "]" : "") };
+  });
   const duplicates = [...new Set(all.filter((id, i) => all.indexOf(id) !== i))];
   return {
     missing: interactive.filter((el) => !el.getAttribute("data-testid")).map((el) => el.outerHTML.slice(0, 120)),
     ids: all,
+    elements,
     duplicates,
   };
 })()`;
+
+// The catalog: every state with its test ids and the element that carries each, sorted so that two runs on the
+// same data produce the same file.
+function renderCatalog(report) {
+  const lines = [
+    "# Test id catalog",
+    "",
+    "Every `data-testid` found in each audited state, with the element that carries it. It is **generated**:",
+    "`node tools/audit/browser-audit.mjs --catalog docs/TESTIDS.md` against a freshly seeded application, and CI fails",
+    "when the committed copy is out of date. Ids that end in a number (`customers-list-row-3`) carry the id of a record",
+    "of the seed data; the grammar is in [TESTABILITY.md](TESTABILITY.md).",
+    "",
+  ];
+  for (const entry of report) {
+    const state = config.states.find((candidate) => candidate.name === entry.name);
+    lines.push(`## ${entry.name}`, "", `\`${entry.path}\`, ${state?.user ? `logged in as \`${state.user}\`` : "no session"}.`, "");
+    const rows = [...(entry.elements ?? [])].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    lines.push("| Test id | Element |", "|---|---|", ...rows.map((row) => `| \`${row.id}\` | \`${row.element}\` |`), "");
+  }
+  return `${lines.join("\n")}\n`;
+}
 
 async function main() {
   const profile = mkdtempSync(join(tmpdir(), "browser-audit-"));
@@ -157,6 +188,7 @@ async function main() {
       }
       const check = await evaluate(PAGE_CHECK);
       entry.ids = check.ids.length;
+      entry.elements = check.elements;
       for (const html of check.missing) entry.failures.push(`interactive element without a test id: ${html}`);
       for (const id of check.duplicates) entry.failures.push(`test id used more than once on the page: ${id}`);
       for (const id of new Set(check.ids)) if (!pattern.test(id)) entry.failures.push(`test id does not match the grammar: ${id}`);
@@ -176,7 +208,8 @@ async function main() {
 }
 
 const report = await main();
-if (asJson) console.log(JSON.stringify(report, null, 2));
+if (catalogPath) writeFileSync(catalogPath, renderCatalog(report));
+if (asJson) console.log(JSON.stringify(report.map(({ elements, ...entry }) => entry), null, 2));
 let failed = 0;
 for (const entry of report) {
   const status = entry.failures.length ? "FAIL" : "ok  ";

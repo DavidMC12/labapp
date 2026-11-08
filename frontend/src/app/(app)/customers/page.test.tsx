@@ -692,10 +692,14 @@ describe("the customers list permission", () => {
         "href",
         "/customers/new",
       );
+      expect(screen.getByTestId("customers-list-import-link")).toHaveAttribute(
+        "href",
+        "/customers/import",
+      );
     });
   });
 
-  it("hides Nuevo cliente for readonly", async () => {
+  it("hides the import link for readonly", async () => {
     meUser = readonlyUser;
     respondList(listPageOf([], 0));
     renderAt("");
@@ -703,6 +707,9 @@ describe("the customers list permission", () => {
     await waitFor(() => expect(listRequests().length).toBeGreaterThan(0));
     expect(
       screen.queryByTestId("customers-list-new-link"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("customers-list-import-link"),
     ).not.toBeInTheDocument();
   });
 });

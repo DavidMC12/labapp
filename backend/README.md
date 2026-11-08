@@ -335,7 +335,8 @@ What is stored where:
 - A reset is meant for a quiet system. A request that runs during it may fail with 409 or
   503 `LOCK_TIMEOUT`, and a payment or an invoice that commits in the middle can make the
   reset fail with a foreign key error; `/__test__/reset` answers 409 and the caller retries
-  once.
+  once. A gateway fault with latency holds the invoice lock for up to 10 seconds, so a
+  reset that needs that invoice can answer 409 or 503.
 
 For local use the CLI has the same reset with two refusals:
 

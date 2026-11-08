@@ -153,6 +153,7 @@ Present in every logged-in state.
 | `customers-list-export-link` | `a` |
 | `customers-list-footer-item` | `div` |
 | `customers-list-heading` | `h1` |
+| `customers-list-import-link` | `a` |
 | `customers-list-name-cell-1` | `td` |
 | `customers-list-name-cell-2` | `td` |
 | `customers-list-name-cell-3` | `td` |
@@ -402,6 +403,27 @@ Present in every logged-in state.
 | `customers-form-phone-input` | `input[type=text]` |
 | `customers-form-submit-button` | `button` |
 | `customers-form-taxid-input` | `input[type=text]` |
+
+## customers-import
+
+`/customers/import`, logged in as `sales@labapp.test`. Page title: `Importar clientes · LabApp`.
+
+| Test id | Element |
+|---|---|
+| `customers-import-back-link` | `a` |
+| `customers-import-file-input` | `input[type=file]` |
+| `customers-import-form` | `form` |
+| `customers-import-heading` | `h1` |
+| `customers-import-help-text` | `p` |
+| `customers-import-submit-button` | `button` |
+
+## customers-import-readonly
+
+`/customers/import`, logged in as `readonly@labapp.test`. Page title: `Importar clientes · LabApp`.
+
+| Test id | Element |
+|---|---|
+| `customers-import-forbidden-alert` | `p[role=alert]` |
 
 ## customers-edit
 

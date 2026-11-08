@@ -22,7 +22,12 @@ from app.modules.customers.schemas import (
     CustomerPatch,
 )
 from app.modules.customers.service import MAX_ID, PAGE_SIZE, CustomerService
-from app.openapi import documented_responses
+from app.openapi import body_examples, documented_responses, response_examples
+from app.openapi_examples import (
+    CUSTOMER_CREATE_EXAMPLES,
+    CUSTOMER_CREATED_EXAMPLES,
+    CUSTOMER_PATCH_EXAMPLES,
+)
 
 router = APIRouter(prefix="/api/customers", tags=["customers"])
 
@@ -36,15 +41,18 @@ _EXPORT_RESPONSES = {
     200: csv_response("The customers of the list filters as a CSV file."),
     **_LIST_RESPONSES,
 }
-_CREATE_RESPONSES = documented_responses(
-    method="POST",
-    body=True,
-    permission=True,
-    extra={
-        409: "The email already belongs to another customer. Code: `CUSTOMER_EMAIL_TAKEN`.",
-        422: "The body is invalid. Code: `VALIDATION_ERROR` (with `errors[]`).",
-    },
-)
+_CREATE_RESPONSES = {
+    **documented_responses(
+        method="POST",
+        body=True,
+        permission=True,
+        extra={
+            409: "The email already belongs to another customer. Code: `CUSTOMER_EMAIL_TAKEN`.",
+            422: "The body is invalid. Code: `VALIDATION_ERROR` (with `errors[]`).",
+        },
+    ),
+    201: response_examples(CUSTOMER_CREATED_EXAMPLES),
+}
 _READ_RESPONSES = documented_responses(
     method="GET",
     extra={
@@ -175,6 +183,7 @@ def export_customers(
     status_code=status.HTTP_201_CREATED,
     response_model=CustomerOut,
     responses=_CREATE_RESPONSES,
+    openapi_extra=body_examples(CUSTOMER_CREATE_EXAMPLES),
 )
 def create_customer(
     payload: CustomerCreate,
@@ -200,7 +209,12 @@ def read_customer(
     return _customer_out(customer)
 
 
-@router.patch("/{id}", response_model=CustomerOut, responses=_PATCH_RESPONSES)
+@router.patch(
+    "/{id}",
+    response_model=CustomerOut,
+    responses=_PATCH_RESPONSES,
+    openapi_extra=body_examples(CUSTOMER_PATCH_EXAMPLES),
+)
 def update_customer(
     payload: CustomerPatch,
     response: Response,

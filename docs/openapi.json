@@ -77,14 +77,14 @@
                   "$ref": "#/components/schemas/Problem"
                 },
                 "examples": {
-                  "forbidden": {
-                    "summary": "The role lacks the permission",
+                  "origin-mismatch": {
+                    "summary": "The Origin is not the application origin",
                     "value": {
                       "type": "about:blank",
                       "title": "Forbidden",
                       "status": 403,
-                      "code": "FORBIDDEN",
-                      "detail": "No tienes permiso para realizar esta acción."
+                      "code": "CSRF_ORIGIN_MISMATCH",
+                      "detail": "La solicitud no proviene de la aplicación."
                     }
                   }
                 }
@@ -195,14 +195,14 @@
                   "$ref": "#/components/schemas/Problem"
                 },
                 "examples": {
-                  "forbidden": {
-                    "summary": "The role lacks the permission",
+                  "origin-mismatch": {
+                    "summary": "The Origin is not the application origin",
                     "value": {
                       "type": "about:blank",
                       "title": "Forbidden",
                       "status": 403,
-                      "code": "FORBIDDEN",
-                      "detail": "No tienes permiso para realizar esta acción."
+                      "code": "CSRF_ORIGIN_MISMATCH",
+                      "detail": "La solicitud no proviene de la aplicación."
                     }
                   }
                 }
@@ -675,14 +675,14 @@
                   "$ref": "#/components/schemas/Problem"
                 },
                 "examples": {
-                  "version-conflict": {
-                    "summary": "A stale version",
+                  "email-taken": {
+                    "summary": "The email already belongs to another customer",
                     "value": {
                       "type": "about:blank",
                       "title": "Conflict",
                       "status": 409,
-                      "code": "VERSION_CONFLICT",
-                      "detail": "El registro cambió mientras lo editabas. Recarga e inténtalo de nuevo."
+                      "code": "CUSTOMER_EMAIL_TAKEN",
+                      "detail": "Ya existe un cliente con ese email."
                     }
                   }
                 }

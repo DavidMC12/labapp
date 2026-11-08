@@ -156,8 +156,7 @@ The list puts **Importar CSV** next to **Nuevo cliente** for the two roles that 
 | The link on the list | `customers-list-import-link` | `<a>` "Importar CSV", Admin and Sales only |
 | The heading | `customers-import-heading` | `<h1>`, "Importar clientes" |
 | The help text | `customers-import-help-text` | `<p>`: the five columns, 200 rows and about 100 KB |
-| The file input | `customers-import-file-input` | `input[type=file]`, `accept=".csv,text/csv"`, labelled "Archivo CSV" |
-| The file error slot | `customers-import-file-error` | the field error under the input, empty today (the server answers instead) |
+| The file input | `customers-import-file-input` | `input[type=file]`, `accept=".csv,text/csv"`, labelled "Archivo CSV"; the server answers, not a field error |
 | The submit button | `customers-import-submit-button` | `<button type="submit">` "Importar"; disabled without a file and while sending |
 | The back link | `customers-import-back-link` | `<a>` to `/customers`, "Volver a clientes" |
 | The form | `customers-import-form` | `<form>`, carries `data-state` and `aria-busy` |
@@ -925,7 +924,7 @@ expect(data[0][1]).toBe("Joyería Júpiter"); // the same order the UI shows
 
 `POST /api/customers/import` creates the customers of one CSV file, all or nothing: any bad row rejects the whole file and nothing is stored. The request is `multipart/form-data` with one file part named **`file`**; the browser sets its own multipart `Content-Type` with the boundary. Admin and Sales only (403 for the other roles, checked before the file is read), a session (401), and the origin rule of the writes ([section 10](#10-where-the-api-is)): a browser sends `Origin`; `curl` and Playwright `request` send none, which is always allowed, and one that is present must match the application origin or the answer is 403 `CSRF_ORIGIN_MISMATCH` before any file is read.
 
-The good file, with the cookie jar of [section 10](#10-where-the-api-is):
+The good file, with the cookie jar of [section 10](#10-where-the-api-is) (after a reset, so the first new customer is 11):
 
 ```bash
 BASE=http://127.0.0.1:8000; J=/tmp/labapp-cookies
@@ -950,7 +949,7 @@ curl -s -b $J -F 'file=@bad.csv;type=text/csv' "$BASE/api/customers/import"
 #                 "message":"El formato no es válido."}]}
 ```
 
-Nothing was created: on a fresh seed a `GET /api/customers` after the rejected upload still reads `"total": 10` (if the good upload above already ran, 11). The same upload from Playwright, which needs no file on disk (illustrative, not run in CI; the `request` fixture shares the browser's cookies):
+Nothing was created: the rejected file leaves the list as it was — `"total": 10` on a fresh seed, 11 if the good upload above already ran. The same upload from Playwright, which needs no file on disk (illustrative, not run in CI; the `request` fixture shares the browser's cookies):
 
 ```ts
 // Illustrative, not run in CI.
@@ -974,7 +973,7 @@ expect(items[0].email).toBe("ana.uno@example.test");
 | 201 | `{created, items}` | every row is valid; `created` is the number of rows and `items` are the `Customer` objects in file order, with consecutive ids |
 | 401 | `UNAUTHENTICATED` | no session |
 | 403 | `FORBIDDEN` | Finance or Read-only; the permission is checked before the multipart body is read |
-| 413 | `PAYLOAD_TOO_LARGE` | the whole multipart request is above about 100 KB |
+| 413 | `PAYLOAD_TOO_LARGE` | the whole multipart body is above about 100 KB |
 | 422 | `VALIDATION_ERROR` with `errors[]` | the file, the header or a row is invalid (the entries below) |
 | 409 | `CUSTOMER_EMAIL_TAKEN` | another request took one of the emails between validation and insert; nothing is created |
 
@@ -1010,6 +1009,10 @@ The export is not an import file: it carries `id` and `status`, columns the impo
 
 ```bash
 BASE=http://127.0.0.1:8000; J=/tmp/labapp-cookies
+curl -s -X POST "$BASE/__test__/reset" >/dev/null
+curl -s -c $J -H 'Content-Type: application/json' \
+  -d '{"email":"sales@labapp.test","password":"Demo-LabApp-2026!"}' \
+  "$BASE/api/auth/login" >/dev/null
 curl -s -b $J -o export.csv "$BASE/api/customers/export"
 python3 - <<'PY'
 import csv

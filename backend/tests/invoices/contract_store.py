@@ -71,7 +71,16 @@ def respond(payment: Payment, invoice: Invoice) -> StoredResponse:
     )
 
 
-def _pay(store, invoice_id: int, key: str, fingerprint: str, *, expected_version=None, **kwargs):
+def _pay(
+    store,
+    invoice_id: int,
+    key: str,
+    fingerprint: str,
+    *,
+    expected_version=None,
+    now: datetime = NOW,
+    **kwargs,
+):
     return store.register_payment(
         invoice_id,
         key=key,
@@ -79,7 +88,7 @@ def _pay(store, invoice_id: int, key: str, fingerprint: str, *, expected_version
         expected_version=expected_version,
         attempt=attempt(**kwargs),
         respond=respond,
-        now=NOW,
+        now=now,
     )
 
 
@@ -360,6 +369,37 @@ class InvoiceStoreContract:
 
         assert outcome.replayed is False
         assert outcome.response.body["payment_id"] == 6
+
+    def test_a_new_attempt_purges_only_the_expired_keys_of_the_invoice(self, store) -> None:
+        old = _pay(store, 1, "key-old", "fp-old", card_last4="0002")
+        young = _pay(
+            store,
+            1,
+            "key-young",
+            "fp-young",
+            card_last4="0002",
+            now=NOW + timedelta(hours=23),
+        )
+        attempt_at = NOW + timedelta(hours=24)
+
+        fresh = _pay(store, 1, "key-new", "fp-new", card_last4="0002", now=attempt_at)
+        assert store.find_key(1, "key-old", attempt_at) is None
+        assert store.find_key(1, "key-young", attempt_at) is not None
+
+        replay = _pay(
+            store,
+            1,
+            "key-young",
+            "fp-young",
+            card_last4="0002",
+            now=attempt_at,
+        )
+        expired_again = _pay(store, 1, "key-old", "fp-old", card_last4="0002", now=attempt_at)
+
+        assert [old.replayed, young.replayed, fresh.replayed] == [False, False, False]
+        assert replay.replayed is True
+        assert replay.response == young.response
+        assert expired_again.replayed is False
 
     def test_void_for_order_voids_only_an_issued_invoice(self, store) -> None:
         store.void_for_order(3, LATER)

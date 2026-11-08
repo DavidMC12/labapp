@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+import app.cli as cli_module
 from app.cli import build_parser, main, reset_refusal, skip_reason
 
 
@@ -46,14 +47,21 @@ def test_the_preview_opt_in_is_honored_only_when_exactly_one() -> None:
 
 
 def test_reset_accepts_its_flags() -> None:
-    arguments = build_parser().parse_args(["reset", "--yes", "--allow-public"])
+    arguments = build_parser().parse_args(["reset", "--yes", "--allow-public", "--allow-remote"])
     assert arguments.command == "reset"
     assert arguments.yes is True
     assert arguments.allow_public is True
+    assert arguments.allow_remote is True
 
     defaults = build_parser().parse_args(["reset"])
     assert defaults.yes is False
     assert defaults.allow_public is False
+    assert defaults.allow_remote is False
+
+
+def test_the_reset_flags_do_not_abbreviate() -> None:
+    with pytest.raises(SystemExit):
+        build_parser().parse_args(["reset", "--ye"])
 
 
 @pytest.mark.parametrize(
@@ -82,6 +90,89 @@ def test_reset_refusals(
     )
 
     assert (reason is not None) is refused
+
+
+@pytest.mark.parametrize("host", ["localhost", "127.0.0.1", "::1", None])
+def test_a_local_host_is_allowed(host: str | None) -> None:
+    reason = reset_refusal(
+        test_mode=True,
+        schema="labapp",
+        yes=True,
+        allow_public=False,
+        host=host,
+    )
+
+    assert reason is None
+
+
+@pytest.mark.parametrize("host", ["db.example.com", "10.0.0.5", "::2"])
+def test_a_remote_host_needs_the_flag(host: str) -> None:
+    refused = reset_refusal(
+        test_mode=True,
+        schema="labapp",
+        yes=True,
+        allow_public=False,
+        host=host,
+    )
+    allowed = reset_refusal(
+        test_mode=True,
+        schema="labapp",
+        yes=True,
+        allow_public=False,
+        host=host,
+        allow_remote=True,
+    )
+
+    assert refused is not None
+    assert host in refused
+    assert allowed is None
+
+
+def test_reset_prints_the_host_and_the_database(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("TEST_MODE", "1")
+    monkeypatch.setenv("DATABASE_SCHEMA", "labapp")
+    monkeypatch.setenv(
+        "DATABASE_URL",
+        "postgresql://someone:topsecret@localhost:5432/labapp_test",
+    )
+    calls: list[object] = []
+    monkeypatch.setattr(cli_module, "reset_database", calls.append)
+
+    assert main(["reset", "--yes"]) == 0
+
+    printed = capsys.readouterr().out
+    assert "localhost" in printed
+    assert "labapp_test" in printed
+    assert "labapp" in printed
+    assert "someone" not in printed
+    assert "topsecret" not in printed
+    assert len(calls) == 1
+
+
+def test_reset_refuses_a_remote_host(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("TEST_MODE", "1")
+    monkeypatch.setenv("DATABASE_SCHEMA", "labapp")
+    monkeypatch.setenv(
+        "DATABASE_URL",
+        "postgresql://someone:topsecret@db.example.com:5432/labapp_test",
+    )
+    calls: list[object] = []
+    monkeypatch.setattr(cli_module, "reset_database", calls.append)
+
+    assert main(["reset", "--yes"]) == 2
+    printed = capsys.readouterr().out
+    assert "db.example.com" in printed
+    assert "topsecret" not in printed
+    assert calls == []
+
+    assert main(["reset", "--yes", "--allow-remote"]) == 0
+    assert len(calls) == 1
 
 
 def test_reset_without_test_mode_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:

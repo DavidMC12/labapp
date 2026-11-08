@@ -13,6 +13,7 @@ from typing import Any
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import func, select
+from sqlalchemy.engine import make_url
 
 from app.config import Settings
 from app.domain.money import quantize_money
@@ -35,6 +36,7 @@ from app.modules.testcontrols.reset import PostgresResetter
 
 ALEMBIC_INI = Path(__file__).resolve().parent.parent / "migrations" / "alembic.ini"
 OPENAPI_EXPORT_SECRET = "openapi-export"
+LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -55,6 +57,7 @@ def build_parser() -> argparse.ArgumentParser:
     reset = subparsers.add_parser(
         "reset",
         help="Restore the demo data (local use, requires TEST_MODE=1)",
+        allow_abbrev=False,
     )
     reset.add_argument(
         "--yes",
@@ -65,6 +68,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--allow-public",
         action="store_true",
         help="Allow the reset when DATABASE_SCHEMA is unset (it wipes public)",
+    )
+    reset.add_argument(
+        "--allow-remote",
+        action="store_true",
+        help="Allow the reset against a host other than localhost",
     )
     deploy = subparsers.add_parser(
         "deploy",
@@ -129,10 +137,14 @@ def reset_refusal(
     schema: str | None,
     yes: bool,
     allow_public: bool,
+    host: str | None = None,
+    allow_remote: bool = False,
 ) -> str | None:
     """Say why a local reset must not run, or ``None`` to go ahead."""
     if not test_mode or not yes:
         return "Refusing to reset: TEST_MODE=1 and --yes are both required."
+    if host is not None and host not in LOCAL_HOSTS and not allow_remote:
+        return f"Refusing to reset: {host} is not a local host. Pass --allow-remote to allow it."
     if schema is None and not allow_public:
         return (
             "Refusing to reset: DATABASE_SCHEMA is unset and the public schema would "
@@ -214,19 +226,27 @@ def main(argv: list[str] | None = None) -> int:
             Path(arguments.output).write_text(text, encoding="utf-8")
     elif arguments.command == "reset":
         settings = Settings()
+        url = make_url(settings.database_url) if settings.database_url is not None else None
+        host = url.host if url is not None else None
         reason = reset_refusal(
             test_mode=settings.test_mode,
             schema=settings.database_schema,
             yes=arguments.yes,
             allow_public=arguments.allow_public,
+            host=host,
+            allow_remote=arguments.allow_remote,
         )
         if reason is not None:
             print(reason)
             return 2
-        if settings.database_url is None:
+        if url is None:
             print("Refusing to reset: DATABASE_URL is not set.")
             return 2
-        print(f"Resetting database schema {settings.database_schema or 'public'}.")
+        database = url.database or "unknown"
+        print(
+            f"Resetting database {database} on host {host or 'local'} "
+            f"schema {settings.database_schema or 'public'}."
+        )
         reset_database(settings)
         print("Database reset complete.")
     elif arguments.command == "deploy":

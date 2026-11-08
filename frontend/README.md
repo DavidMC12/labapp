@@ -210,7 +210,13 @@ the difference, and no `data-testid`, text or DOM order changes:
   (see "Error pages and the expired session" below for how the redirect
   URL says why).
 - `src/app/login/page.tsx` is the login screen (validation, field and
-  form-level errors, demo users box). `src/app/(app)/` is the
+  form-level errors, demo users box). Under the demo users box a quiet
+  line links the two API entry points a person practicing automation
+  needs — "Documentación interactiva" (`/api/docs`,
+  `auth-login-api-docs-link`) and "Contrato OpenAPI"
+  (`/api/openapi.json`, `auth-login-api-contract-link`) — as plain
+  anchors, because both are served by the API on the same origin and a
+  client-side navigation would 404. `src/app/(app)/` is the
   authenticated shell (header, navigation, logout) with placeholder pages
   for clients, orders and invoices.
 - API access goes through `src/lib/api.ts` (`apiFetch`), which speaks the

@@ -2,7 +2,7 @@
 
 Assignee: Worker 2. Branch: `w2/reflow-320`. Reviewer: Supervisor.
 
-**Base.** Branch from `main` after task 047 is merged (the supervisor tells you; until then branch from `w2/site-icon`).
+**Base.** Branch from `main` (task 047 is merged).
 
 ## Goal
 

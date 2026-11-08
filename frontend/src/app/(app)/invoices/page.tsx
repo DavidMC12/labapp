@@ -299,11 +299,13 @@ function InvoicesListContent() {
       ) : data !== null ? (
         <>
           {/*
-           * The wide content scrolls inside this wrapper, never the page:
-           * the padding keeps the 3px focus ring visible around the
-           * scrollbar edges.
+           * The first load keeps the loading text; once the table holds
+           * data, a new page, sort or filter keeps it on screen
+           * (`keepPreviousData` in the hook) and the region announces the
+           * new request with `aria-busy`, so a keyboard focus inside it
+           * survives the change.
            */}
-          <TableScroll testId="invoices-list-scroll-region" label="Tabla de facturas" className="mt-6">
+          <TableScroll testId="invoices-list-scroll-region" label="Tabla de facturas" className="mt-6" busy={list.isFetching}>
             <table
               data-testid="invoices-list-table"
               className="min-w-[44rem] w-full"

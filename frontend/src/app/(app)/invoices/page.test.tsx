@@ -702,3 +702,73 @@ describe("the invoices list export link", () => {
     expect(state.router.replace).not.toHaveBeenCalled();
   });
 });
+
+describe("the previous data of the invoices list while the next request loads", () => {
+  /** Swaps the mock so the request of the next URL stays pending. */
+  function deferNext(url: string): () => void {
+    let release: (response: Response) => void = () => {};
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      if (String(input) === url) {
+        return new Promise<Response>((resolve) => {
+          release = resolve;
+        });
+      }
+      return jsonResponse(listBody ?? listPageOf([]), listStatus);
+    });
+    return () => release(jsonResponse(listPageOf([summary(1)])));
+  }
+
+  it("still shows the loading text on the first load, with no table region", async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      if (String(input) === "/api/invoices?page=1") {
+        return new Promise<Response>(() => {});
+      }
+      return jsonResponse({}, 404);
+    });
+    renderAt("");
+
+    const status = screen.getByTestId("invoices-list-loading-status");
+    expect(status).toHaveTextContent("Cargando…");
+    expect(status).toHaveAttribute("aria-busy", "true");
+    expect(screen.queryByTestId("invoices-list-scroll-region"))
+      .not.toBeInTheDocument();
+  });
+
+  it("keeps the previous rows, region busy and sorted header focused while the sort loads", async () => {
+    respondList(listPageOf([summary(1), summary(2), summary(3)]));
+    const { rerenderAt } = renderAt("");
+    await waitFor(() => {
+      expect(screen.getByTestId("invoices-list-table")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("invoices-list-scroll-region"))
+      .not.toHaveAttribute("aria-busy");
+
+    const button = screen.getByTestId("invoices-list-sort-total-button");
+    await userEvent.setup().click(button);
+    expect(state.router.push).toHaveBeenCalledWith(
+      "/invoices?page=1&sort=total&direction=asc",
+    );
+
+    // Following the navigation, the sorted request stays pending: the
+    // previous rows stay on screen and the region announces the wait.
+    const release = deferNext("/api/invoices?page=1&sort=total&direction=asc");
+    rerenderAt("page=1&sort=total&direction=asc");
+    await waitFor(() => {
+      expect(listRequests().at(-1))
+        .toBe("/api/invoices?page=1&sort=total&direction=asc");
+    });
+    const region = screen.getByTestId("invoices-list-scroll-region");
+    await waitFor(() => {
+      expect(region).toHaveAttribute("aria-busy", "true");
+    });
+    expect(screen.getByTestId("invoices-list-table")).toBeInTheDocument();
+    // The click left the button focused and it must stay there.
+    expect(button).toHaveFocus();
+
+    release();
+    await waitFor(() => {
+      expect(region).not.toHaveAttribute("aria-busy");
+    });
+    expect(button).toHaveFocus();
+  });
+});

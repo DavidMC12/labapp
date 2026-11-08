@@ -460,6 +460,11 @@ An invalid `sort` or `direction` in the URL falls back to the default,
 like an invalid `status` does. Each list also announces its order in a
 visually hidden `role="status"` element `<module>-list-sort-text`
 (text "Ordenado por Nombre, ascendente", updated on every change).
+While a request for a new sort, page or filter result runs, the previous
+rows stay in the table (`placeholderData: keepPreviousData` in the list
+hook) and the scroll region carries `aria-busy="true"` until the new
+data lands, so a keyboard focus on a header or page button survives the
+change; the first load keeps the `Cargando…` status text.
 
 ## CSV export
 

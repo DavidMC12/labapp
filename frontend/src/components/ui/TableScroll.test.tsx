@@ -22,4 +22,49 @@ describe("TableScroll", () => {
     expect(region).toHaveClass("overflow-x-auto", "mt-6");
     expect(region).toContainElement(screen.getByRole("table"));
   });
+
+  it("writes aria-busy only while the caller is loading new table data", () => {
+    const view = render(
+      <TableScroll testId="orders-list-scroll-region" label="Tabla de pedidos">
+        <table>
+          <tbody>
+            <tr>
+              <td>una celda</td>
+            </tr>
+          </tbody>
+        </table>
+      </TableScroll>,
+    );
+
+    expect(screen.getByRole("region", { name: "Tabla de pedidos" }))
+      .not.toHaveAttribute("aria-busy");
+
+    view.rerender(
+      <TableScroll testId="orders-list-scroll-region" label="Tabla de pedidos" busy>
+        <table>
+          <tbody>
+            <tr>
+              <td>una celda</td>
+            </tr>
+          </tbody>
+        </table>
+      </TableScroll>,
+    );
+    expect(screen.getByRole("region", { name: "Tabla de pedidos" }))
+      .toHaveAttribute("aria-busy", "true");
+
+    view.rerender(
+      <TableScroll testId="orders-list-scroll-region" label="Tabla de pedidos">
+        <table>
+          <tbody>
+            <tr>
+              <td>una celda</td>
+            </tr>
+          </tbody>
+        </table>
+      </TableScroll>,
+    );
+    expect(screen.getByRole("region", { name: "Tabla de pedidos" }))
+      .not.toHaveAttribute("aria-busy");
+  });
 });

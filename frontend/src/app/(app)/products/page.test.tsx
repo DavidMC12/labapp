@@ -558,3 +558,76 @@ describe("the sorting of the catalog", () => {
     );
   });
 });
+
+describe("the previous data of the products list while the next request loads", () => {
+  /** The /api/products requests recorded so far (url with query). */
+  function catalogRequests(): string[] {
+    return fetchMock.mock.calls
+      .map((call) => String(call[0]))
+      .filter((url) => url.startsWith("/api/products"));
+  }
+
+  /** Swaps the mock so the request of the next URL stays pending. */
+  function deferNext(url: string): () => void {
+    let release: (response: Response) => void = () => {};
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      if (String(input) === url) {
+        return new Promise<Response>((resolve) => {
+          release = resolve;
+        });
+      }
+      return jsonResponse(listBody ?? catalogOf([]), listStatus);
+    });
+    return () => release(jsonResponse(catalogOf([seededProduct(1)])));
+  }
+
+  it("still shows the loading text on the first load, with no table region", async () => {
+    fetchMock.mockImplementation(
+      async () => new Promise<Response>(() => {}),
+    );
+    renderAt("");
+
+    const status = screen.getByTestId("products-list-loading-status");
+    expect(status).toHaveTextContent("Cargando…");
+    expect(status).toHaveAttribute("aria-busy", "true");
+    expect(screen.queryByTestId("products-list-scroll-region"))
+      .not.toBeInTheDocument();
+  });
+
+  it("keeps the previous rows, region busy and sorted header focused while the sorted catalog loads", async () => {
+    respondCatalog(catalogOf([seededProduct(1), seededProduct(2), seededProduct(3)]));
+    const { rerenderAt } = renderAt("");
+    await waitFor(() => {
+      expect(screen.getByTestId("products-list-table")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("products-list-scroll-region"))
+      .not.toHaveAttribute("aria-busy");
+
+    const button = screen.getByTestId("products-list-sort-price-button");
+    await userEvent.setup().click(button);
+    expect(state.router.push).toHaveBeenCalledWith(
+      "/products?sort=price&direction=asc",
+    );
+
+    // Following the navigation, the sorted request stays pending: the
+    // previous rows stay on screen and the region announces the wait.
+    const release = deferNext("/api/products?sort=price&direction=asc");
+    rerenderAt("sort=price&direction=asc");
+    await waitFor(() => {
+      expect(catalogRequests().at(-1)).toBe("/api/products?sort=price&direction=asc");
+    });
+    const region = screen.getByTestId("products-list-scroll-region");
+    await waitFor(() => {
+      expect(region).toHaveAttribute("aria-busy", "true");
+    });
+    expect(screen.getByTestId("products-list-table")).toBeInTheDocument();
+    // The click left the button focused and it must stay there.
+    expect(button).toHaveFocus();
+
+    release();
+    await waitFor(() => {
+      expect(region).not.toHaveAttribute("aria-busy");
+    });
+    expect(button).toHaveFocus();
+  });
+});

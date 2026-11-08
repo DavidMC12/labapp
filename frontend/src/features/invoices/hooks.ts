@@ -5,6 +5,7 @@
  */
 
 import {
+  keepPreviousData,
   useMutation,
   useQuery,
   useQueryClient,
@@ -89,6 +90,10 @@ export function useInvoices(
         throw error;
       }
     },
+    // A new page, sort or filter keeps the previous data on screen while
+    // it loads, so the table never disappears and the header button the
+    // keyboard focused stays the active element.
+    placeholderData: keepPreviousData,
     retry: false,
   });
 }

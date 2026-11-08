@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CustomerImportPage from "./page";
@@ -256,9 +256,57 @@ describe("the customers import page", () => {
     });
     expect(form).not.toHaveAttribute("aria-busy");
 
-    // Choosing another file returns the form to idle.
+    // Choosing another file returns the form to idle and clears the
+    // result of the attempt completely.
     await chooseFile(csvFile("name,email\nBeto,beto@labapp.test\n"));
     expect(form).toHaveAttribute("data-state", "idle");
+    expect(
+      screen.queryByTestId("customers-import-result-text"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("customers-import-list-link"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("customers-import-error-alert"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("customers-import-errors-table"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the input disabled and the pending state through a change event while the request is in flight", async () => {
+    const pending = new Promise<Response>(() => {});
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <CustomerImportPage />
+      </QueryClientProvider>,
+    );
+    await screen.findByTestId("customers-import-form");
+    await chooseFile(csvFile("name,email\nAna García,ana@labapp.test\n"));
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/customers/import") {
+        return pending;
+      }
+      return jsonResponse({}, 404);
+    });
+    await userEvent.click(screen.getByTestId("customers-import-submit-button"));
+
+    const form = screen.getByTestId("customers-import-form");
+    const input = screen.getByTestId("customers-import-file-input");
+    await waitFor(() => {
+      expect(form).toHaveAttribute("data-state", "loading");
+    });
+    expect(input).toBeDisabled();
+
+    // A change event in the disabled input never acts: the pending state
+    // stays and the answer of the first file remains the only judge.
+    fireEvent.change(input, {
+      target: { files: [csvFile("name,email\nBeto,beto@labapp.test\n")] },
+    });
+    expect(form).toHaveAttribute("data-state", "loading");
+    expect(form).toHaveAttribute("aria-busy", "true");
   });
 
   it("shows the error table of a rejected file with whole-file, whole-row and column errors", async () => {
@@ -505,5 +553,30 @@ describe("the customers import page", () => {
 
     expect(screen.getByTestId("customers-import-file-input")).not.toHaveValue("");
     expect(screen.getByTestId("customers-import-submit-button")).toBeEnabled();
+  });
+
+  it("clears the alert and the error table of a rejected file when another file is chosen", async () => {
+    await submitFile(
+      csvFile("name,email\n,ana@labapp.test\n"),
+      () =>
+        problemResponse(422, "VALIDATION_ERROR", "Revisa los datos ingresados.", [
+          { field: "rows[2].email", code: "REQUIRED", message: "Este campo es obligatorio." },
+        ]),
+    );
+    expect(screen.getByTestId("customers-import-error-alert")).toBeInTheDocument();
+    expect(screen.getByTestId("customers-import-errors-table")).toBeInTheDocument();
+
+    // A new file chosen in idle clears the previous attempt completely;
+    // the alert cannot lose the focus it took (J-35) with it.
+    await chooseFile(csvFile("name,email\nBeto,beto@labapp.test\n"));
+
+    expect(screen.queryByTestId("customers-import-error-alert"))
+      .not.toBeInTheDocument();
+    expect(screen.queryByTestId("customers-import-errors-table"))
+      .not.toBeInTheDocument();
+    expect(screen.getByTestId("customers-import-form")).toHaveAttribute(
+      "data-state",
+      "idle",
+    );
   });
 });

@@ -355,6 +355,16 @@ the difference, and no `data-testid`, text or DOM order changes:
 - Customer pickers (create and "Cambiar cliente") start with a disabled
   "Elige un cliente" placeholder, list at most 20 active customers and
   reset a choice the list no longer contains.
+- The create page reads `?customer_id={id}` from the url (a strict
+  positive integer up to 2147483647, ignored when invalid): while that
+  customer loads the select is disabled with a "Cargando cliente…"
+  option, and on arrival it is preselected — added to the options when it
+  is not among the first 20 — while an inactive, unknown or failed
+  preselection shows the notice
+  `orders-form-presetcustomer-status` ("El cliente indicado no está
+  disponible para nuevos pedidos.") and leaves the picker untouched. The
+  preselection is applied once: a refetch never overwrites a later
+  choice. Without the parameter the page behaves exactly as before.
 
 ## Settings
 
@@ -509,7 +519,11 @@ Spanish.
   the URL by the last page (`max(1, ceil(total / 20))`).
 - The detail page has a "Pedidos" section ("Ver pedidos de este cliente")
   that links to `/orders?customer_id={id}` — visible to every role, for
-  active and inactive customers alike.
+  active and inactive customers alike. Next to the write controls, an
+  active customer with a user who can edit draft orders (the same
+  `canEditOrders` rule the create page checks; Admin and Sales today)
+  also gets the "Nuevo pedido" link
+  (`customers-detail-neworder-link`) to `/orders/new?customer_id={id}`.
 - Data layer on TanStack Query, all with `retry: false`:
   `useCustomers({page, q, status})`, `useCustomer(id)`,
   `useCreateCustomer()`, `useUpdateCustomer()` and

@@ -1004,6 +1004,57 @@ curl -s -b $J -F 'file=@lines.csv;type=text/csv' "$BASE/api/customers/import"
 #                 "message":"Debe tener al menos 2 caracteres."}]}
 ```
 
+### Round trip: export, reshape and import
+
+The export is not an import file: it carries `id` and `status`, columns the import does not accept. Its `name` and `email` are exactly what the import needs, which makes a short round trip that ties the download and the upload together. On a fresh seed the exported emails are already taken, so the first upload is a lesson in duplicates; renaming them makes it succeed.
+
+```bash
+BASE=http://127.0.0.1:8000; J=/tmp/labapp-cookies
+curl -s -b $J -o export.csv "$BASE/api/customers/export"
+python3 - <<'PY'
+import csv
+with open("export.csv", newline="") as source:
+    rows = list(csv.DictReader(source))
+with open("keep.csv", "w", newline="") as out:
+    writer = csv.writer(out, lineterminator="\n")
+    writer.writerow(["name", "email"])
+    for row in rows:
+        writer.writerow([row["name"], row["email"]])
+PY
+```
+
+`keep.csv` holds the ten seeded customers in the export's order (`Joyería Júpiter` first) and two columns. Uploaded as it is:
+
+```bash
+curl -s -b $J -F 'file=@keep.csv;type=text/csv' "$BASE/api/customers/import" \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["code"]); print([e["field"] for e in d["errors"]]); print({e["code"] for e in d["errors"]})'
+# VALIDATION_ERROR
+# ['rows[2].email', 'rows[3].email', 'rows[4].email', 'rows[5].email', 'rows[6].email',
+#  'rows[7].email', 'rows[8].email', 'rows[9].email', 'rows[10].email', 'rows[11].email']
+# {'CUSTOMER_EMAIL_TAKEN'}
+```
+
+Ten entries, one per seeded customer, and nothing is created. Add a suffix to every email and upload again:
+
+```bash
+python3 - <<'PY'
+import csv
+with open("keep.csv", newline="") as source:
+    rows = list(csv.DictReader(source))
+with open("renamed.csv", "w", newline="") as out:
+    writer = csv.writer(out, lineterminator="\n")
+    writer.writerow(["name", "email"])
+    for row in rows:
+        local, domain = row["email"].split("@")
+        writer.writerow([row["name"], f"{local}+copy@{domain}"])
+PY
+curl -s -b $J -F 'file=@renamed.csv;type=text/csv' "$BASE/api/customers/import" \
+  | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["created"], [i["id"] for i in d["items"]], [i["email"] for i in d["items"]][:2])'
+# 10 [11, 12, 13, 14, 15, 16, 17, 18, 19, 20] ['joyeria+copy@example.test', 'iberica+copy@example.test']
+```
+
+The list now has 20 customers; a reset puts the ten back ([section 11](#11-the-test-controls)). Only `name` and `email` were kept, so `phone`, `tax_id` and `address` arrive `null`: the round trip copies the identity of each customer, not its whole record.
+
 ## 13. Isolating tests
 
 A test that assumes a clean world will eventually meet someone else's data. The reset controls give three patterns; choose one per project and keep it.

@@ -146,7 +146,10 @@ and `order_number_seq` after the highest ids and numbers.
 
 Invoices, invoice lines, payments and idempotency keys use the `invoices`,
 `invoice_lines`, `payments` and `idempotency_keys` tables. Invoice numbers come from
-`invoice_number_seq`. `orders.invoice_id` has a foreign key to `invoices` that only the
+`invoice_number_seq`. A partial unique index
+(`uq_payments_one_approved_per_invoice`, migration `0005`) lets the database reject a
+second approved payment of one invoice, while declined and failed attempts stay allowed.
+`orders.invoice_id` has a foreign key to `invoices` that only the
 migration declares (`fk_orders_invoice_id_invoices`): together with
 `invoices.order_id -> orders` it is a cycle, and `ON DELETE SET NULL` lets `replace_all`
 empty one table before the other. Every invoice mutation is one transaction and locks the
@@ -157,11 +160,13 @@ an idempotency key takes on the invoice, and two payments that claimed their key
 locking would deadlock. Cancelling a confirmed order locks its invoice the same way and
 voids it before returning the stock, in the order transaction.
 
-`register_payment` claims the idempotency key before the locks: it deletes an expired row
-of the same `(invoice_id, key)` (24 hours with the injected clock) and inserts the
-placeholder row `status_code = 0` / `response = '{}'` with `ON CONFLICT DO NOTHING`. The
+`register_payment` claims the idempotency key before the locks: it deletes every expired
+key of that invoice (24 hours with the injected clock) and inserts the placeholder row
+`status_code = 0` / `response = '{}'` with `ON CONFLICT DO NOTHING`. The
 second concurrent request waits on that unique row, then replays the committed response
-when the fingerprint matches or raises `IDEMPOTENCY_KEY_REUSED` when it does not. A
+when the fingerprint matches or raises `IDEMPOTENCY_KEY_REUSED` when it does not. If the
+conflicting row disappears between the conflict and the read, the claim retries up to
+three times; the third failure answers 503 `LOCK_TIMEOUT`. A
 request rejected after the claim (stale version, not payable, amount mismatch) rolls the
 transaction back, claim included, so it does not consume the key. An approved payment,
 the invoice becoming `paid` and the order becoming `paid` commit together; a declined or

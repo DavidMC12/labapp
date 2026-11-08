@@ -83,6 +83,12 @@ payments = Table(
 )
 
 Index("ix_payments_invoice_id", payments.c.invoice_id)
+Index(
+    "uq_payments_one_approved_per_invoice",
+    payments.c.invoice_id,
+    unique=True,
+    postgresql_where=payments.c.status == "approved",
+)
 
 idempotency_keys = Table(
     "idempotency_keys",

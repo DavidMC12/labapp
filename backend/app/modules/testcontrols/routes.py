@@ -108,9 +108,10 @@ def _iso(value: datetime) -> str:
 
 
 def _clock_out(request: Request) -> dict[str, object]:
+    offset = request.app.state.clock_store.get()
     return {
-        "now": _iso(request.app.state.container.clock.now()),
-        "offset_seconds": request.app.state.clock_store.get(),
+        "now": _iso(request.app.state.container.clock.now_at(offset)),
+        "offset_seconds": offset,
     }
 
 

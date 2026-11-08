@@ -171,3 +171,50 @@ def test_the_clock_does_not_need_a_session(controls_client: TestClient) -> None:
 
     assert response.status_code == 200
     assert response.json()["offset_seconds"] == 60.0
+
+
+class CountingStore:
+    """Count the reads of the clock offset store."""
+
+    def __init__(self, inner: object) -> None:
+        self.inner = inner
+        self.calls = 0
+
+    def get(self, *, connection: object = None) -> float:
+        self.calls += 1
+        return self.inner.get(connection=connection)  # type: ignore[attr-defined]
+
+    def set(self, seconds: float, *, connection: object = None) -> None:
+        self.inner.set(seconds, connection=connection)  # type: ignore[attr-defined]
+
+    def advance(
+        self,
+        seconds: float,
+        *,
+        limit: float = MAX_CLOCK_OFFSET_SECONDS,
+        connection: object = None,
+    ) -> float | None:
+        return self.inner.advance(  # type: ignore[attr-defined]
+            seconds,
+            limit=limit,
+            connection=connection,
+        )
+
+
+def test_get_reads_the_offset_once() -> None:
+    app = create_app(
+        Settings(session_secret="test-secret", test_mode=True),
+        clock=OffsetClock(FixedClock()),
+    )
+    counting = CountingStore(app.state.clock_store)
+    app.state.clock_store = counting
+    client = TestClient(app)
+
+    response = client.get("/__test__/clock")
+
+    assert response.status_code == 200
+    assert counting.calls == 1
+    assert response.json() == {
+        "now": "2026-02-01T12:00:00Z",
+        "offset_seconds": 0.0,
+    }

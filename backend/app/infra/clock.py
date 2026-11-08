@@ -51,6 +51,10 @@ class OffsetClock:
             offset = self._offset
         return self._base.now() + offset
 
+    def now_at(self, offset_seconds: float) -> datetime:
+        """Return the base time plus the given offset, ignoring the stored one."""
+        return self._base.now() + timedelta(seconds=offset_seconds)
+
 
 class ControlledClock:
     """A clock whose offset lives in a store, used only when the controls are enabled.
@@ -77,4 +81,8 @@ class ControlledClock:
         offset = clock_offset.get()
         if offset is None:
             offset = self._store.get()
-        return self._base.now() + timedelta(seconds=offset)
+        return self.now_at(offset)
+
+    def now_at(self, offset_seconds: float) -> datetime:
+        """Return the base time plus the given offset, without reading the store."""
+        return self._base.now() + timedelta(seconds=offset_seconds)

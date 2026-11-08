@@ -4,7 +4,7 @@
   "states": [
     { "name": "login", "path": "/login", "user": null, "waitFor": "auth-login-form", "title": "Iniciar sesión · LabApp" },
     { "name": "login-expired", "path": "/login?expired=1", "user": null, "waitFor": "auth-login-expired-alert", "title": "Iniciar sesión · LabApp" },
-    { "name": "not-found", "path": "/no-such-page", "user": null, "waitFor": "app-notfound-heading", "title": "Página no encontrada · LabApp" },
+    { "name": "not-found", "path": "/no-such-page", "user": null, "waitFor": "app-notfound-heading", "title": "Página no encontrada · LabApp", "expectStatus": 404 },
     { "name": "home", "path": "/", "user": "sales@labapp.test", "waitFor": "home-customers-active-count-text", "title": "Resumen · LabApp" },
     { "name": "customers-list", "path": "/customers", "user": "sales@labapp.test", "waitFor": "customers-list-table", "title": "Clientes · LabApp" },
     { "name": "customers-list-readonly", "path": "/customers", "user": "readonly@labapp.test", "waitFor": "customers-list-table", "title": "Clientes · LabApp" },

@@ -110,10 +110,13 @@ src/
               interactive elements take a required testId; fields also
               share Field
     LedgerMark.tsx  the brand mark of the theme
-  features/   customers + auth (hooks, api, screens helpers)
+  features/   auth (session + login/logout hooks), summary, customers,
+              orders, invoices, settings and products (hooks, api,
+              screens helpers)
   lib/        testid.ts — the test id grammar: pattern, type and helpers
               theme.ts — the storage key, the setting and the no-flash
               script of the theme (see Design above)
+              format.ts — money and UTC date/time formatting (SPEC 8)
   test/       Vitest setup
 ```
 

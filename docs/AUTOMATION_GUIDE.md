@@ -214,6 +214,58 @@ await expect(page.getByTestId("invoices-detail-state-status")).toHaveText("Pagad
 await expect(page.getByTestId("invoices-detail-closed-text")).toHaveText("Esta factura está pagada.");
 ```
 
+### Sort the four lists
+
+Every sortable column header of the four lists is a real `<button>` inside `aria-sort`-carrying `<th>` corners, and the 14 buttons share one id shape, `<module>-list-sort-<field>-button` (`created_at` is written `created`). The list's other filters and the export link sit around the table; the columns that nothing sorts by (`ID fiscal`, `Estado`, …) are plain `<th>` without a button.
+
+| List | Sort buttons and field each one sorts by |
+|---|---|
+| `/customers` | `customers-list-sort-name-button` (name), `customers-list-sort-email-button` (email), `customers-list-sort-created-button` (`created_at`) |
+| `/orders` | `orders-list-sort-number-button` (number), `orders-list-sort-customer-button` (customer name), `orders-list-sort-created-button` (`created_at`) |
+| `/invoices` | `invoices-list-sort-number-button` (number), `invoices-list-sort-customer-button` (customer name), `invoices-list-sort-total-button` (total), `invoices-list-sort-created-button` (`created_at`) |
+| `/products` | `products-list-sort-sku-button` (sku), `products-list-sort-name-button` (name), `products-list-sort-price-button` (price), `products-list-sort-stock-button` (stock) |
+
+**What a click does.** The first click sorts the column with the default direction of its field (`created_at` descending, every other field ascending — the API's defaults, section 12), and a second click on the sorted column flips the direction. There is **no unsorted state**: the plain list *is* the default sort (`created_at` descending; the products catalog, `id` ascending), and both URL parameters are left out of it. Either kind of click returns the list to page 1 and keeps every other filter.
+
+**What to assert.** Three places carry the sort state, and the click is over when the data lands:
+
+| Where | Attribute | Values |
+|---|---|---|
+| the `<th>` (`aria-sort`) | `aria-sort` | `ascending` / `descending` while the table is sorted by it, **no attribute otherwise** |
+| the button | `data-state` | `ascending` / `descending` when sorted, **the literal `none` otherwise** — it never disappears |
+| the hidden status | text | `Ordenado por {label}, {ascendente\|descendente}` (e.g. `Ordenado por Nombre, ascendente`) in `*-list-sort-text`, a visually hidden `role="status"` paragraph |
+
+The sort lives in the URL next to the filters: `?page=1&sort=name&direction=asc`. A list loaded directly from that URL arrives sorted (the API request carries the parameters), and an invalid `sort` or `direction` in the URL falls back to the default, like an invalid `status` does. Every change updates the URL, the `aria-sort`, the `data-state` and the hidden status together; only the `aria-sort` of the `<th>` vanishes when the column is not the sorted one — the button's `data-state="none"` is always there.
+
+```ts
+// Illustrative, not run in CI.
+const th = page.getByTestId("customers-list-sort-name-button").locator("..");
+const otherTh = page.getByTestId("customers-list-sort-email-button").locator("..");
+await page.getByTestId("customers-list-sort-name-button").click();
+await expect(th).toHaveAttribute("aria-sort", "ascending");
+await expect(th.getByTestId("customers-list-sort-name-button"))
+  .toHaveAttribute("data-state", "ascending");
+await expect(page).toHaveURL(/sort=name&direction=asc/);
+await expect(page.getByTestId("customers-list-sort-text"))
+  .toHaveText("Ordenado por Nombre, ascendente");
+// a column nothing sorts by: no aria-sort on its th, data-state "none" on its button
+await expect(otherTh).not.toHaveAttribute("aria-sort", /.*/);
+await expect(otherTh.getByTestId("customers-list-sort-email-button"))
+  .toHaveAttribute("data-state", "none");
+```
+
+**The order of the rows.** The attribute says which column is sorted; a test that wants to be sure about the array order reads one column's cells and compares with the expected order. Every cell carries the record id as its suffix (`customers-list-name-cell-1` is customer 1), so a locator prefix reaches all the rows:
+
+```ts
+// Illustrative, not run in CI. On ten seeded customers, names ascend and
+// the accents ignore themselves: `Ferretería Fénix` lands in the F position.
+await page.getByTestId("customers-list-sort-name-button").click();
+const names = await page.locator('[data-testid^="customers-list-name-cell-"]').allTextContents();
+expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b, "es")));
+```
+
+**The traps.** Sorting silently resets the page (`?page=` goes back to 1) while surviving filters (`q`, `status`, …) keep travelling in the URL; because the sort is a URL parameter, a test can skip the clicks and open the sorted list directly, and it must not expect an unsorted state to come back. Text columns compare the **normalized** text — accents and upper case are ignored, so `Álvaro` sorts with `A` (section 12 explains the normalization) — and `number` sorts `PED-0009` after `PED-0002` because it compares the numeric part as an integer.
+
 ## 6. Waiting and state
 
 Wait for observable markers instead of fixed timeouts; every one is in the code.
@@ -268,13 +320,13 @@ Each item below was verified in the code and the documents.
 
 ## 9. What is next
 
-Part 1 covered the web UI; **part 2** (the next sections of this document) covers the other half: the HTTP API under `/api` (section 10) and the test-only controls — reset, seed, clock, faults (section 11) — with recipes for the three flows over `curl` (section 12), how to isolate a run (section 13) and the online demo (section 14). Before writing API tests, read in this order: [SPEC.md](SPEC.md) sections 2–3 (roles, sessions, the origin rule), 5–6 (orders, invoices and payments) and 7–9 (errors, formats, the seed contract); [openapi.json](openapi.json), the committed contract of every endpoint; and [backend/README.md](../backend/README.md) if you want the controls explained from the server side.
+Part 1 covered the web UI; **part 2** (the next sections of this document) covers the other half: the HTTP API under `/api` (section 10) and the test-only controls — reset, seed, clock, faults (section 11) — with recipes for the three flows over `curl` (section 12), how to isolate a run (section 13) and the online demo (section 14). The same sections teach the machinery the four lists gained since part 1 was drafted: their `sort` and `direction` parameters and their CSV downloads (section 12) and the headers every API answer carries (section 10). Before writing API tests, read in this order: [SPEC.md](SPEC.md) sections 2–3 (roles, sessions, the origin rule), 5–6 (orders, invoices and payments) and 7–9 (errors, formats, the seed contract); [openapi.json](openapi.json), the committed contract of every endpoint; and [backend/README.md](../backend/README.md) if you want the controls explained from the server side.
 
 ---
 
 # Part 2: the HTTP API and the test controls
 
-Driving the UI is only half of what makes LabApp easy to automate. The other half is HTTP: every screenshot has an endpoint behind it, and the seed, reset, clock and faults exist so a test can arrange the world it needs. These sections cover the base path and authentication, the committed contract, the seven test-control endpoints with recipes, the three core flows over `curl`, the versioning and idempotency machinery, and how to isolate a run from other visitors of the demo.
+Driving the UI is only half of what makes LabApp easy to automate. The other half is HTTP: every screenshot has an endpoint behind it, and the seed, reset, clock and faults exist so a test can arrange the world it needs. These sections cover the base path and authentication (with the headers every API answer carries), the committed contract, the seven test-control endpoints with recipes, the three core flows over `curl`, the `sort` and `direction` parameters and the CSV downloads of the four lists, the versioning and idempotency machinery, and how to isolate a run from other visitors of the demo.
 
 Every endpoint, status code, header, field and message below was read from the backend code, [SPEC.md](SPEC.md) and the committed contract [openapi.json](openapi.json); each `curl` recipe was verified against the local server that `mise run dev` starts.
 
@@ -319,6 +371,50 @@ The same error shape for both wrong email and wrong password is deliberate: acco
 ```
 
 Other problem bodies carry extra members at the top level: `shortages[]` on a 409 `INSUFFICIENT_STOCK`, `payment_id` and `reason` on a 402 `PAYMENT_DECLINED` or a 503 `PAYMENT_GATEWAY_UNAVAILABLE`, and `retry_after` on a 429 `RATE_LIMITED` (the same seconds the `Retry-After` header carries). The stable codes and their messages are catalogued in [SPEC section 7](SPEC.md#7-errors-and-validation-order); a test should assert the `code`, not the wording, which may change. Every response — success or error — carries an `X-Request-Id` header; send your own (1–64 characters of `[A-Za-z0-9._-]`) to have it echoed into logs.
+
+### The headers of every API answer
+
+Two headers travel on **every** response of the API — a request whose path starts with `/api/` or `/__test__/` — whatever its status: the guards' problem answers, the 404 of an unknown path, a 413 body-too-large and a 429 rate-limit answer included ([SPEC section 8](SPEC.md#8-formats-and-conventions)):
+
+| Header | Value | Why a test can lean on it |
+|---|---|---|
+| `X-Content-Type-Options` | `nosniff` | no answer is ever sniffed into a different type |
+| `Cache-Control` | `no-store` | the API's answers depend on the session or the data, so a shared cache must never keep them |
+
+One exception with two paths: `GET /api/openapi.json` (the committed contract) and `GET /api/docs` (the Swagger page) carry **only** `nosniff`, without `no-store` — they are static documents a cache may keep. `GET /api/health` follows the general rule (it carries both), and a response that sets its own `Cache-Control` keeps it (today every route that sets one says `no-store`). The export files add `Content-Disposition` to this base, [section 12](#12-orders-and-invoices-through-the-api).
+
+The full set, asserted on a success (200) and on a 401, run against a local API:
+
+```bash
+BASE=http://127.0.0.1:8000; J=/tmp/labapp-cookies
+curl -s -i -b $J "$BASE/api/customers" | grep -iE '^(HTTP|x-content-type|cache-control|content-type)'
+# 200: content-type: application/json, plus nosniff and no-store
+curl -s -i        "$BASE/api/customers" | grep -iE '^(HTTP|x-content-type|cache-control)'
+# 401 (no cookie jar): the guards answer through the same middleware, same two headers
+curl -s -i -b $J "$BASE/api/openapi.json" | grep -iE '^(HTTP|x-content-type|cache-control)'
+# 200: nosniff, and no cache-control — the second exception is /api/docs, same shape
+```
+
+```ts
+// Illustrative, not run in CI. The browser context of the suite is logged in
+// (section 10); a fresh API request context is not.
+import { request as pwRequest } from "@playwright/test";
+
+const base = "http://127.0.0.1:8000";
+const ok = await request.get(`${base}/api/customers`);
+expect(ok.status()).toBe(200);
+expect(ok.headers()["x-content-type-options"]).toBe("nosniff");
+expect(ok.headers()["cache-control"]).toBe("no-store");
+
+const anon = await pwRequest.newContext();          // no cookie jar
+const denied = await anon.get(`${base}/api/customers`);
+expect(denied.status()).toBe(401);
+expect(denied.headers()["x-content-type-options"]).toBe("nosniff");
+expect(denied.headers()["cache-control"]).toBe("no-store");
+await anon.dispose();
+```
+
+The web pages have their own set — `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` and `Cross-Origin-Opener-Policy: same-origin`, plus `Content-Security-Policy` in production only — applied by `frontend/next.config.ts`. The API paths take no part in it: the pattern that applies those headers explicitly excludes `/api/*` and `/__test__/*`, so an API answer never carries the web app's policy, and the browser never mixes the two.
 
 ## 11. The test controls
 
@@ -480,13 +576,16 @@ At most **50 non-exhausted rules** exist; when they are full the answer is a 422
 
 ```ts
 // Illustrative, not run in CI. Local: TEST_MODE=1, no token needed.
+import { request as pwRequest } from "@playwright/test";
+
 const base = "http://127.0.0.1:8000";
-const controls = await request.newContext();           // no cookie jar needed
+const controls = await pwRequest.newContext();          // no cookie jar needed
 await controls.post(`${base}/__test__/reset`);
 await controls.post(`${base}/__test__/clock`, { data: { advance_seconds: 28801 } });
-const me = await request.get(`${base}/api/auth/me`);   // your existing logged-in context
+const me = await request.get(`${base}/api/auth/me`);    // your existing logged-in context
 expect(me.status()).toBe(401);
 expect((await me.json()).code).toBe("SESSION_EXPIRED");
+await controls.dispose();
 ```
 
 ## 12. Orders and invoices through the API
@@ -582,7 +681,7 @@ The declined and unavailable outcomes do not change the invoice or the order. `4
 
 ### The lists: paging, search and filters
 
-All four list endpoints share one shape ([SPEC section 8](SPEC.md#8-formats-and-conventions)): `{"items": [...], "page", "page_size": 20, "total"}`. The page size is fixed at 20 — the client cannot change it — `total` counts every match and not only the current page, the order is `created_at` descending then `id` descending, and asking for a page beyond the last one answers 200 with an empty `items` array. `page` is an integer from 1 to 1000000: a non-integer is 422 `INVALID_FORMAT` on `page`, any other value 422 `OUT_OF_RANGE`.
+All four list endpoints share one shape ([SPEC section 8](SPEC.md#8-formats-and-conventions)): `{"items": [...], "page", "page_size": 20, "total"}`. The page size is fixed at 20 — the client cannot change it — `total` counts every match and not only the current page, the **default** order is `created_at` descending then `id` descending (every list can sort, next subsection), and asking for a page beyond the last one answers 200 with an empty `items` array. `page` is an integer from 1 to 1000000: a non-integer is 422 `INVALID_FORMAT` on `page`, any other value 422 `OUT_OF_RANGE`.
 
 The search parameter `q` is the same on the three modules: trimmed, ignored when empty, at most 100 characters, no control characters, and **literal** — `%`, `_` and `\` mean themselves, there is no pattern syntax. The match is a "contains" that ignores case and accents (verified: `?q=ferreteria` finds the invoice of `Ferretería Fénix`):
 
@@ -592,7 +691,123 @@ The search parameter `q` is the same on the three modules: trimmed, ignored when
 | `GET /api/orders` | the order number or the customer's name | `status=` one of `draft, confirmed, paid, shipped, cancelled`; `customer_id=` an integer id |
 | `GET /api/invoices` | the invoice number or the snapshot customer name | `status=` one of `issued, paid, void`; `order_id=` an integer id |
 
-A wrongly shaped filter value is a 422 too: `status` outside its list is `INVALID_FORMAT` on `status`; a non-integer `customer_id`/`order_id` is `INVALID_FORMAT`, and one outside 1–2147483647 is `OUT_OF_RANGE`. An id that simply does not exist is not an error: it matches nothing. Finally, `GET /api/products` is the whole read-only catalog in one answer (`{"items": [...]}`, ordered by `id`, no paging) and `GET /api/settings` answers `{"tax_rate": "10.00"}`.
+A wrongly shaped filter value is a 422 too: `status` outside its list is `INVALID_FORMAT` on `status`; a non-integer `customer_id`/`order_id` is `INVALID_FORMAT`, and one outside 1–2147483647 is `OUT_OF_RANGE`. An id that simply does not exist is not an error: it matches nothing. Finally, `GET /api/products` is the whole read-only catalog in one answer (`{"items": [...]}`, ordered by `id` unless `sort` says otherwise, no paging) and `GET /api/settings` answers `{"tax_rate": "10.00"}`.
+
+### Sorting the lists: `sort` and `direction`
+
+Every list takes `sort` and `direction` on top of its filters, each optional:
+
+| Endpoint | Allowed `sort` | Note |
+|---|---|---|
+| `GET /api/customers` | `created_at` (the default), `name`, `email` | `name` and `email` compare the normalized text below |
+| `GET /api/orders` | `created_at` (the default), `number`, `customer` | `number` is the numeric part of the order number, compared as an integer; `customer` is the normalized customer's name |
+| `GET /api/invoices` | `created_at` (the default), `number`, `customer`, `total` | `total` is the frozen total, compared as a number |
+| `GET /api/products` | `id` (the default), `sku`, `name`, `price`, `stock` | `price` and `stock` compare as numbers |
+
+The rules are one shape ([SPEC section 4](SPEC.md#4-customers-flow-1), and the same sentences for [orders](SPEC.md#5-orders-flow-2), [invoices](SPEC.md#6-invoices-and-payments-flow-3) and [products](SPEC.md#5-orders-flow-2)):
+
+- `direction` is `asc` or `desc`; it defaults to `desc` for `created_at` and to `asc` for every other field (and it applies to `created_at` when `sort` is absent). Any other value of either parameter is 422 `VALIDATION_ERROR` with `INVALID_FORMAT` naming the field (`sort` or `direction`) — like every other bad query parameter.
+- Ties break by `id`, in the same direction as the sort.
+- Text fields compare the **normalized** text the same way `q` does (Unicode NFKD, combining marks removed, case-folded), so `Álvaro` sorts with `A` and upper case does not matter.
+- The sort is applied after the filters and before the paging, so page 2 of a sorted list continues page 1, and the export routes validate these parameters the exact same way (the downloads give the files already sorted).
+
+The first three values you get on the seed (verified against a local run of the API):
+
+```bash
+BASE=http://127.0.0.1:8000; J=/tmp/labapp-cookies
+curl -s -b $J "$BASE/api/customers?sort=name&direction=asc"
+# Acme Industrial S.A., Beta Comercial Ltda., Cafetería La Esquina
+curl -s -b $J "$BASE/api/orders?sort=customer&direction=asc"
+# PED-0001 (Acme Industrial S.A.), PED-0002 (Beta Comercial Ltda.), PED-0007 (Cafetería La Esquina)
+curl -s -b $J "$BASE/api/invoices?sort=total&direction=asc"
+# FAC-0002 (197.97), FAC-0001 (327.80), FAC-0003 (768.90)
+curl -s -b $J "$BASE/api/products?sort=price&direction=asc"
+# Cable HDMI 2 m (CB-010, 6.25), Mouse óptico (MS-200, 9.50), Tarjeta SD 128 GB (SD-128, 14.99)
+curl -s -b $J "$BASE/api/customers?sort=surname"
+# 422 {"code":"VALIDATION_ERROR", "errors":[{"field":"sort","code":"INVALID_FORMAT", ...}]}
+```
+
+### Download the lists as CSV
+
+The three lists (customers, orders, invoices) download their whole result — every row the filters select, never one page — as a CSV file.
+
+**In the UI.** An `Exportar CSV` link sits next to the filter controls of each list (`customers-list-export-link`, `orders-list-export-link`, `invoices-list-export-link`, `<a>` per [TESTIDS](TESTIDS.md)), and it renders in every state of the request, empty file included. It is a plain download link — `<a download>` to `/api/<resource>/export`, the client router is not involved — so `waitForEvent('download')` is the way a test digs in. Its `href` mirrors the applied state: `q`, `status`, and `sort` with `direction` whenever the sort is not the plain-list one (the orders list adds `customer_id`); **`page` never travels**, because the export answers every matching row.
+
+```ts
+// Illustrative, not run in CI.
+const [download] = await Promise.all([
+  page.waitForEvent("download"),
+  page.getByTestId("customers-list-export-link").click(),
+]);
+expect(download.suggestedFilename()).toMatch(/^customers-\d{8}\.csv$/);
+// The date in the file name is the UTC date of the application clock: move
+// the clock with POST /__test__/clock (section 11) and the name moves too.
+await download.saveAs("customers.csv");
+```
+
+**Over the API.** Same parameters as the list (`q`, `status`, `sort`, `direction`, plus `customer_id` for orders and `order_id` for invoices) with exactly the same validation — including the 422s of the previous subsection — and **no `page`**: sending one changes nothing, like any other unknown query parameter. Every signed-in role may export; without a session it is the usual 401. The answer is the file itself:
+
+| Header | Value |
+|---|---|
+| `Content-Type` | `text/csv; charset=utf-8` |
+| `Content-Disposition` | `attachment; filename="<resource>-<YYYYMMDD>.csv"` (`customers`, `orders` or `invoices`; the date is the UTC date of the **application clock**) |
+| `Cache-Control` | `no-store` (plus the usual `nosniff` and `X-Request-Id`, section 10) |
+
+The file is UTF-8 without a byte order mark; every line ends with CRLF, the last line included; the first line is the header, one of the three:
+
+```text
+id,name,email,phone,tax_id,address,status,created_at,updated_at
+id,number,status,customer_id,customer_name,subtotal,tax_rate,tax,total,invoice_id,created_at,updated_at
+id,number,status,order_id,order_number,customer_name,tax_id,subtotal,tax_rate,tax,total,created_at,updated_at
+```
+
+Money is a plain number with two decimals (`110.00`), the tax rate `10.00`, timestamps ISO 8601 UTC with a trailing `Z`, and the rows are in the order the list gives for the same `sort` and `direction` ([SPEC section 8](SPEC.md#8-formats-and-conventions)). The export of a filter that matches nothing is a file with the header only.
+
+**The formula guard.** A text field that starts with `=`, `+`, `-`, `@`, a tab or a carriage return is written with a single quote in front (`'=1+1`), so a spreadsheet that opens the file never evaluates it as a formula. The seed gives one: Acme's phone `+1 555 010 0001` exports as `'+1 555 010 0001`. The quoting itself is RFC 4180: fields containing commas, double quotes or line breaks are wrapped in double quotes and a double quote inside is doubled.
+
+**The recipe.** With the cookie jar of section 10:
+
+```bash
+BASE=http://127.0.0.1:8000; J=/tmp/labapp-cookies
+curl -s -b $J -o customers.csv "$BASE/api/customers/export"
+curl -s -b $J -o orders.csv    "$BASE/api/orders/export"
+curl -s -b $J -o invoices.csv  "$BASE/api/invoices/export"
+```
+
+What lands (verified): `customers.csv` holds the header, then the ten customers in `created_at` descending order (so `Joyería Júpiter` first), the phone of Acme quoted as `'+1 555 010 0001`, and nothing else — no BOM, no page limit. Reading it back in a test:
+
+```ts
+// Illustrative, not run in CI. A minimal RFC 4180 parser: doubled quotes,
+// commas, CRLF and LF. For real suites prefer a library, e.g. csv-parse.
+import fs from "node:fs";
+
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [], cell = "", quoted = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quoted) {
+      if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+      else if (c === '"') quoted = false;
+      else cell += c;
+    } else if (c === '"') quoted = true;
+    else if (c === ",") { row.push(cell); cell = ""; }
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      row.push(cell); rows.push(row); row = []; cell = "";
+    } else cell += c;
+  }
+  if (cell !== "" || row.length > 0) { row.push(cell); rows.push(row); }
+  return rows;
+}
+
+const lines = parseCsv(fs.readFileSync("customers.csv", "utf8"));
+const [header, ...data] = lines;
+expect(header).toEqual(
+  ["id","name","email","phone","tax_id","address","status","created_at","updated_at"]);
+expect(data.length).toBe(10);         // the list's total, not one page
+expect(data[0][1]).toBe("Joyería Júpiter"); // the same order the UI shows
+```
 
 ## 13. Isolating tests
 
@@ -602,7 +817,7 @@ A test that assumes a clean world will eventually meet someone else's data. The 
 
 **2. Reset per worker against the shared online demo — unsafe.** The online dataset is one and shared: every visitor works on the same customers and orders (part 1, section 1). A reset from your worker erases the strangers' data in the middle of their run, and their writes erase your assumptions right back; between your reset and your next request, someone else's click can deactivate the very customer you just asserted on. If a suite needs resets online, it must be the only user of the demo — a staging URL, or the production URL outside public hours. Never assume a reset stays true for more than a request.
 
-**3. Create your own data with unique names (the polite pattern for the shared demo).** Instead of relying on seed rows, log in once and create everything a test needs, with names and emails that cannot collide — a prefix per project plus a timestamp (`Contoso 1731…`, `prueba-1731099@example.test`). Find your rows again with the literal, accent-insensitive `q` (section 12) or by the ids the create answers give, and assert only on your own records. Trade-offs: the data accumulates until the nightly reset, your rows age down the list (the ordering is `created_at` descending), and you still cannot stop others from touching *their* records — but yours are safe.
+**3. Create your own data with unique names (the polite pattern for the shared demo).** Instead of relying on seed rows, log in once and create everything a test needs, with names and emails that cannot collide — a prefix per project plus a timestamp (`Contoso 1731…`, `prueba-1731099@example.test`). Find your rows again with the literal, accent-insensitive `q` (section 12) or by the ids the create answers give, and assert only on your own records. Trade-offs: the data accumulates until the nightly reset, your rows age down the list (the default ordering is `created_at` descending, section 12), and you still cannot stop others from touching *their* records — but yours are safe.
 
 **Parallel runs and the per-IP rate limit.** Locally (`TEST_MODE=1`) there are no limits and each `mise run dev` process has its own memory, so parallel suites on different ports do not even share data. Online, the limits are per client IP: 120 requests per minute and 10 login attempts per minute shared by everything that runs from one machine — parallel workers count together and the group gets 429 `RATE_LIMITED` with a `Retry-After` header (the body member `retry_after` carries the same seconds). Two outs: spread the workers' requests below the limits, or add a valid `X-Test-Token` header to every request of an online suite — a token-bearing request is exempt from the limits even then (section 11).
 
@@ -628,6 +843,7 @@ Three extra facts about the online world ([docs/DEPLOYMENT.md](DEPLOYMENT.md)):
 
 - [openapi.json](openapi.json) — the committed contract; import it into your HTTP client instead of re-typing requests. The command that regenerates it when the API changes is `cd backend && uv run python -m app.cli openapi --output ../docs/openapi.json`.
 - [SPEC.md](SPEC.md) — sections [3](SPEC.md#3-authentication-and-sessions) (sessions, the origin rule, the rate limits), [5](SPEC.md#5-orders-flow-2) (orders and concurrency), [6](SPEC.md#6-invoices-and-payments-flow-3) (invoices, payments, idempotency), [7](SPEC.md#7-errors-and-validation-order) (the stable error codes) and [9](SPEC.md#9-seed-data) (what a reset and a seed restore).
+- In this guide, the machinery of the four lists: [Sort the four lists](#sort-the-four-lists) (the UI side); [Sorting the lists: sort and direction](#sorting-the-lists-sort-and-direction) and [Download the lists as CSV](#download-the-lists-as-csv) in section 12, and [The headers of every API answer](#the-headers-of-every-api-answer) in section 10.
 - [SEED.md](SEED.md) — the exact data every recipe above leans on.
 - [backend/README.md](../backend/README.md) — the same controls from the implementer's side ("Test controls", "Request controls", "OpenAPI contract").
 - [DEPLOYMENT.md](DEPLOYMENT.md) and [DEVELOPMENT.md](DEVELOPMENT.md) — where the demo lives and how to start the stack locally.

@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ME_QUERY_KEY } from "@/features/auth/hooks";
+import { installDialogStub } from "@/test/dialog";
 import OrderDetailPage from "./page";
 import type { Order, Shortage } from "@/features/orders/types";
 import type { Customer } from "@/features/customers/types";
@@ -418,6 +419,7 @@ const changerCustomer: Customer = {
 };
 
 beforeEach(() => {
+  installDialogStub();
   vi.stubGlobal("fetch", fetchMock);
   fetchMock.mockReset();
   routerMock.push.mockClear();
@@ -1566,12 +1568,32 @@ describe("the transitions of the detail", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("cancels a draft with If-Match", async () => {
+  it("cancels a draft only after the confirmation of the dialog", async () => {
     await renderDraftDetail();
 
+    // The click opens the confirmation instead of sending the request.
     await userEvent
       .setup()
       .click(screen.getByTestId("orders-detail-cancel-button"));
+
+    const dialog = screen.getByTestId("orders-cancel-confirm-dialog");
+    expect(dialog).toHaveAttribute("open");
+    expect(screen.getByTestId("orders-cancel-title-heading"))
+      .toHaveTextContent("¿Cancelar el pedido PED-0008?");
+    expect(screen.getByTestId("orders-cancel-message-text"))
+      .toHaveTextContent("El borrador quedará cancelado.");
+    expect(screen.getByTestId("orders-cancel-confirm-button"))
+      .toHaveTextContent("Sí, cancelar pedido");
+    expect(screen.getByTestId("orders-cancel-back-button"))
+      .toHaveTextContent("Volver");
+    // The request waits for the confirmation.
+    expect(mutationCalls().filter((call) => call.method === "POST"))
+      .toHaveLength(0);
+
+    // The confirm runs the same transition as before.
+    await userEvent.setup().click(
+      screen.getByTestId("orders-cancel-confirm-button"),
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId("orders-detail-state-status"))
@@ -1580,6 +1602,119 @@ describe("the transitions of the detail", () => {
     const cancelled = mutationCalls().find((call) => call.method === "POST");
     expect(cancelled?.url).toBe("/api/orders/8/cancel");
     expect(cancelled?.ifMatch).toBe('"2"');
+    // The dialog closed with the end of the request.
+    await waitFor(() => {
+      expect(dialog).not.toHaveAttribute("open");
+    });
+  });
+
+  it("cancels a confirmed order with the stock and invoice consequence", async () => {
+    orderBody = { ...draftOrder(), status: "confirmed", invoice_id: 9 };
+    await renderDraftDetail();
+
+    await userEvent
+      .setup()
+      .click(screen.getByTestId("orders-detail-cancel-button"));
+    expect(screen.getByTestId("orders-cancel-message-text"))
+      .toHaveTextContent(
+        "El stock reservado vuelve al inventario y la factura emitida, si existe, se anula.",
+      );
+
+    await userEvent
+      .setup()
+      .click(screen.getByTestId("orders-cancel-confirm-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("orders-detail-state-status"))
+        .toHaveTextContent("Cancelado");
+    });
+    const cancelled = mutationCalls().find((call) => call.method === "POST");
+    expect(cancelled?.url).toBe("/api/orders/8/cancel");
+    expect(cancelled?.ifMatch).toBe('"2"');
+  });
+
+  it('sends nothing when the dialog answers "Volver"', async () => {
+    await renderDraftDetail();
+
+    await userEvent
+      .setup()
+      .click(screen.getByTestId("orders-detail-cancel-button"));
+    expect(
+      screen.getByTestId("orders-cancel-confirm-dialog"),
+    ).toHaveAttribute("open");
+
+    await userEvent
+      .setup()
+      .click(screen.getByTestId("orders-cancel-back-button"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("orders-cancel-confirm-dialog"),
+      ).not.toHaveAttribute("open");
+    });
+    expect(mutationCalls().filter((call) => call.method === "POST"))
+      .toHaveLength(0);
+    // The state of the order is untouched.
+    expect(screen.getByTestId("orders-detail-state-status"))
+      .toHaveTextContent("Borrador");
+  });
+
+  it("keeps the dialog up for a failed cancel and shows the existing alert", async () => {
+    mutateAnswer = (url, method) =>
+      url === "/api/orders/8/cancel" && method === "POST"
+        ? problemWith(
+            409,
+            "VERSION_CONFLICT",
+            "El registro cambió mientras lo editabas. Recarga e inténtalo de nuevo.",
+          )
+        : null;
+    await renderDraftDetail();
+
+    await userEvent
+      .setup()
+      .click(screen.getByTestId("orders-detail-cancel-button"));
+    await userEvent
+      .setup()
+      .click(screen.getByTestId("orders-cancel-confirm-button"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("orders-detail-alert")).toHaveTextContent(
+        "El registro cambió mientras lo editabas. Recarga e inténtalo de nuevo.",
+      );
+    });
+    // The request ended, so the dialog answers to the caller and closes.
+    await waitFor(() => {
+      expect(screen.getByTestId("orders-cancel-confirm-dialog"))
+        .not.toHaveAttribute("open");
+    });
+    const readsAfterTheRetry = readCount();
+    expect(readsAfterTheRetry).toBeGreaterThan(0);
+  });
+
+  it("ignores a second confirm while the first cancel is pending", async () => {
+    holdMutation = defer();
+    await renderDraftDetail();
+
+    await userEvent
+      .setup()
+      .click(screen.getByTestId("orders-detail-cancel-button"));
+    await userEvent
+      .setup()
+      .click(screen.getByTestId("orders-cancel-confirm-button"));
+
+    // The in-flight request keeps the dialog pending; a second confirm
+    // (even a click straight on the disabled button) is ignored.
+    const confirm = screen.getByTestId("orders-cancel-confirm-button");
+    expect(confirm).toBeDisabled();
+    fireEvent.click(confirm);
+    expect(
+      mutationCalls().filter((call) => call.url === "/api/orders/8/cancel"),
+    ).toHaveLength(1);
+
+    holdMutation.release(
+      jsonResponse(applyMutation(orderBody, "/api/orders/8/cancel", "POST", undefined)),
+    );
+    holdMutation = null;
   });
 
   it("ships a paid order with If-Match", async () => {
@@ -1838,6 +1973,9 @@ describe("the Facturar action of the order detail", () => {
     // The cancel transition is the pending mutation; Facturar share the
     // version of the order and has to wait.
     await userEvent.setup().click(screen.getByTestId("orders-detail-cancel-button"));
+    await userEvent
+      .setup()
+      .click(screen.getByTestId("orders-cancel-confirm-button"));
     expect(screen.getByTestId("orders-detail-invoice-button")).toBeDisabled();
     await userEvent
       .setup()

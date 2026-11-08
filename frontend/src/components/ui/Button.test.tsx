@@ -97,6 +97,22 @@ describe("Button variants", () => {
     expect(hasClass(button, "border-transparent")).toBe(true);
   });
 
+  it("styles the danger variant with the danger token pair", () => {
+    render(
+      <Button variant="danger" testId="orders-cancel-confirm-button">
+        Sí, cancelar pedido
+      </Button>,
+    );
+
+    const button = screen.getByTestId("orders-cancel-confirm-button");
+    expect(hasClass(button, "bg-danger-bg")).toBe(true);
+    expect(hasClass(button, "text-danger")).toBe(true);
+    // The hover inverts the same two tokens; the contrast pair holds
+    // both ways (checked in tokens.test.ts).
+    expect(hasClass(button, "hover:bg-danger")).toBe(true);
+    expect(hasClass(button, "hover:text-danger-bg")).toBe(true);
+  });
+
   it("appends the caller classes after the variant classes", () => {
     render(
       <Button variant="secondary" testId="app-a-button" className="w-full">

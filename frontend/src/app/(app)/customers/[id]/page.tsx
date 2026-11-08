@@ -1,6 +1,6 @@
 "use client";
 
-import { Alert, Button, Link } from "@/components/ui";
+import { Alert, Button, ConfirmDialog, Link } from "@/components/ui";
 import { useMe } from "@/features/auth/hooks";
 import {
   useCustomer,
@@ -71,6 +71,12 @@ function CustomerDetail({ id }: { id: number }) {
   // visible to a second click processed in the same tick.
   const busyRef = useRef(false);
   const [busy, setBusy] = useState(false);
+  /** Which action is running; the dialog of the deactivate reads it. */
+  const [statusAction, setStatusAction] = useState<
+    "deactivate" | "reactivate" | null
+  >(null);
+  // The confirmation of the destructive deactivate (the dialog below).
+  const [deactivateDialogOpen, setDeactivateDialogOpen] = useState(false);
 
   if (customer.isPending) {
     return (
@@ -118,17 +124,20 @@ function CustomerDetail({ id }: { id: number }) {
   const user = me.data;
   const canManage = user ? canManageCustomers(user.role) : false;
 
-  async function handleStatusChange() {
+  async function handleStatusChange(
+    action: "deactivate" | "reactivate",
+  ): Promise<void> {
     if (busyRef.current || statusMutation.isPending) {
       return;
     }
     busyRef.current = true;
     setBusy(true);
+    setStatusAction(action);
     setActionError(null);
     try {
       await statusMutation.mutateAsync({
         id: data.id,
-        action: data.status === "active" ? "deactivate" : "reactivate",
+        action,
         version: data.version,
       });
     } catch (error) {
@@ -143,6 +152,12 @@ function CustomerDetail({ id }: { id: number }) {
     } finally {
       busyRef.current = false;
       setBusy(false);
+      setStatusAction(null);
+      // The confirmation dialog of the deactivate closes when the
+      // request ends, failure or success: the answer is on screen.
+      if (action === "deactivate") {
+        setDeactivateDialogOpen(false);
+      }
     }
   }
 
@@ -229,20 +244,50 @@ function CustomerDetail({ id }: { id: number }) {
           >
             Editar
           </Link>
-          <Button
-            testId={
-              data.status === "active"
-                ? "customers-detail-deactivate-button"
-                : "customers-detail-reactivate-button"
-            }
-            variant="secondary"
-            loading={busy}
-            onClick={() => void handleStatusChange()}
-          >
-            {data.status === "active" ? "Desactivar" : "Reactivar"}
-          </Button>
+          {data.status === "active" ? (
+            <Button
+              testId="customers-detail-deactivate-button"
+              variant="secondary"
+              onClick={() => setDeactivateDialogOpen(true)}
+            >
+              Desactivar
+            </Button>
+          ) : (
+            <Button
+              testId="customers-detail-reactivate-button"
+              variant="secondary"
+              loading={busy}
+              onClick={() => void handleStatusChange("reactivate")}
+            >
+              Reactivar
+            </Button>
+          )}
         </div>
       ) : null}
+
+      {/*
+       * The confirmation of the destructive deactivate: the request runs
+       * only after "Sí, desactivar", with the same error handling; the
+       * reactivation is not destructive and stays immediate above.
+       */}
+      <ConfirmDialog
+        open={deactivateDialogOpen}
+        title={`¿Desactivar a ${data.name}?`}
+        titleId="customers-deactivate-title"
+        messageId="customers-deactivate-message"
+        testId="customers-deactivate-confirm-dialog"
+        titleTestId="customers-deactivate-title-heading"
+        messageTestId="customers-deactivate-message-text"
+        confirmTestId="customers-deactivate-confirm-button"
+        cancelTestId="customers-deactivate-back-button"
+        confirmLabel="Sí, desactivar"
+        pending={busy && statusAction === "deactivate"}
+        onConfirm={() => void handleStatusChange("deactivate")}
+        onCancel={() => setDeactivateDialogOpen(false)}
+      >
+        No podrá recibir pedidos nuevos. Sus pedidos y facturas existentes
+        no cambian.
+      </ConfirmDialog>
 
       <div className="mt-6">
         <Link href="/customers" testId="customers-detail-back-link">

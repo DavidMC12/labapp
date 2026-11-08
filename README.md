@@ -59,7 +59,7 @@ Roles: Admin, Sales, Finance and Read-only. The screen language is Spanish. Busi
 | Invoices and payments: API, screens, PostgreSQL store with idempotent payments and a fake gateway | Done |
 | Test-only controls (reset, seed, clock, fault injection) with state in PostgreSQL, guarded by a token | Done |
 | API contract: `docs/openapi.json`, checked against the code in CI | Done |
-| Automation guide for the web UI, generated test id catalog | Done; the guide for the controls and the API follows |
+| Automation guide for the web UI, the API and the test controls, generated test id catalog | Done |
 | First online deployment (Vercel and Neon) and the nightly data reset | Configured, not deployed yet |
 
 ## Roadmap
@@ -93,7 +93,7 @@ mise install    # once: Node, pnpm and uv at the pinned versions
 mise run dev    # API on 127.0.0.1:8000, web on localhost:3000, data in memory
 ```
 
-Open <http://localhost:3000> and log in with one of the demo users. New to driving this app? [docs/AUTOMATION_GUIDE.md](docs/AUTOMATION_GUIDE.md) is a practical guide for test automation against the web UI, and [docs/PRACTICE.md](docs/PRACTICE.md) is its other half: a catalog of practice scenarios — what to test, row by row, with the exact expected result taken from the specification. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the database option and the other commands, and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the online deployment.
+Open <http://localhost:3000> and log in with one of the demo users. New to driving this app? [docs/AUTOMATION_GUIDE.md](docs/AUTOMATION_GUIDE.md) is a practical guide for test automation against the web UI, the HTTP API and the test controls, and [docs/PRACTICE.md](docs/PRACTICE.md) is its other half: a catalog of practice scenarios — what to test, row by row, with the exact expected result taken from the specification. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for the database option and the other commands, and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the online deployment.
 
 ## License
 

@@ -210,6 +210,92 @@ nothing and `ControlledClock` never reads the database.
   In memory mode the same path is a plain call. Latency is limited to 10 seconds per
   rule and status codes to 400-599.
 
+## Test controls
+
+`/__test__` exposes the clock and fault stores to the owner's automated tests. The
+endpoints are left out of the OpenAPI schema, need no session and are guarded twice: the
+`ControlsGuardMiddleware` of task 017 and a dependency that every route repeats.
+
+| `TEST_MODE` | `X-Test-Token` header | Result |
+|---|---|---|
+| `1` | any | Allowed. |
+| `0` | equals a non-empty `TEST_TOKEN` | Allowed. |
+| `0` | missing or different | 404, as if the route did not exist. |
+| `0` with an empty `TEST_TOKEN` | any | 404. |
+
+| Method | Path | Body | Answer |
+|---|---|---|---|
+| `POST` | `/__test__/reset` | none | `200 {"status": "ok"}` |
+| `POST` | `/__test__/seed` | `{"dataset": "default" \| "empty"}` | `200 {"dataset": "<value>"}` |
+| `GET` | `/__test__/clock` | none | `200 {"now": "<ISO 8601 UTC Z>", "offset_seconds": <number>}` |
+| `POST` | `/__test__/clock` | exactly one of `{"offset_seconds": <number>}` or `{"advance_seconds": <number>}` | the same shape as `GET` |
+| `POST` | `/__test__/faults` | a rule: `target`, optional `method`, `path`, `latency_ms`, `status` and `times` | `201` with the stored rule and its `id` |
+| `GET` | `/__test__/faults` | none | `200` with the non-exhausted rules and their `remaining` count |
+| `DELETE` | `/__test__/faults` | none | `204` |
+
+```bash
+# With TEST_MODE=1, or with the matching header when TEST_TOKEN is set.
+curl -s -X POST localhost:8000/__test__/reset
+curl -s -X POST -H 'X-Test-Token: secret' -H 'Content-Type: application/json' \
+  -d '{"dataset": "empty"}' localhost:8000/__test__/seed
+curl -s localhost:8000/__test__/clock
+curl -s -X POST -H 'Content-Type: application/json' \
+  -d '{"advance_seconds": 3600}' localhost:8000/__test__/clock
+curl -s -X POST -H 'Content-Type: application/json' \
+  -d '{"target": "route", "method": "GET", "path": "/api/customers", "status": 500, "times": 2}' \
+  localhost:8000/__test__/faults
+curl -s localhost:8000/__test__/faults
+curl -s -X DELETE localhost:8000/__test__/faults
+```
+
+The bodies use `extra="forbid"` and strict types, so an unknown field, a string where a
+number belongs, a boolean, a non-finite number or a value outside its range is a 422
+`VALIDATION_ERROR` on the offending field. The clock offset and a cumulative advance must
+stay within plus or minus ten years; the advance is a single `UPDATE ... WHERE
+abs(value::float8 + :delta) <= :max`, so a refused advance changes nothing. A fault rule
+is validated with the same function as the store: a route rule needs a path that starts
+with `/` and a latency above 0 or a status; a gateway rule takes no method, path or
+status. `times` is 1 to 1000 or `null`, and the 51st non-exhausted rule is a 422.
+
+What is stored where:
+
+- In PostgreSQL the offset is the `settings` row `clock_offset_seconds` and the rules are
+  rows of `fault_rules`; every instance reads them per request. Without `DATABASE_URL`
+  the same API runs against the in-memory `OffsetClock` and dictionary, which is the test
+  double. Creating the app and `GET /api/health` still open no connection.
+- A reset runs the five `replace_all` calls in this order, which respects the foreign
+  keys: (1) invoices empty, (2) orders and products empty, (3) customers seed, (4) orders
+  and products seed, (5) invoices and payments seed; then the four users are upserted, the
+  tax rate is restored to `DEFAULT_TAX_RATE` (quantized), the clock row is set to `'0'`
+  and every fault rule is deleted. PostgreSQL does all of it in one transaction after
+  `pg_advisory_xact_lock` (a key different from the session and fault-rule locks), so no
+  request sees a half-restored database. `TRUNCATE` and raw `DELETE` are never used.
+- A reset keeps the sessions: the four users keep their ids (upsert and delete-missing,
+  never touching `sessions`), so a stored cookie keeps working. It restores the data, the
+  number sequences (the next order is `PED-0008`, the next invoice `FAC-0004`, the next
+  payment id 5, the next customer id 11), the tax rate, the clock and the faults, and it
+  clears the rate-limit counters of the instance that serves it. Those counters are
+  per-instance and in memory; moving them to the database is a later task.
+- `seed {"dataset": "default"}` loads the same rows without touching the clock, the faults
+  or the rate-limit counters. `seed {"dataset": "empty"}` leaves the four users and the
+  settings, empties every other table, restarts the sequences, restores the tax rate,
+  sets the clock row to `'0'` and deletes the fault rules.
+- A reset is meant for a quiet system. A request that runs during it may fail with 409 or
+  503 `LOCK_TIMEOUT`, and a payment or an invoice that commits in the middle can make the
+  reset fail with a foreign key error; `/__test__/reset` answers 409 and the caller retries
+  once.
+
+For local use the CLI has the same reset with two refusals:
+
+```bash
+TEST_MODE=1 uv run python -m app.cli reset --yes
+TEST_MODE=1 uv run python -m app.cli reset --yes --allow-public
+```
+
+It refuses unless `TEST_MODE=1` and `--yes` are both given, prints the schema it will
+touch, and refuses when `DATABASE_SCHEMA` is unset (the public schema would be wiped)
+unless `--allow-public` is also given. It exits with code 2 when it refuses.
+
 ## Test
 
 ```bash

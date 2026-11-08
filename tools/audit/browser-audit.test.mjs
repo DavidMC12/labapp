@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { resourceFailures } from "./resources.mjs";
+import { iconFailures, resourceFailures } from "./resources.mjs";
 
 const script = join(dirname(fileURLToPath(import.meta.url)), "browser-audit.mjs");
 const run = (...args) => spawnSync(process.execPath, [script, ...args], { encoding: "utf8", timeout: 20000 });
@@ -68,6 +68,26 @@ test("does not let a second document through the expectStatus allowance", () => 
     ]).length,
     1,
   );
+});
+
+test("ignores the icon request while it answers 2xx or 3xx", () => {
+  assert.deepEqual(iconFailures({ declared: true, href: "https://labapp.test/icon.svg" }, 200), []);
+  assert.deepEqual(iconFailures({ declared: false, href: "https://labapp.test/favicon.ico" }, 304), []);
+});
+
+test("fails when the page declares no icon and /favicon.ico answers 4xx", () => {
+  assert.deepEqual(
+    iconFailures({ declared: false, href: "https://labapp.test/favicon.ico" }, 404),
+    ["the page declares no icon, so the browser asks for /favicon.ico, which answers 404"],
+  );
+});
+
+test("fails when the declared icon answers 4xx or 5xx", () => {
+  assert.deepEqual(
+    iconFailures({ declared: true, href: "https://labapp.test/icon.svg" }, 404),
+    ["the page declares an icon at https://labapp.test/icon.svg that answers 404"],
+  );
+  assert.deepEqual(iconFailures({ declared: true, href: "https://labapp.test/icon.svg" }, 500).length, 1);
 });
 
 

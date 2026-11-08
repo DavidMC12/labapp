@@ -8,7 +8,10 @@
 //   - every axe-core violation of impact serious or critical (WCAG 2.0/2.1 A and AA);
 //   - a document, script, stylesheet, image or font the page loads that answers 4xx or 5xx
 //     (the pure check is in resources.mjs; Fetch and XHR responses are ignored, error states
-//     answer 4xx on purpose).
+//     answer 4xx on purpose);
+//   - a page that declares no site icon while /favicon.ico answers 4xx or 5xx, or whose declared
+//     icon answers 4xx or 5xx: the audit fetches the address a real browser loads (the pure
+//     check is also in resources.mjs).
 // It prints the states it covered: the 100% goal is measured over those states. Exit code 1 when anything fails.
 //
 // Needs a running application (API and web) at "baseUrl" and the frontend dependencies installed.
@@ -25,7 +28,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "no
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { resourceFailures } from "./resources.mjs";
+import { iconFailures, resourceFailures } from "./resources.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..");
@@ -281,6 +284,14 @@ async function main() {
       for (const id of check.duplicates) entry.failures.push(`test id used more than once on the page: ${id}`);
       for (const id of new Set(check.ids)) if (!pattern.test(id)) entry.failures.push(`test id does not match the grammar: ${id}`);
       for (const failure of resourceFailures(state, responses)) entry.failures.push(failure);
+      // The site icon (task 047), probed as a real browser would: load the icon the page
+      // declares, or /favicon.ico when it declares none (headless Chrome makes no favicon
+      // request of its own and classifies the declared one as an untracked Other response,
+      // both measured, so the audit makes the browser's request itself and checks one answer).
+      const iconHref = await evaluate('document.querySelector("link[rel~=icon]")?.getAttribute("href") ?? null');
+      const iconProbe = new URL(iconHref ?? "/favicon.ico", `${base}/`);
+      const iconStatus = (await fetch(iconProbe)).status;
+      for (const failure of iconFailures({ declared: iconHref !== null, href: iconProbe.href }, iconStatus)) entry.failures.push(failure);
       await evaluate(axeSource);
       const axe = await evaluate(`axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"] } }).then((r) => r.violations.map((v) => ({ id: v.id, impact: v.impact, help: v.help, nodes: v.nodes.slice(0, 4).map((n) => n.target.join(" ") + " :: " + (n.failureSummary || "").split("\\n").slice(0, 2).join(" ").slice(0, 160)) })))`);
       for (const v of axe) {

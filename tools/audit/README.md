@@ -30,9 +30,28 @@ It needs the frontend dependencies installed (it uses the TypeScript compiler fr
   icon and asks for `/favicon.ico` when there is none; headless Chrome makes no favicon request of its own (measured,
   and it reports the declared one as an untracked `Other` response), so the audit fetches the browser's address
   itself;
+- a keyboard problem on a walk of real Tab key presses, made through the DevTools `Input` domain over every state
+  after it is ready (task 062): an element that takes the focus and shows **no visible focus indicator** (WCAG 2.1,
+  2.4.7), a **keyboard trap** (five consecutive presses that leave the focus on the same element while it is not the
+  last tabbable one, or 60 presses that never let the focus out of the content), or a visible tabbable element the
+  walk **never reaches**. The pure check is [keyboard.mjs](keyboard.mjs).
 - axe-core reports a **serious or critical** violation of WCAG 2.0 or 2.1 level A or AA (lesser ones are printed as warnings).
 
 A state can have `steps` to reach something that needs an interaction (a confirmation dialog): `"steps": [{ "click": "<test id>", "waitFor": "<test id that must become visible>" }]`; the audit clicks, waits, and then checks the page as it is. A state can have a `viewport` (`{ "width": 390, "height": 844 }`) to be audited as a phone or a tablet, and `"catalog": false` to leave it out of the catalog when it only repeats the ids of another state. Every state also fails when the page scrolls sideways. A state can also have a `title`, the exact document title the page must have.
+
+The keyboard walk (`--no-keyboard` skips it, for a quick run): after the state is ready, the audit takes the
+unfocused computed-style snapshot of every tabbable element in one pass, then presses the Tab key through them with
+real keystrokes, up to 60 presses or until the focus leaves the page content (the browser chrome, `document.body`
+again, or the first element of the walk). Each stop records the focused element (its `data-testid`, or the tag plus
+the accessible name), whether it is inside the same document, its visibility and its focused computed style. The
+summary line says how many Tab stops were walked in total. The element a dialog's `showModal()` gives the focus to
+counts as reached from the start, but takes no visible-focus decision: the focus did not come from a Tab press, and
+a ring there is not what `:focus-visible` asks for. Elements that are not tabbable (the alert that receives the
+focus programmatically, `tabindex="-1"`) are out; a scrollable region with `tabindex="0"` (the project's
+`TableScroll`) is in. The walk has limits it declares: it does not judge the Tab **order** (only that every visible
+tabbable element is reached), and it judges the focus indicator by computed-style **difference**, not by contrast —
+the contrast of the focus ring is a matter for axe (wcag2aa `color-contrast`) and the design tokens
+(`tokens.test.ts`).
 
 The sorted lists are audited too: each of the four lists has a
 `<page>-list-sorted` state opened with a sort in the URL (the catalog the
@@ -55,6 +74,7 @@ scripts/dev.sh                                  # or any running API and web app
 CHROME_BIN=/usr/bin/chromium node tools/audit/browser-audit.mjs
 node tools/audit/browser-audit.mjs --only orders-list,orders-new --base http://localhost:3000
 node tools/audit/browser-audit.mjs --theme dark   # the same states with the dark theme pinned
+node tools/audit/browser-audit.mjs --no-keyboard  # a quick run: the audit without the Tab walk
 ```
 
 `--catalog <file>` writes every test id found in every state, with the element that carries it, as Markdown. The committed copy is [docs/TESTIDS.md](../../docs/TESTIDS.md); CI regenerates it in the light run and fails with a diff when it is out of date, so **adding or renaming an id means regenerating it** (start the application on a fresh seed, `DATABASE_URL= DATABASE_URL_UNPOOLED= scripts/dev.sh`, then run the command above with `--catalog docs/TESTIDS.md`).

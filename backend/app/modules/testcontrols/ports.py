@@ -8,6 +8,8 @@ from sqlalchemy.engine import Connection
 
 from app.modules.testcontrols.models import FaultDecision, NewRule, Rule
 
+MAX_FAULT_RULES = 50
+
 
 class TooManyFaultRules(Exception):
     """Adding the rule would leave more than 50 non-exhausted rules."""

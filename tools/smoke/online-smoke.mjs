@@ -64,13 +64,21 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === "--base" || argument.startsWith("--base=")) {
-      options.base = argument.includes("=")
+      const value = argument.includes("=")
         ? argument.slice("--base=".length)
         : argv[++index];
+      if (value === undefined) {
+        throw new Error("--base needs a value");
+      }
+      options.base = value;
     } else if (argument === "--token" || argument.startsWith("--token=")) {
-      options.token = argument.includes("=")
+      const value = argument.includes("=")
         ? argument.slice("--token=".length)
         : argv[++index];
+      if (value === undefined) {
+        throw new Error("--token needs a value");
+      }
+      options.token = value;
     } else if (argument === "--json") {
       options.json = true;
     } else if (argument === "--allow-reset") {

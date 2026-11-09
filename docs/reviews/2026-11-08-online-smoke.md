@@ -1,0 +1,15 @@
+# Review: a smoke test for the online demo (task 069, 2026-11-08)
+
+- **Branch:** `w1/online-smoke`, by Worker 1 (8 commits: the pure checks, the command, a flag fix, the README, the deployment step, the workflow, the CI line and a fix to the write check).
+- **Reviewer:** Supervisor.
+- **Verdict:** Ready to merge. No Critical or Important findings.
+- **What it does:** `node tools/smoke/online-smoke.mjs --base <url> [--token ...] [--allow-reset] [--json]` runs about 37 checks against any base URL and prints one line per check (`ok`, `FAIL`, `skipped`, `warning` or `info`) with the exact reason of a failure, then a summary and the exit code: the web pages and their titles and headers (the CSP only off localhost), the API basics (health, contract, Swagger, the 401 and 404 problem bodies and headers), the four demo users (login, cookie attributes, role, a wrong password, logout), reads through the web origin (lists, the CSV export, a sort and an invalid sort), the origin rule (a wrong `Origin` is 403, none is accepted), the test controls staying closed without or with a wrong token, and, only with `--allow-reset`, a reset, the ten customers, and a write with its cleanup. A check that depends on one that failed is `skipped`; `/api/health` is retried while a cold function starts. The workflow `smoke-online.yml` runs it by hand from the Actions tab (`workflow_dispatch` only), validates the URL (`https://`, no credentials) and reads the base URL and the token through the environment, never through the script text; `tools/smoke/checks.test.mjs` runs in the CI.
+- **Verified by the supervisor:** run for real against a local full stack (the web app proxying the API, in-memory data): **exit 0, 34 ok, 0 failed, 1 skipped (the CSP on localhost), 2 info** (the controls answer without a token because the local stack runs with `TEST_MODE=1`), with `--allow-reset` and a made-up token, and the token appears **0 times** in the output. Against a broken target (the API alone, no web app) it exits **1** with five `FAIL` lines that name the URL and what was expected (404 for `/` and `/login`, missing headers, a problem body where HTML was expected, 404 for `/icon.svg`) and 8 skipped; against an address that does not answer it exits 1 with `fetch failed` and 31 skipped. A flag without its value is rejected with the usage text. The workflow YAML parses, has only the `workflow_dispatch` trigger, empty permissions, the same pinned action commits as the other workflows and no shell interpolation of the inputs.
+
+## Findings and what happened to them
+
+| # | Severity | Finding | Disposition |
+|---|---|---|---|
+| 1 | Note | The command itself (a 1088-line script) has no unit tests of its own; the pure checks (`checks.mjs`) do (289 lines). | Accepted: the supervisor exercised the command both ways; the workflow runs it against a real deployment on demand. |
+| 2 | Note | On the local stack the "reset without a token" probe answers 200 because of `TEST_MODE=1`; the tool reports it as `info`, as the brief asked. Online it is a 404. | Accepted. |
+| 3 | Follow-up | The README status table does not list the smoke test yet. | Added after the merge. |

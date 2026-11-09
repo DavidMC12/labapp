@@ -39,6 +39,25 @@ The Neon integration for Vercel can create `DATABASE_URL` and `DATABASE_URL_UNPO
 - `POST /__test__/reset` answers 404 without a token and 200 with `X-Test-Token: <TEST_TOKEN>`; then `GET /api/customers` (after logging in) lists the 10 seeded customers. The nightly workflow does the same call.
 - Rotate the database password and update the two connection strings if the string was ever pasted into a chat or a ticket.
 
+### After the first deployment: run the smoke test
+
+One command checks the web pages, the API behind the same origin, the four demo
+users, the security headers, the contract, the origin rule and that the test
+controls stay closed without the token. Run it from the repository root with
+the deployment URL and the same token as Vercel:
+
+```bash
+node tools/smoke/online-smoke.mjs --base https://<your-deployment> --token "$TEST_TOKEN"
+```
+
+It exits 0 when every check passes and 1 when one fails; it never prints the
+token and, without `--allow-reset`, it never resets or writes the shared demo
+data. Add `--allow-reset` only when you mean to restore the seed and exercise a
+write: it resets the data and creates one customer (deactivated at the end).
+The same command runs by hand from the Actions tab through the `smoke-online`
+workflow. The checks, the flags and the exit codes are detailed in
+[tools/smoke/README.md](../tools/smoke/README.md).
+
 ## Security headers
 
 The web app sends five headers on every page (`next.config.ts`):

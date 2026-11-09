@@ -8,18 +8,26 @@ A small order-to-cash ERP (customers, orders, invoices, payments) built to be an
 
 ## Screenshots
 
-Taken from a production build with the seed data, in the two voices of the "Libro mayor" design and at phone width.
+Taken from a production build (`pnpm build` + `next start`) over the in-memory API with the seed data, in the light and the dark voices of the "Libro mayor" design, at desktop width and on a phone.
 
 <p>
-  <img src="docs/screenshots/login-light.png" alt="Login with the demo users" width="48%">
-  <img src="docs/screenshots/home-light.png" alt="Summary of the data" width="48%">
-  <img src="docs/screenshots/customers-light.png" alt="Customers list" width="48%">
-  <img src="docs/screenshots/order-detail-light.png" alt="A confirmed order with its totals" width="48%">
-  <img src="docs/screenshots/invoice-detail-dark.png" alt="A paid invoice, dark theme" width="48%">
-  <img src="docs/screenshots/products-dark.png" alt="Products catalog, dark theme" width="48%">
+  <img src="docs/screenshots/login-light.png" alt="Login with the demo users of the four roles" width="32%">
+  <img src="docs/screenshots/home-summary-light.png" alt="Home summary with live counters of customers, orders and invoices" width="32%">
+  <img src="docs/screenshots/products-list-light.png" alt="Products catalog with stock badges" width="32%">
+</p>
+<p>
+  <img src="docs/screenshots/customers-sorted-name-asc-light.png" alt="Customers list sorted by name, with the sort arrow in the column header" width="32%">
+  <img src="docs/screenshots/order-detail-confirmed-light.png" alt="A confirmed order with its lines and totals" width="32%">
+  <img src="docs/screenshots/invoice-detail-issued-dark.png" alt="An issued invoice with its payment history, dark theme" width="32%">
+</p>
+<p>
+  <img src="docs/screenshots/customers-list-dark.png" alt="Customers list in the dark theme" width="32%">
+  <img src="docs/screenshots/customers-import-errors-light.png" alt="CSV import screen showing the per-row errors of a rejected file" width="32%">
 </p>
 
-<img src="docs/screenshots/orders-phone-light.png" alt="The orders list on a phone" width="260">
+<p>
+  <img src="docs/screenshots/orders-list-phone-light.png" alt="The orders list on a phone, with the filters stacked" width="300">
+</p>
 
 ## Why
 

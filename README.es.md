@@ -8,18 +8,26 @@ Un ERP pequeño de pedido a cobro (clientes, pedidos, facturas, pagos) hecho par
 
 ## Capturas
 
-Tomadas de una compilación de producción con los datos de ejemplo, en las dos versiones del diseño "Libro mayor" y en ancho de teléfono.
+Tomadas de una compilación de producción (`pnpm build` + `next start`) sobre la API en memoria con los datos de ejemplo, en la versión clara y oscura del diseño "Libro mayor", en ancho de escritorio y en un teléfono.
 
 <p>
-  <img src="docs/screenshots/login-light.png" alt="Login con los usuarios de la demo" width="48%">
-  <img src="docs/screenshots/home-light.png" alt="Resumen de los datos" width="48%">
-  <img src="docs/screenshots/customers-light.png" alt="Lista de clientes" width="48%">
-  <img src="docs/screenshots/order-detail-light.png" alt="Un pedido confirmado con sus totales" width="48%">
-  <img src="docs/screenshots/invoice-detail-dark.png" alt="Una factura pagada, tema oscuro" width="48%">
-  <img src="docs/screenshots/products-dark.png" alt="Catálogo de productos, tema oscuro" width="48%">
+  <img src="docs/screenshots/login-light.png" alt="Login con los usuarios de la demo de los cuatro roles" width="32%">
+  <img src="docs/screenshots/home-summary-light.png" alt="Resumen de inicio con contadores en vivo de clientes, pedidos y facturas" width="32%">
+  <img src="docs/screenshots/products-list-light.png" alt="Catálogo de productos con los avisos de stock" width="32%">
+</p>
+<p>
+  <img src="docs/screenshots/customers-sorted-name-asc-light.png" alt="Lista de clientes ordenada por nombre, con la flecha de orden en el encabezado" width="32%">
+  <img src="docs/screenshots/order-detail-confirmed-light.png" alt="Un pedido confirmado con sus líneas y totales" width="32%">
+  <img src="docs/screenshots/invoice-detail-issued-dark.png" alt="Una factura emitida con su historial de pagos, tema oscuro" width="32%">
+</p>
+<p>
+  <img src="docs/screenshots/customers-list-dark.png" alt="Lista de clientes en el tema oscuro" width="32%">
+  <img src="docs/screenshots/customers-import-errors-light.png" alt="Pantalla de importación CSV mostrando los errores por fila de un archivo rechazado" width="32%">
 </p>
 
-<img src="docs/screenshots/orders-phone-light.png" alt="La lista de pedidos en un teléfono" width="260">
+<p>
+  <img src="docs/screenshots/orders-list-phone-light.png" alt="La lista de pedidos en un teléfono, con los filtros apilados" width="300">
+</p>
 
 ## Por qué
 

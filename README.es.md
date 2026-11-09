@@ -80,6 +80,7 @@ Las reglas de negocio están en [docs/SPEC.md](docs/SPEC.md) (en inglés).
 | Guía de automatización de la interfaz web, la API y los controles de prueba, catálogo generado de test ids | Hecho |
 | Catálogo de práctica: 233 escenarios en 10 áreas de [docs/PRACTICE.md](docs/PRACTICE.md), cada fila con su resultado esperado exacto | Hecho |
 | Dependabot (npm, uv y GitHub Actions, pull requests semanales) y las auditorías de dependencias de los dos ecosistemas | Hecho |
+| Prueba de humo de la demo en línea (`tools/smoke/`, una orden o un workflow manual de GitHub: páginas, API, los cuatro usuarios, cabeceras, controles de prueba cerrados) | Hecho |
 | Pruebas internas, corridas al día para esta tabla: pasan 1905 pruebas de backend (las 248 de integración con PostgreSQL se saltan sin base de datos) y 900 de frontend | Hecho |
 | Primer despliegue en línea (Vercel y Neon) y reinicio nocturno de datos | Configurado, aún sin desplegar |
 

@@ -71,7 +71,7 @@ Business rules live in [docs/SPEC.md](docs/SPEC.md).
 | Products page, Settings (tax rate, Admin only), the home summary, confirmation dialogs, 404 and error pages | Done |
 | Design: "Libro mayor" theme in a light and a dark voice, selector remembered per browser | Done |
 | Sorting in the four lists: clickable headers with `aria-sort` and an announcing status text, sort carried into the CSV export and applied before paging | Done |
-| List helpers of the audit kind: testable focus. Keyboard audit of every page in the browser audit (visible focus indicator, no keyboard trap, every visible tabbable element reached) | Done |
+| Keyboard audit of every page in the browser audit (visible focus indicator, no keyboard trap, every visible tabbable element reached) | Done |
 | Reflow audits at 320 px (twelve states, no sideways scrolling, tables scroll inside their own region) plus phone and tablet widths, in both themes | Done |
 | Testability audits in CI: static test-id audit, browser audit (test ids and axe) in both themes, PostgreSQL integration tests | Done |
 | Test-only controls (reset, seed, clock, fault injection) with state in PostgreSQL, guarded by a token | Done |

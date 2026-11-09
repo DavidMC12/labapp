@@ -196,6 +196,7 @@ async function main() {
     apiUp: null,
     cookies: new Map(),
     customersTotal: null,
+    resetTotal: null,
     resetDone: false,
     createdId: null,
     uniqueName: `Smoke ${Date.now()}`,
@@ -930,7 +931,7 @@ async function main() {
       return fail(`GET ${response.url} answered ${response.status}, expected 200`);
     }
     const body = await readJson(response);
-    state.customersTotal = body.total;
+    state.resetTotal = body.total;
     if (body.total !== 10) {
       return fail(
         `GET ${response.url} reported total ${body.total}, expected 10 after the reset`,
@@ -1027,8 +1028,8 @@ async function main() {
   });
 
   await run("write: the list grew by one", async () => {
-    if (!state.createdId || state.customersTotal === null) {
-      return skip("the customer was not created or the list was not read");
+    if (!state.createdId || state.resetTotal === null) {
+      return skip("the customer was not created or the list after the reset was not read");
     }
     const guard = salesGuard();
     if (guard) {
@@ -1042,7 +1043,7 @@ async function main() {
       return fail(`GET ${response.url} answered ${response.status}, expected 200`);
     }
     const body = await readJson(response);
-    const expected = state.customersTotal + 1;
+    const expected = state.resetTotal + 1;
     if (body.total !== expected) {
       return fail(
         `GET ${response.url} reported total ${body.total}, expected ${expected}`,

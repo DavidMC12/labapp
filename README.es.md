@@ -8,18 +8,26 @@ Un ERP pequeño de pedido a cobro (clientes, pedidos, facturas, pagos) hecho par
 
 ## Capturas
 
-Tomadas de una compilación de producción con los datos de ejemplo, en las dos versiones del diseño "Libro mayor" y en ancho de teléfono.
+Tomadas de una compilación de producción (`pnpm build` + `next start`) sobre la API en memoria con los datos de ejemplo, en la versión clara y oscura del diseño "Libro mayor", en ancho de escritorio y en un teléfono.
 
 <p>
-  <img src="docs/screenshots/login-light.png" alt="Login con los usuarios de la demo" width="48%">
-  <img src="docs/screenshots/home-light.png" alt="Resumen de los datos" width="48%">
-  <img src="docs/screenshots/customers-light.png" alt="Lista de clientes" width="48%">
-  <img src="docs/screenshots/order-detail-light.png" alt="Un pedido confirmado con sus totales" width="48%">
-  <img src="docs/screenshots/invoice-detail-dark.png" alt="Una factura pagada, tema oscuro" width="48%">
-  <img src="docs/screenshots/products-dark.png" alt="Catálogo de productos, tema oscuro" width="48%">
+  <img src="docs/screenshots/login-light.png" alt="Login con los usuarios de la demo de los cuatro roles" width="32%">
+  <img src="docs/screenshots/home-summary-light.png" alt="Resumen de inicio con contadores en vivo de clientes, pedidos y facturas" width="32%">
+  <img src="docs/screenshots/products-list-light.png" alt="Catálogo de productos con los avisos de stock" width="32%">
+</p>
+<p>
+  <img src="docs/screenshots/customers-sorted-name-asc-light.png" alt="Lista de clientes ordenada por nombre, con la flecha de orden en el encabezado" width="32%">
+  <img src="docs/screenshots/order-detail-confirmed-light.png" alt="Un pedido confirmado con sus líneas y totales" width="32%">
+  <img src="docs/screenshots/invoice-detail-issued-dark.png" alt="Una factura emitida con su historial de pagos, tema oscuro" width="32%">
+</p>
+<p>
+  <img src="docs/screenshots/customers-list-dark.png" alt="Lista de clientes en el tema oscuro" width="32%">
+  <img src="docs/screenshots/customers-import-errors-light.png" alt="Pantalla de importación CSV mostrando los errores por fila de un archivo rechazado" width="32%">
 </p>
 
-<img src="docs/screenshots/orders-phone-light.png" alt="La lista de pedidos en un teléfono" width="260">
+<p>
+  <img src="docs/screenshots/orders-list-phone-light.png" alt="La lista de pedidos en un teléfono, con los filtros apilados" width="300">
+</p>
 
 ## Por qué
 
@@ -27,13 +35,20 @@ Las apps demo públicas para automatización suelen traer elementos sin localiza
 
 ## Qué hace
 
-Tres flujos principales, que se pulen antes de añadir módulos nuevos:
+Tres flujos principales, que se pulen antes de añadir módulos nuevos: crear un cliente; armar y confirmar un pedido; facturar el pedido y registrar el pago.
 
-1. Crear un cliente.
-2. Armar y confirmar un pedido.
-3. Facturar el pedido y registrar el pago.
+Aparte de esos tres flujos, hoy la aplicación:
 
-Roles: Admin, Ventas, Finanzas y Solo lectura. La pantalla está en español. Las reglas de negocio están en [docs/SPEC.md](docs/SPEC.md) (en inglés).
+- trae los cuatro roles (Admin, Ventas, Finanzas y Solo lectura) con usuarios de ejemplo sembrados, uno por rol,
+- guarda el estado de las cuatro pantallas de lista en la URL (página, búsqueda, filtro de estado y orden por encabezado, ordenado contra la API),
+- exporta clientes, pedidos y facturas a CSV (un enlace de descarga que respeta los filtros aplicados) e importa clientes desde un archivo CSV (todo o nada, con los errores listados fila por fila),
+- expone controles solo para pruebas — reset, seed, un reloj que se mueve e inyección de fallas — protegidos con token fuera del modo de prueba,
+- registra pagos idempotentes contra una pasarela falsa (la tarjeta aprobada, la rechazada y la de pasarela caída),
+- publica el contrato OpenAPI (`GET /api/openapi.json`, comprobado contra el código en CI; la copia del repositorio está en [docs/openapi.json](docs/openapi.json)) y una interfaz Swagger en `/api/docs`,
+- ofrece el diseño "Libro mayor" en versión clara y oscura (sigue al sistema y se recuerda por navegador), y
+- se ve en español.
+
+Las reglas de negocio están en [docs/SPEC.md](docs/SPEC.md) (en inglés).
 
 ## Tecnologías
 
@@ -50,27 +65,32 @@ Roles: Admin, Ventas, Finanzas y Solo lectura. La pantalla está en español. La
 | Área | Estado |
 |---|---|
 | Login, sesiones y los cuatro roles | Hecho (en memoria y en PostgreSQL) |
-| Clientes: API, pantallas, almacén en PostgreSQL | Hecho |
+| Clientes: API, pantallas, almacén en PostgreSQL, exportación y importación CSV | Hecho |
 | Pedidos: API, pantallas, almacén en PostgreSQL con stock y numeración bajo concurrencia | Hecho |
-| Configuración (impuesto, solo Admin) y resumen de inicio | Hecho |
-| Diseño: tema "Libro mayor" en versión clara y oscura, selector que se recuerda por navegador | Hecho |
-| Protecciones de petición: origen, JSON mal formado, tamaño, límites, tiempos de espera de bloqueos | Hecho |
-| Auditorías de testabilidad en CI: auditoría estática de testid, auditoría en navegador (testid y axe) en los dos temas, pruebas de integración con PostgreSQL | Hecho |
 | Facturas y pagos: API, pantallas, almacén en PostgreSQL con pagos idempotentes y pasarela falsa | Hecho |
+| Página de productos, Configuración (impuesto, solo Admin), resumen de inicio, diálogos de confirmación, páginas 404 y de error | Hecho |
+| Diseño: tema "Libro mayor" en versión clara y oscura, selector que se recuerda por navegador | Hecho |
+| Ordenación en las cuatro listas: encabezados con `aria-sort` y un texto que anuncia el orden, que viaja al CSV y se aplica antes de paginar | Hecho |
+| Auditoría de teclado en la auditoría de navegador (foco siempre visible, sin trampas de foco, todo elemento tabulable alcanzado) | Hecho |
+| Auditorías de reflujo a 320 px (doce estados, sin desplazamiento lateral; las tablas solo se mueven dentro de su región) más ancho de teléfono y tablet, en los dos temas | Hecho |
+| Auditorías de testabilidad en CI: auditoría estática de testid, auditoría en navegador (testid y axe) en los dos temas, pruebas de integración con PostgreSQL | Hecho |
 | Controles solo para pruebas (reset, seed, reloj, inyección de fallas) con estado en PostgreSQL, protegidos por token | Hecho |
+| Protecciones de petición: origen, JSON mal formado, tamaño, límites y tiempos de espera de bloqueos | Hecho |
 | Contrato de la API: `docs/openapi.json`, comprobado contra el código en CI | Hecho |
 | Guía de automatización de la interfaz web, la API y los controles de prueba, catálogo generado de test ids | Hecho |
+| Catálogo de práctica: 233 escenarios en 10 áreas de [docs/PRACTICE.md](docs/PRACTICE.md), cada fila con su resultado esperado exacto | Hecho |
+| Dependabot (npm, uv y GitHub Actions, pull requests semanales) y las auditorías de dependencias de los dos ecosistemas | Hecho |
+| Pruebas internas, corridas al día para esta tabla: pasan 1905 pruebas de backend (las 248 de integración con PostgreSQL se saltan sin base de datos) y 900 de frontend | Hecho |
 | Primer despliegue en línea (Vercel y Neon) y reinicio nocturno de datos | Configurado, aún sin desplegar |
 
 ## Hoja de ruta
 
-| Hito | Contenido |
+| Lo que queda | Estado |
 |---|---|
-| M0 | Arranque del repositorio, especificación, arquitectura, esqueleto de CI |
-| M1 | Base compartida, login y roles, controles solo para pruebas, clientes, primer despliegue en línea |
-| M2 | Pedidos |
-| M3 | Facturas y pagos |
-| M4 | Pulido: 100 % de testid, accesibilidad, endurecer la demo |
+| Primer despliegue en línea | `vercel.json` y [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) escritos; primero hay que importar el repositorio en Vercel |
+| Reinicio nocturno de datos | El [workflow](.github/workflows/nightly-reset.yml) corre a diario a las 03:17 UTC y necesita la variable `DEMO_URL` y el secreto `TEST_TOKEN` en GitHub |
+| Primera ronda de Dependabot | La configuración semanal ya está; falta atender y mergear los primeros pull requests de los tres ecosistemas |
+| Más material de práctica | [docs/PRACTICE.md](docs/PRACTICE.md) suma 233 filas en 10 áreas; se escriben filas nuevas con cada feature |
 
 ## Usuarios de la demo
 

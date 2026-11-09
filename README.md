@@ -80,6 +80,7 @@ Business rules live in [docs/SPEC.md](docs/SPEC.md).
 | Automation guide for the web UI, the API and the test controls, generated test id catalog | Done |
 | Practice catalog: 233 scenarios in 10 areas of [docs/PRACTICE.md](docs/PRACTICE.md), each row with its exact expected result | Done |
 | Dependabot (npm, uv and GitHub Actions, weekly pull requests) and the dependency audits of both ecosystems | Done |
+| Smoke test for the online demo (`tools/smoke/`, one command or a manual GitHub workflow: pages, API, the four users, headers, closed test controls) | Done |
 | Internal tests, run fresh for this table: 1905 backend tests pass (the 248 PostgreSQL integration ones skip without a database) and 900 frontend tests pass | Done |
 | First online deployment (Vercel and Neon) and the nightly data reset | Configured, not deployed yet |
 

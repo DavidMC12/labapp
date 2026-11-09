@@ -30,7 +30,7 @@ Both services answer on one domain, so the session cookie is first party and the
 | `DEFAULT_TAX_RATE` | `10` |
 | `LOCK_TIMEOUT_MS` | `5000` (the default). The longest wait for a row lock before a request answers 503 `LOCK_TIMEOUT`. |
 
-The Neon integration for Vercel can create `DATABASE_URL` and `DATABASE_URL_UNPOOLED` and a database branch per preview deployment. Without it, every preview shares one database.
+The Neon integration for Vercel can create `DATABASE_URL` and `DATABASE_URL_UNPOOLED` and a database branch per preview deployment (not verified in a real deployment). Without it, every preview shares one database.
 
 ## After the first deployment
 
@@ -76,4 +76,16 @@ Without `DEMO_URL` the job shows as skipped; with it but without the secret the 
 - GitHub disables scheduled workflows of a repository with no activity for 60 days. The nightly reset then stops without any error: a push or a re-enable from the Actions tab starts it again.
 - Vercel Services is in beta. Function limits of the free plan apply to each service: 300 seconds, 2 GB of memory, a 500 MB Python bundle and 4.5 MB request bodies.
 - A function instance may be frozen or replaced between requests and several run in parallel, so nothing stateful lives in memory in production: sessions, the clock offset, fault rules, idempotency keys and every record are stored in PostgreSQL. The one exception is the rate-limit counters, which are per instance and best effort.
-- Every preview deployment shares the database unless the Neon integration creates a branch per preview.
+- Every preview deployment shares the database unless the Neon integration creates a branch per preview (not verified in a real deployment).
+
+## If something goes wrong
+
+Behavior verified in the code: the health check, the error codes and the log lines.
+
+| Symptom | Where to see it | What it is and what to do |
+|---|---|---|
+| The first `GET /api/health` is slow | response time | A cold start: the function starts on demand (platform behavior, not verified in a real deployment). Nothing to fix; the next request is fast. |
+| `403 CSRF_ORIGIN_MISMATCH` in the response body | the error body | The request `Origin` is neither `APP_ORIGIN` nor the platform origins (`VERCEL_URL` and its sibling variables). Set `APP_ORIGIN` to the exact production URL, with no path. |
+| `503 LOCK_TIMEOUT` | the API log line carries the method and the path | A transaction waited longer than `LOCK_TIMEOUT_MS` (5 s default) for a row lock. Retry, or raise `LOCK_TIMEOUT_MS` (100 to 60000). |
+| `503 SERVICE_BUSY` on login | the API log | More than two concurrent Argon2 verifications (about 64 MiB each). Retrying after a few seconds is enough. |
+| `429 RATE_LIMITED`, with `Retry-After` | the error body | Per client IP: 120 requests and 10 login attempts a minute. On Vercel set `TRUSTED_PROXY_COUNT=1`, or every visitor counts as one IP. The health check is never limited. |

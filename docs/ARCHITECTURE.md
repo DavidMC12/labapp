@@ -23,7 +23,7 @@ Next.js (web)  --/api routed-->  FastAPI (API)  -->  PostgreSQL
 
 ## Backend modules
 
-`auth`, `customers`, `products`, `orders`, `invoices`, `payments`, `settings` (tax rate). Each module owns its models, schemas, routes, services and internal tests. Cross-module calls go through service functions, never through another module's tables.
+`auth`, `customers`, `orders` and `invoices` (plus `testcontrols`, the test-only controls). The product catalog and the tax-rate setting live in the `orders` module; payments live in the `invoices` module. Each module owns its models, schemas, routes, services and internal tests. Cross-module calls go through service functions, never through another module's tables.
 
 ## Test-only controls
 

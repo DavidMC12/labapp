@@ -1,0 +1,65 @@
+name: smoke-online
+
+# Checks a deployment of the demo by hand: the web pages, the API behind the same
+# origin, the four demo users, the headers, the contract and the closed test
+# controls (docs/DEPLOYMENT.md and tools/smoke/README.md). It runs only when
+# started from the Actions tab: a run probes the shared data and --allow-reset
+# even restores the seed, so it must never run on push or on a schedule.
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Base URL of the deployment (https://...)"
+        required: true
+        type: string
+      allow_reset:
+        description: "Reset the shared demo data and exercise a write"
+        required: false
+        default: false
+        type: boolean
+
+permissions: {}
+
+concurrency:
+  group: smoke-online
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: jdx/mise-action@9b200bcecbfd6303e69a4a261b2e09e3757440a7 # v5.2.0
+
+      - name: Run the online smoke test
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+          ALLOW_RESET: ${{ inputs.allow_reset }}
+          TEST_TOKEN: ${{ secrets.TEST_TOKEN }}
+        run: |
+          case "$BASE_URL" in
+            https://*) ;;
+            *)
+              echo "::error::base_url must start with https:// (the token travels in a header)"
+              exit 1
+              ;;
+          esac
+          case "$BASE_URL" in
+            *@*|*[[:space:]]*)
+              echo "::error::base_url must not contain credentials or spaces"
+              exit 1
+              ;;
+          esac
+          if [ "$ALLOW_RESET" = "true" ] && [ -z "$TEST_TOKEN" ]; then
+            echo "::error::allow_reset needs the TEST_TOKEN repository secret"
+            exit 1
+          fi
+          args=(--base "$BASE_URL")
+          if [ "$ALLOW_RESET" = "true" ]; then
+            args+=(--allow-reset)
+          fi
+          node tools/smoke/online-smoke.mjs "${args[@]}"

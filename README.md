@@ -27,13 +27,20 @@ Public demo apps for test automation often ship elements without reliable locato
 
 ## What it does
 
-Three core flows, polished before any new module is added:
+Three core flows, polished before any new module is added: create a customer; build and confirm an order; invoice the order and register the payment.
 
-1. Create a customer.
-2. Build and confirm an order.
-3. Invoice the order and register the payment.
+Besides those three flows, the application today:
 
-Roles: Admin, Sales, Finance and Read-only. The screen language is Spanish. Business rules live in [docs/SPEC.md](docs/SPEC.md).
+- ships the four roles (Admin, Sales, Finance, Read-only) with seeded demo users one per role,
+- keeps page, search, status and sort state of the four list screens in the URL (sortable column headers through the API),
+- exports customers, orders and invoices as CSV (a download link that follows the applied filters) and imports customers from a CSV file upload (all rows or none, errors listed per row),
+- exposes test-only controls — reset, seed, a movable clock and fault injection — token-guarded when not in test mode,
+- books idempotent payments against a fake gateway (approved, declined and unavailable cards),
+- publishes the OpenAPI contract (`GET /api/openapi.json`, checked against the code in CI; the repository copy is [docs/openapi.json](docs/openapi.json)) and a Swagger UI at `/api/docs`,
+- offers a light and a dark voice of the "Libro mayor" design (system default, remembered per browser), and
+- speaks Spanish on screen.
+
+Business rules live in [docs/SPEC.md](docs/SPEC.md).
 
 ## Stack
 
@@ -50,27 +57,32 @@ Roles: Admin, Sales, Finance and Read-only. The screen language is Spanish. Busi
 | Area | State |
 |---|---|
 | Login, sessions and the four roles | Done (in memory and in PostgreSQL) |
-| Customers: API, screens, PostgreSQL store | Done |
+| Customers: API, screens, PostgreSQL store, CSV export and CSV import | Done |
 | Orders: API, screens, PostgreSQL store with stock and numbering under concurrency | Done |
-| Settings (tax rate, Admin only) and the home summary | Done |
-| Design: "Libro mayor" theme in a light and a dark voice, selector remembered per browser | Done |
-| Request guards: origin check, malformed JSON, body size, rate limits, lock timeouts | Done |
-| Testability audits in CI: static test-id audit, browser audit (test ids and axe) in both themes, PostgreSQL integration tests | Done |
 | Invoices and payments: API, screens, PostgreSQL store with idempotent payments and a fake gateway | Done |
+| Products page, Settings (tax rate, Admin only), the home summary, confirmation dialogs, 404 and error pages | Done |
+| Design: "Libro mayor" theme in a light and a dark voice, selector remembered per browser | Done |
+| Sorting in the four lists: clickable headers with `aria-sort` and an announcing status text, sort carried into the CSV export and applied before paging | Done |
+| List helpers of the audit kind: testable focus. Keyboard audit of every page in the browser audit (visible focus indicator, no keyboard trap, every visible tabbable element reached) | Done |
+| Reflow audits at 320 px (twelve states, no sideways scrolling, tables scroll inside their own region) plus phone and tablet widths, in both themes | Done |
+| Testability audits in CI: static test-id audit, browser audit (test ids and axe) in both themes, PostgreSQL integration tests | Done |
 | Test-only controls (reset, seed, clock, fault injection) with state in PostgreSQL, guarded by a token | Done |
+| Request guards: origin check, malformed JSON, body size, rate limits and lock timeouts | Done |
 | API contract: `docs/openapi.json`, checked against the code in CI | Done |
 | Automation guide for the web UI, the API and the test controls, generated test id catalog | Done |
+| Practice catalog: 233 scenarios in 10 areas of [docs/PRACTICE.md](docs/PRACTICE.md), each row with its exact expected result | Done |
+| Dependabot (npm, uv and GitHub Actions, weekly pull requests) and the dependency audits of both ecosystems | Done |
+| Internal tests, run fresh for this table: 1905 backend tests pass (the 248 PostgreSQL integration ones skip without a database) and 900 frontend tests pass | Done |
 | First online deployment (Vercel and Neon) and the nightly data reset | Configured, not deployed yet |
 
 ## Roadmap
 
-| Milestone | Content |
+| What is left | State |
 |---|---|
-| M0 | Repository bootstrap, specification, architecture, CI skeleton |
-| M1 | Shared foundation, login and roles, test-only controls, customers, first online deploy |
-| M2 | Orders |
-| M3 | Invoices and payments |
-| M4 | Polish: 100% test-id coverage, accessibility, demo hardening |
+| First online deployment | `vercel.json` and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) are written; the repository first has to be imported in Vercel |
+| Nightly data reset | The [workflow](.github/workflows/nightly-reset.yml) runs daily at 03:17 UTC and needs the `DEMO_URL` variable and the `TEST_TOKEN` secret in GitHub |
+| First Dependabot round | The weekly configuration is in; the first pull requests of the three ecosystems are still to be reviewed and merged |
+| More practice scenarios | [docs/PRACTICE.md](docs/PRACTICE.md) counts 233 rows in 10 areas; new rows are written as features land |
 
 ## Demo users
 

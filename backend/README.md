@@ -1,8 +1,8 @@
 # LabApp backend
 
-Minimal FastAPI skeleton for LabApp. It provides the health endpoint, request tracing and
-RFC 9457 problem responses that every later backend module builds on. There is no database,
-authentication or business logic yet.
+FastAPI backend for LabApp. It provides the health endpoint, request tracing and RFC 9457
+problem responses, plus the authentication, customer, order and invoice modules over
+PostgreSQL or in-memory devices (see below).
 
 ## Requirements
 

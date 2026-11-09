@@ -85,7 +85,7 @@ jobs:
       - name: Test id audit
         working-directory: .
         run: |
-          node --test tools/audit/testid-audit.test.mjs tools/audit/browser-audit.test.mjs tools/audit/docs-lint.test.mjs
+          node --test tools/audit/testid-audit.test.mjs tools/audit/browser-audit.test.mjs tools/audit/docs-lint.test.mjs tools/smoke/checks.test.mjs
           node tools/audit/testid-audit.mjs
 
       - name: Documentation lint
